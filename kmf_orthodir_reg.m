@@ -1,5 +1,5 @@
 %21/03/2016
-%Algo KMF avec Orthodir et régularisation
+%Algo KMF avec Orthodir et rï¿½gularisation
 
 close all;
 clear all;
@@ -11,11 +11,12 @@ addpath(genpath('./regu'))
 E       = 70000;      % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 13;
+niter   = 20;
 nrej    = 1;       % number of iterations of the noise rejection algo
-br      = .0;      % noise
+br      = .01;      % noise
 brt     = .0;     % "Translation" noise : constant noise
-mu      = 0.;      % Regularization parameter
+mu      = 1;      % Regularization parameter
+ev0     = 1;      % Wether or not to use the evanescent regularization (CimetiÃ¨re)
 
 noises = load('./noises/noise0r.mat'); % Particular noise vector
 noise  = noises.bruit1;
@@ -261,7 +262,11 @@ for brit = 1:nrej
         uin2 = K2\f2;
 
         % Regularization term
-        Nu = regul(Res(:,iter+1), nodes, boundary, 3);
+        if ev0 == 1
+           Nu = regul(Res(:,iter+1) - Res(:,iter), nodes, boundary, 3);
+        else
+           Nu = regul(Res(:,iter+1), nodes, boundary, 3);
+        end
 
         Ari = mu*Nu + Res(:,iter+1) - uin2(1:2*nnodes,1);
 
@@ -318,7 +323,7 @@ for brit = 1:nrej
 %     plot( abs( urefb(index12)-uref(index12) ) / norm( uref(index12) ), 'Color', 'red' )
 %     plot( ( uref(index12)-usol(index12) ) / norm( uref(index12) ) )
 %     plot( ( uref(index12)-urefb(index12) ) / norm( uref(index12) ), 'Color', 'red' )
-%     legend('écart entre la solution et le champ de référence','bruit')
+%     legend('ï¿½cart entre la solution et le champ de rï¿½fï¿½rence','bruit')
 %     figure
     
     urefb(index12) = usol(index12); % remplace urefb by usol, that is a smoothed version
