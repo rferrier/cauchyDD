@@ -8,15 +8,16 @@ addpath(genpath('./tools'))
 addpath(genpath('./regu'))
 
 % Parameters
-E       = 70000;      % MPa : Young modulus
-nu      = 0.3;    % Poisson ratio
-fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
-nrej    = 1;       % number of iterations of the noise rejection algo
-br      = .01;      % noise
-brt     = .0;     % "Translation" noise : constant noise
-mu      = 1;      % Regularization parameter
-ev0     = 1;      % Wether or not to use the evanescent regularization (Cimetière)
+E        = 70000;      % MPa : Young modulus
+nu       = 0.3;    % Poisson ratio
+fscalar  = 1;      % N.mm-1 : Loading on the plate
+niter    = 20;
+nrej     = 1;       % number of iterations of the noise rejection algo
+br       = .01;      % noise
+brt      = .0;     % "Translation" noise : constant noise
+mu       = 0;%30;      % Regularization parameter
+ev0      = 0;      % Wether or not to use the evanescent regularization (Cimetière)
+bestiter = 1;      % Wether to choose the best iteration
 
 noises = load('./noises/noise0r.mat'); % Particular noise vector
 noise  = noises.bruit1;
@@ -291,12 +292,19 @@ for brit = 1:nrej
     plot(log10(residual(2:end)/residual(1)),'Color','red')
     legend('error (log)','residual (log)')
     figure
-%     % L-curve
-%     loglog(residual,regulari);
-%     figure
+    
+    % L-curve
+    loglog(residual,regulari);
+    figure
 
-    %% Automatic stop (regularization tools) :
-    [stopHere,~,~] = l_corner(residual,regulari,1:1:niter+1);
+    %% Automatic stop (regularization tools, broken on Octave) :
+    %[stopHere,~,~] = l_corner(residual,regulari,1:1:niter+1);
+    if bestiter == 1
+       stopHere = findCorner(residual(2:end),regulari(2:end)) + 1;
+    else
+       stopHere = niter+1;
+    end
+    
     % Plot chosen Itere
     hold on;
     set(gca, 'fontsize', 15);
