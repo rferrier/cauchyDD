@@ -32,13 +32,14 @@ function [ S, b, map, Iii ] = schurCompL( K, f, nindex, nbloq, c2nodes )
  Kib(map,:) = [];
  %Kib(size(Kib,1)-nbloq:end,:) = [];
  
-%  nz = 0;  % Debug stuff
-%  for i=1:size(Kii,1)
-%      if norm(Kii(:,i))==0
-%          nz = nz+1;
-%      end
-%  end
-%  nz
+ %nz = 0;  % Debug stuff
+ %for i=1:size(Kii,1)
+ %    if norm(Kii(:,i))==0
+ %        nz = nz+1;
+ %    end
+ %end
+ nz
+ 
  Iii  = inv(Kii);
 
  %Iiii = Iii(1:end-nbloq-1,1:end-nbloq-1);
