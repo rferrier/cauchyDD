@@ -12,8 +12,9 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 br      = 0.;      % noise
 
-% Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD
-methods = [3];
+% Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
+% 6 = Evanescent regul
+methods = [6];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -37,10 +38,30 @@ nnodes_down = size(nodes_down,1);
     Krig (nodes_up,elements_up,E,nu,order,boundary_up,dirichlet_up);
 Kinter_up = K_up(1:2*nnodes_up, 1:2*nnodes_up);
 M_up      = mass_mat(nodes_up, elements_up);
-[ node2b1, b2node1 ] = mapBound( 1, boundary_up, nnodes_up );
-[ node2b2, b2node2 ] = mapBound( 2, boundary_up, nnodes_up );
-[ node2b3, b2node3 ] = mapBound( 3, boundary_up, nnodes_up );
-[ node2b9, b2node9 ] = mapBound( 9, boundary_up, nnodes_up );
+
+% find the nodes in the corners and suppress the element :
+xmax = max(nodes_up(:,1));
+xmin = min(nodes_up(:,1));
+ymax = max(nodes_up(:,2));
+ymin = min(nodes_up(:,2));
+no1  = findNode(xmin, ymin, nodes_up, 1e-5);
+no4  = findNode(xmax, ymin, nodes_up, 1e-5);
+no5  = findNode(xmax, ymax, nodes_up, 1e-5);
+no6  = findNode(xmin, ymax, nodes_up, 1e-5);
+
+% Suppress some nodes from the boundaries
+boundaryp1 = suppressBound( boundary_up, [no1;no4], 9 );
+boundaryp1 = suppressBound( boundaryp1, [no5], 4 );
+boundaryp1 = suppressBound( boundaryp1, [no6], 6 );
+
+[ node2b1, b2node1 ] = mapBound( 1, boundaryp1, nnodes_up );
+[ node2b2, b2node2 ] = mapBound( 2, boundaryp1, nnodes_up );
+[ node2b3, b2node3 ] = mapBound( 3, boundaryp1, nnodes_up );
+[ node2b4, b2node4 ] = mapBound( 4, boundaryp1, nnodes_up );
+[ node2b5, b2node5 ] = mapBound( 5, boundaryp1, nnodes_up );
+[ node2b6, b2node6 ] = mapBound( 6, boundaryp1, nnodes_up );
+[ node2b9, b2node9 ] = mapBound( 9, boundaryp1, nnodes_up );
+
 [K_down,C_down,nbloq_down] =...
     Krig (nodes_down,elements_down,E,nu,order,boundary_down,dirichlet_down);
 Kinter_down = K_down(1:2*nnodes_down, 1:2*nnodes_down);
@@ -818,4 +839,135 @@ if find(methods==5)
     sigma = stress(usol,E,nu,nodes_up,elements_up,order,1,ntoelem_up);
     plotGMSH({usol,'U_vect';sigma,'stress'}, elements_up, nodes_up, 'solution');
     
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Evanescent regularization method
+if find(methods==6)
+   niter = 100;
+   mu = .01;
+   
+   %% Computation of the inner stiffness
+   dirichlet1 = [5,1,0;5,2,0];
+   [K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes_up,elements_up,E,nu,order,boundary_up,dirichlet1);
+   neumann1   = []; % There is no alone Neumann
+   f1 = loading( nbloq_up, nodes_up, boundary_up, neumann1 );
+
+   % map of the nodes
+   b2node469 = [b2node4;b2node6;b2node9];
+   bbound = [2*b2node469-1;2*b2node469];
+   bbzero = [2*b2node5-1;2*b2node5];
+   nbound = size(bbound,1);
+   
+   %% Schur operator
+   [ S, b, map ] = schurComp2( Kinter_up, f1(1:2*nnodes_up), bbound, bbzero );
+
+   error    = zeros(niter,1);
+   residual = zeros(niter,1);
+   regulari = zeros(niter,1);
+
+   %% Mass matrices
+   Mr  = bMass_mat(nodes_up, boundary_up, [9]);
+   Mrt = 1/E*Mr;  % Ideally 1/EL
+   M   = bMass_mat(nodes_up, boundary_up, [4;6;9]);
+   Mt  = 1/E*M;
+   Mm  = bMass_mat(nodes_up, boundary_up, 5);
+
+   % Extract coords
+   Mr  = Mr(bbound, bbound);
+   Mrt = Mrt(bbound, bbound);
+   M   = M(bbound, bbound);
+   Mt  = Mt(bbound, bbound);
+   Mm  = Mm(bbound, bbound);
+
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %% Evanescent regularization method
+   Itere  = zeros( 2*nnodes_up, 1 );
+   Iteref = zeros( 2*nnodes_up, 1 );
+
+   % Compute errors
+   %error(1)    = (Itere(bbound)-uref(bbound))'*Mm*...
+    %  (Itere(bbound)-uref(bbound)) / (uref(bbound)'*Mm*uref(bbound));
+   error(1) = norm(Itere(indexxy)-uref(indexxy))/norm(uref(indexxy));
+   residual(1) = (Itere(bbound)-urefb(bbound))'*Mr*...
+      (Itere(bbound)-urefb(bbound)) / (uref(bbound)'*Mr*uref(bbound));
+   regulari(1) = 0;
+
+   % Build the fat matrix
+   Atot = [Mr+mu*M, zeros(size(M)), S'
+           zeros(size(M)), Mrt+mu*Mt, -eye(size(M,1),size(S,1))
+           S, -eye(size(S,1), size(M,1)), zeros(size(M))];
+        
+   %disp( [ 'Log of the cond of the problem :', num2str(log10(cond(Atot))) ] )
+
+   %figure;
+   %plot(log10(abs(eig(Atot))));
+   % plot(eig(Atot));
+
+   for i = 2:niter
+
+      % Rhs
+      btot = [Mr*urefb(bbound) + mu*M*Itere(bbound)
+              Mrt*fref(bbound) + mu*Mt*Iteref(bbound)
+              b + S*udi(bbound)]; % Don't forget to add Kinter*uimp if needed
+
+      % Solve and extract the relevant parts
+      Iterep = Itere;
+      xtot   = Atot\btot;
+      Itere(bbound)  = xtot(1:nbound);
+      Iteref(bbound) = xtot(nbound+1:2*nbound);
+   
+      % Compute errors
+      error(i) = norm(Itere(indexxy)-uref(indexxy))/norm(uref(indexxy));
+      %error(i)    = (Itere(bbound)-uref(bbound))'*Mm*...
+       %  (Itere(bbound)-uref(bbound)) / (uref(bbound)'*Mm*uref(bbound));
+      residual(i) = (Itere(bbound)-urefb(bbound))'*Mr*...
+         (Itere(bbound)-urefb(bbound)) / (uref(bbound)'*Mr*uref(bbound));
+      regulari(i) = Itere(bbound)'*M*Itere(bbound) / (uref(bbound)'*M*uref(bbound));
+   
+   end
+
+   figure;
+   hold on
+   plot(log10(error),'Color','blue')
+   plot(log10(residual),'Color','red')
+   legend('error (log)','residual (log)')
+
+   %%%%
+   %% Final problem : compute u
+   % DN problem
+   dirichlet = [4,1,0;4,2,0;
+                5,1,0;5,2,0;
+                6,1,0;6,2,0;
+                9,1,0;9,2,0];
+   neumann   = [];
+   [K,C,nbloq] = Krig (nodes_up,elements_up,E,nu,order,boundary_up,dirichlet_up);
+   fdir4 = dirichletRhs(urefb, 4, C, boundary_up);
+   fdir6 = dirichletRhs(urefb, 6, C, boundary_up);
+   fdir9 = dirichletRhs(Itere, 9, C, boundary_up);
+   fdir5 = dirichletRhs(udi  , 5, C, boundary_up);
+   usoli = K \ assembleDirichlet( [fdir4+fdir6,fdir5+fdir9] );
+
+   usol = usoli(1:2*nnodes_up,1);
+   fsol = Kinter_up*usol;
+
+   % Plot displacement on the interface :
+   efe = Kinter_up*usol;
+   figure
+   hold on
+   set(gca, 'fontsize', 15);
+   plot(usol(index,1));
+   plot(usol(index-1,1), 'Color', 'red');
+   figure
+   hold on
+   set(gca, 'fontsize', 15);
+   plot(efe(index,1));
+   plot(efe(index-1,1), 'Color', 'red');
+    
+   total_error = norm(uref-usol)/norm(uref);
+   total_errorf = norm(fref-efe)/norm(fref);
+
+   % Compute stress :
+   sigma = stress(usol,E,nu,nodes_up,elements_up,order,1,ntoelem_up);
+   plotGMSH({usol,'U_vect';sigma,'stress'}, elements_up, nodes_up, 'solution');
 end

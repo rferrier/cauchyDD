@@ -1,4 +1,4 @@
-% 24/03/2016
+% 05/09/2016
 % Algo de régularisation evanescente
 
 close all;
@@ -10,8 +10,8 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 50;
-mu      = .1;    % Regularization parameter
+niter   = 5000;
+mu      = 10000;     % Regularization parameter
 br      = .0;     % noise
 
 % Boundary conditions
@@ -57,6 +57,7 @@ b2node12  = [b2node1;b2node2];
 b2node123 = [b2node1;b2node2;b2node3];    % nodes
 bbound    = [2*b2node123-1; 2*b2node123]; % dof
 nbound    = size(bbound,1);
+bbzero    = [2*b2node4-1; 2*b2node4];     % dof with Dirichlet BC
 
 % The right hand side :
 f = loading(nbloq,nodes,boundary,neumann);
@@ -82,7 +83,7 @@ neumann1   = []; % There is no alone Neumann
 f1 = loading( nbloq, nodes, boundary, neumann1 );
 
 %% Schur operator
-[ S, b, map ] = schurComp2( Kinter, f(1:2*nnodes), b2node123 );
+[ S, b, map ] = schurComp2( Kinter, f1(1:2*nnodes), bbound, bbzero );
 
 error    = zeros(niter,1);
 residual = zeros(niter,1);
@@ -93,16 +94,19 @@ Mr  = bMass_mat(nodes, boundary, [2;1]);
 Mrt = 1/E*Mr;  % Ideally 1/EL
 M   = bMass_mat(nodes, boundary, [3;2;1]);
 Mt  = 1/E*M;
+Mm  = bMass_mat(nodes, boundary, 3);
 % Debug
 %M   = eye(2*nnodes);  M([2*b2node3-1,2*b2node3],[2*b2node3-1,2*b2node3]) = 0;
 %Mr  = eye(2*nnodes);
-%Mt  = M;
-%Mrt = Mr;
+%Mt  = 1/E*M;
+%Mrt = 1/E*Mr;
 % Extract coords
-Mr  = Mr(bbound, bbound);
-Mrt = Mrt(bbound, bbound);
-M   = M(bbound, bbound);
-Mt  = Mt(bbound, bbound);
+co = 1;
+Mr  = co*Mr(bbound, bbound);
+Mrt = co*Mrt(bbound, bbound);
+M   = co*M(bbound, bbound);
+Mt  = co*Mt(bbound, bbound);
+Mm  = co*Mm(bbound, bbound);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Evanescent regularization method
@@ -110,8 +114,8 @@ Itere  = zeros( 2*nnodes, 1 );
 Iteref = zeros( 2*nnodes, 1 );
 
 % Compute errors
-error(1)    = (Itere(bbound)-uref(bbound))'*M*...
-   (Itere(bbound)-uref(bbound)) / (uref(bbound)'*M*uref(bbound));
+error(1)    = (Itere(bbound)-uref(bbound))'*Mm*...
+   (Itere(bbound)-uref(bbound)) / (uref(bbound)'*Mm*uref(bbound));
 residual(1) = (Itere(bbound)-urefb(bbound))'*Mr*...
    (Itere(bbound)-urefb(bbound)) / (uref(bbound)'*Mr*uref(bbound));
 regulari(1) = (Itere(bbound)-Itere(bbound))'*M*...
@@ -133,7 +137,7 @@ for i = 2:niter
    % Rhs
    btot = [Mr*urefb(bbound) + mu*M*Itere(bbound)
            Mrt*frefb(bbound) + mu*Mt*Iteref(bbound)
-           f1(bbound)]; % Don't forget to add Kinter*uimp if needed
+           b]; % Don't forget to add Kinter*uimp if needed
 
    % Solve and extract the relevant parts
    Iterep = Itere;
@@ -142,12 +146,13 @@ for i = 2:niter
    Iteref(bbound) = xtot(nbound+1:2*nbound);
    
    % Compute errors
-   error(i)    = (Itere(bbound)-uref(bbound))'*M*...
-      (Itere(bbound)-uref(bbound)) / (uref(bbound)'*M*uref(bbound));
+   error(i)    = (Itere(bbound)-uref(bbound))'*Mm*...
+      (Itere(bbound)-uref(bbound)) / (uref(bbound)'*Mm*uref(bbound));
    residual(i) = (Itere(bbound)-urefb(bbound))'*Mr*...
       (Itere(bbound)-urefb(bbound)) / (uref(bbound)'*Mr*uref(bbound));
-   regulari(i) = (Itere(bbound)-Iterep(bbound))'*M*...
-      (Itere(bbound)-Iterep(bbound)) / (uref(bbound)'*M*uref(bbound));
+   %regulari(i) = (Itere(bbound)-Iterep(bbound))'*M*...
+    %  (Itere(bbound)-Iterep(bbound)) / (uref(bbound)'*M*uref(bbound));
+   regulari(i) = Itere(bbound)'*M*Itere(bbound) / (uref(bbound)'*M*uref(bbound));
    
 end
 
@@ -157,8 +162,8 @@ plot(log10(residual),'Color','red')
 legend('error (log)','residual (log)')
 figure;
 % L-curve :
-loglog(residual,regulari);
-figure
+%loglog(residual,regulari);
+%figure
 %%%%
 %% Final problem : compute u
 % DN problem
