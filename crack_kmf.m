@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.;      % noise
+br      = 0.01;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6 = Evanescent regul
-methods = [6];
+methods = [1];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -130,7 +130,7 @@ end
 %% KMF algo : 10000 iterations
 if find(methods==1)
 
-    niter = 10;
+    niter = 1000;
     relax = 0;  % Computation of the best relaxtion parameter
     
     % init :
@@ -307,8 +307,8 @@ if find(methods==2)
     end
     figure
     hold on
-    plot(log10(error),'Color','blue')
-    plot(log10(residual),'Color','red')
+    plot(log10(error(2:end)),'Color','blue')
+    plot(log10(residual(2:end)),'Color','red')
     legend('error (log)','residual (log)')
     % L-curve
     figure
@@ -844,8 +844,8 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Evanescent regularization method
 if find(methods==6)
-   niter = 100;
-   mu = .01;
+   niter = 10;
+   mu = .001;
    
    %% Computation of the inner stiffness
    dirichlet1 = [5,1,0;5,2,0];
@@ -860,7 +860,7 @@ if find(methods==6)
    nbound = size(bbound,1);
    
    %% Schur operator
-   [ S, b, map ] = schurComp2( Kinter_up, f1(1:2*nnodes_up), bbound, bbzero );
+   [ S, b, map ] = schurComp2( Kinter_up, f1(1:2*nnodes_up), bbound, bbzero, udi );
 
    error    = zeros(niter,1);
    residual = zeros(niter,1);
@@ -909,7 +909,8 @@ if find(methods==6)
       % Rhs
       btot = [Mr*urefb(bbound) + mu*M*Itere(bbound)
               Mrt*fref(bbound) + mu*Mt*Iteref(bbound)
-              b + S*udi(bbound)]; % Don't forget to add Kinter*uimp if needed
+              b]; % ud is contained in b
+              %b + S*udi(bbound)];
 
       % Solve and extract the relevant parts
       Iterep = Itere;

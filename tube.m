@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.;      % noise
+br      = 0.0;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
@@ -189,7 +189,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% KMF Orthodir 10 iterations
 if find(methods==2)
-    niter   = 100;
+    niter   = 10;
     mu      = 0;      % Regularization parameter
     
     % Init
@@ -1300,7 +1300,7 @@ if find(methods==8)
    
    %% Computation of the inner stiffness
    dirichlet1 = [2,1,0;2,2,0];
-   [K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
+   [K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1,1);
    neumann1   = []; % There is no alone Neumann
    f1 = loading( nbloq, nodes, boundary, neumann1 );
 
@@ -1391,7 +1391,7 @@ if find(methods==8)
                 1,1,0;1,2,0;
                 2,1,0;2,2,0];
    neumann   = [];
-   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
    fdir1 = dirichletRhs(urefb, 1, C, boundary);
    fdir2 = dirichletRhs(urefb, 2, C, boundary);
    fdir3 = dirichletRhs(Itere, 3, C, boundary);

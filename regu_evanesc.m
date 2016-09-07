@@ -10,9 +10,10 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 5000;
-mu      = 10000;     % Regularization parameter
+niter   = 20;
+mu      = .01;     % Regularization parameter
 br      = .0;     % noise
+erc     = 0;      % use the Erc functionnal
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -56,6 +57,7 @@ M      = mass_mat(nodes, elements);
 b2node12  = [b2node1;b2node2];
 b2node123 = [b2node1;b2node2;b2node3];    % nodes
 bbound    = [2*b2node123-1; 2*b2node123]; % dof
+bbred     = [2*b2node1-1; 2*b2node2-1; 2*b2node1; 2*b2node2];
 nbound    = size(bbound,1);
 bbzero    = [2*b2node4-1; 2*b2node4];     % dof with Dirichlet BC
 
@@ -84,6 +86,11 @@ f1 = loading( nbloq, nodes, boundary, neumann1 );
 
 %% Schur operator
 [ S, b, map ] = schurComp2( Kinter, f1(1:2*nnodes), bbound, bbzero );
+[ Sr, ~ , ~ ] = schurComp2( Kinter, f1(1:2*nnodes), bbred, bbzero );
+Sre = zeros(2*nnodes); Sre(bbred,bbred) = Sr; Sre = Sre(bbound,bbound);   % Extend Sr on Gamma
+eyeR = zeros(2*nnodes); eyeR(bbred,bbred) = 1; eyeR = eyeR(bbound,bbound); % 1 on R, 0 elsewhere
+Dr = inv(Sr); Dre = zeros(2*nnodes); Dre(bbred,bbred) = Dr; Dre = Dre(bbound,bbound);
+D = inv(S);
 
 error    = zeros(niter,1);
 residual = zeros(niter,1);
@@ -101,12 +108,11 @@ Mm  = bMass_mat(nodes, boundary, 3);
 %Mt  = 1/E*M;
 %Mrt = 1/E*Mr;
 % Extract coords
-co = 1;
-Mr  = co*Mr(bbound, bbound);
-Mrt = co*Mrt(bbound, bbound);
-M   = co*M(bbound, bbound);
-Mt  = co*Mt(bbound, bbound);
-Mm  = co*Mm(bbound, bbound);
+Mr  = Mr(bbound, bbound);
+Mrt = Mrt(bbound, bbound);
+M   = M(bbound, bbound);
+Mt  = Mt(bbound, bbound);
+Mm  = Mm(bbound, bbound);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Evanescent regularization method
@@ -122,9 +128,15 @@ regulari(1) = (Itere(bbound)-Itere(bbound))'*M*...
    (Itere(bbound)-Itere(bbound)) / (uref(bbound)'*M*uref(bbound));
 
 % Build the fat matrix
-Atot = [Mr+mu*M, zeros(size(M)), S'
-        zeros(size(M)), Mrt+mu*Mt, -eye(size(M,1),size(S,1))
-        S, -eye(size(S,1), size(M,1)), zeros(size(M))];
+if erc == 1
+   Atot = [zeros(size(M)), -eyeR-mu*eye(size(M,1)), S'
+           -eyeR-mu*eye(size(M,1)), zeros(size(M)), -eye(size(M,1),size(S,1))
+           S, -eye(size(S,1), size(M,1)), zeros(size(M))];
+else
+   Atot = [Mr+mu*M, zeros(size(M)), S'
+           zeros(size(M)), Mrt+mu*Mt, -eye(size(M,1),size(S,1))
+           S, -eye(size(S,1), size(M,1)), zeros(size(M))];
+end
         
 disp( [ 'Log of the cond of the problem :', num2str(log10(cond(Atot))) ] )
 
@@ -135,9 +147,15 @@ figure;
 for i = 2:niter
 
    % Rhs
-   btot = [Mr*urefb(bbound) + mu*M*Itere(bbound)
-           Mrt*frefb(bbound) + mu*Mt*Iteref(bbound)
-           b]; % Don't forget to add Kinter*uimp if needed
+   if erc == 1
+      btot = [-Sre*urefb(bbound) - mu*S*Itere(bbound)
+              -Dre*frefb(bbound) - mu*D*Iteref(bbound)
+              b]; % Don't forget to add Kinter*uimp if needed
+   else
+      btot = [Mr*urefb(bbound) + mu*M*Itere(bbound)
+              Mrt*frefb(bbound) + mu*Mt*Iteref(bbound)
+              b]; % Don't forget to add Kinter*uimp if needed
+   end
 
    % Solve and extract the relevant parts
    Iterep = Itere;

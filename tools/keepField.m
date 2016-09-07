@@ -1,5 +1,6 @@
 function u2 = keepField( u1, entity, boundary, varargin )
  % This function copies u1, but only keeps the values on the entity
+ % varargin represents the coordinate (by default, both coords are kept)
 
  % component to keep
  co = 0;
