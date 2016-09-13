@@ -20,7 +20,14 @@ function f = loading( ntot, nodes, boundary, neumann )
                 error('Unable to read axis of Neumann BC')
             end
             
-            f(map,1) = f(map,1) + leng * neumann(j,3) * [1/2;1/2];
+            if size(neumann,2) == 3
+               f(map,1) = f(map,1) + leng * neumann(j,3) * [1/2;1/2];
+            else  % Size = 5 for now (1 GaussPoint) [~,~,a,b,c], f = a+bx+cy
+               onepto = nodes(node2,:)' + nodes(node1,:)';
+               f(map,1) = f(map,1) + leng * (neumann(j,3) +...
+                          neumann(j,4)*onepto(1)/2 +...
+                          neumann(j,5)*onepto(2)/2) * [1/2;1/2];
+            end
          end
      end
  end

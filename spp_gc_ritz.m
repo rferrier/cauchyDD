@@ -1,4 +1,4 @@
-% 06/06/2016
+% 08/09/2016
 % Algo Steklov-Poincar� primal avec Gradient Conjugu�
 
 close all;
@@ -10,12 +10,13 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 28;
+niter   = 10;
 precond = 1;      % 1 : Use a dual precond
-mu      = 0.;    % Regularization parameter
-ratio   = 1e7;    % Maximal ratio (for eigenfilter)
-br      = 0;     % noise
-brt     = 0;   % "translation" noise
+mu      = 0.;     % Regularization parameter
+ratio   = 1e-1;    % Maximal ratio (for eigenfilter)
+br      = 0.1;      % noise
+brt     = 0;      % "translation" noise
+epsilon = 1e-2;   % Convergence criterion for ritz value
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -24,8 +25,8 @@ brt     = 0;   % "translation" noise
 % [0,1,value] marks a dirichlet regularization therm on x
 dirichlet = [1,1,0; 1,2,0 ;
              3,1,0; 3,2,0 ];
-neumann   = [2,1,fscalar;
-             4,1,fscalar];
+neumann   = [2,1,fscalar,0,fscalar;
+             4,1,fscalar,0,-fscalar];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
@@ -87,7 +88,7 @@ dirichlet1 = [4,1,0;4,2,0;
 dirichlet2 = [1,1,0;1,2,0;
               2,1,0;2,2,0;
               3,1,0;3,2,0];
-neumann2   = [4,1,fscalar];
+neumann2   = [4,1,fscalar,0,-fscalar];
 neumann0   = [];
 [K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
 
@@ -122,6 +123,7 @@ Res   = zeros( 2*nnodes, niter+1 );
 Zed   = zeros( 2*nnodes, niter+1 );
 alpha = zeros( niter+1, 1 );
 beta  = zeros( niter+1, 1 );
+ntrunc = 0;  % In case the algo finishes at niter
 %H12   = H1demi(size(Res,1), nodes, boundary, 2 );
 %Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
 
@@ -153,7 +155,7 @@ uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
 lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 %
-b = -lamb1+lamb2;
+b = lamb2-lamb1;
 
 %%
 Res(:,1) = b - Axz;
@@ -175,6 +177,11 @@ residual(1) = sqrt( norm(Res( indexa,1)));
 error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
+ritzval  = 0; % Last ritz value that converged
+oldtheta = 0;
+eta      = 0;
+%V = zeros(2*nnodes, iter);
+%H = zeros(iter);
 %%
 for iter = 1:niter
     %% Optimal step
@@ -200,8 +207,8 @@ for iter = 1:niter
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
     num = Res(indexa,iter)'*d(indexa,iter);
     
-    Itere         = Itere + d(:,iter)*num;
-    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
+    Itere         = Itere + d(:,iter)*num;%/den;
+    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
     residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
     error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
@@ -219,8 +226,8 @@ for iter = 1:niter
     end
     
     % Needed values for the Ritz stuff
-    alpha(iter)   = num;
-    beta(iter+1)  = -(Zed(indexa,iter+1)'*Ad(indexa,iter));
+    alpha(iter) = num/sqrt(den);
+    beta(iter)  = - Zed(indexa,iter+1)'*Ad(indexa,iter)/sqrt(den);%/den;
     
     %% Orthogonalization
     d(:,iter+1) = Zed(:,iter+1);
@@ -235,98 +242,60 @@ for iter = 1:niter
 %         ( d(indexa,iter)'*Ad(indexa,iter) );
 %     d(:,iter+1) = d(:,iter+1) - d(:,iter) * betaij;
     
+    %% Ritz algo : find the Ritz elements
+    
+    % Build the matrices
+    V(:,iter) = (-1)^(iter-1)*Zed(:,iter)/(sqrt(Res(:,iter)'*Zed(:,iter)));
+    etap   = eta;
+    delta  = 1/alpha(iter);
+    eta    = sqrt(beta(1))/alpha(iter);
+    
+%    if iter > 2
+%       H(iter,[iter-1,iter,iter+1]) = [etap,delta,eta];
+    if iter > 1
+       H(iter,[iter-1,iter]) = [etap, delta];
+       H(iter-1,iter)        = etap;
+    else
+       H(iter,iter) = delta;
+    end
+    
+    % Compute eigenelems of the Hessenberg :
+    [Q,Theta1] = eig(H);
+    theta = diag(Theta1);
+    % Sort it
+    [theta,Ind] = sort(theta,'descend');
+    Q = Q(:,Ind);
+    Theta1 = Theta1(Ind,Ind);
+    Y = V*Q;
+    
+    % See if the current one converged
+    if abs(theta(ritzval+1)-oldtheta) < epsilon*oldtheta
+       % increment oldtheta
+       ritzval = ritzval+1;
+       if size(theta,1) > ritzval
+          oldtheta = theta(ritzval+1);
+       else
+          oldtheta = 0;
+       end
+       
+       % Check small value / hold value
+       if ritzval > 1
+          if theta(ritzval) < ratio*theta(1)
+             ntrunc = ritzval-1
+             break
+          end
+       end
+    else
+       oldtheta = theta(ritzval+1);
+    end
 end
 
-% The last one (for Ritz analysis)
-% Solve 1
-rhs1 = d(:,niter+1);
-f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
-uin1 = K1\f1;
-lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
-% Solve 2
-rhs2 = d(:,niter+1);
-f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
-uin2 = K2\f2;
-lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-% Regularization term
-Nu = regul(d(:,niter+1), nodes, boundaryp2, 2);
-%
-Ad(:,niter+1) = mu*Nu+lamb1-lamb2;
-
-alpha(niter+1) = Res(indexa,niter+1)'*d(indexa,niter+1)/...
-                 sqrt(d(indexa,niter+1)'*Ad(indexa,niter+1));
-
-%% Ritz algo : find the Ritz elements
-V = zeros(2*nnodes, niter+1);
-H = zeros(niter+1, niter+1);
-
-% Build the matrices
-V(:,1) = Zed(:,1)/(sqrt(Res(:,1)'*Zed(:,1)));
-delta  = 1/alpha(1);
-eta    = sqrt(beta(1))/alpha(1);
-H(1,[1,2]) = [delta, eta];
-
-for i=1:niter-1
-   V(:,i+1) = (-1)^i*Zed(:,i+1)/(sqrt(Res(:,i+1)'*Zed(:,i+1)));
-   etap = eta;
-   delta = 1/alpha(i+1) + beta(i)/alpha(i);
-   eta = sqrt(beta(i+1))/alpha(i+1);
-   H(i+1,[i,i+1,i+2]) = [etap,delta,eta];
-end
-
-V(:,niter+1) = (-1)^niter*Zed(:,niter+1)/(sqrt(Res(:,niter+1)'*Zed(:,niter+1)));
-delta = 1/alpha(niter+1) + beta(niter)/alpha(niter);
-H(niter+1,[niter,niter+1]) = [eta,delta];
-
-% Compute eigenelems of the Hessenberg :
-[Q,Theta1] = eig(H);
-theta = diag(Theta1);
-Y = V*Q;
-
-%% Determine the truncature
-%ntrunc = 0;
-%for i=1:niter
-%   if theta(niter+1-i) < ratio*theta(niter+1)  % /!\ Order must be growing
-%      ntrunc = niter+1-i
-%      break;
-%   end
-%end
-%
-%% Actually do the truncature
-%chi = Y'*Itere;
-%if ntrunc > 0
-%   chi(1:ntrunc) = 0;
-%end
-
-% Determine the truncature (growing)
-ntrunc = 0;
-for i=2:niter+1
-   if theta(i) > ratio*theta(1)  % /!\ Order must be growing
-      ntrunc = i
-      break;
-   end
-end
-
-% Actually do the truncature
-chi = Y'*Itere;
+% Compute the solution
+chi = inv(Theta1)*Y'*b;
 if ntrunc > 0
    chi(ntrunc:end) = 0;
-   if precond == 1  % Remember Y'MY = 1
-      % Apply M = S1 = D1^-1
-      rhs1 = Y*chi;
-      f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
-      uin1 = K1\f1;
-      lagr1 = uin1(2*nnodes+1:end,1);
-      lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
-      ItereR = lamb1;
-   else
-      ItereR = Y*chi;
-   end
-else
-   ItereR = Itere;
 end
+ItereR = Y*chi;
 
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')
@@ -335,15 +304,15 @@ plot(uref(2*b2node2-1),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
 figure;
 
-hold on
-plot(log10(error(2:end)),'Color','blue')
-plot(log10(residual(2:end)),'Color','red')
-legend('error (log)','residual (log)')
-figure;
+%hold on
+%plot(log10(error(2:end)),'Color','blue')
+%plot(log10(residual(2:end)),'Color','red')
+%legend('error (log)','residual (log)')
+%figure;
 % L-curve :
-loglog(residual(2:end),regulari(2:end));
-figure
-%%%%
+%loglog(residual(2:end),regulari(2:end));
+%figure
+%%%%%
 %% Final problem : compute u
 dirichlet = [4,1,0;4,2,0;
              3,1,0;3,2,0;
