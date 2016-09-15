@@ -1425,10 +1425,10 @@ if find(methods==8)
 end
 %%
 if find(methods==9)
-   niter   = 5;
+   niter   = 25;
    precond = 0;      % 1 : Use a dual precond
    ratio   = 1e-10;  % Maximal ratio (for eigenfilter)
-   epsilon = 1e-2;   % Convergence criterion for ritz value
+   epsilon = 1e-1;   % Convergence criterion for ritz value
    
    %% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
    Itere = zeros( 2*nnodes, 1 );
@@ -1533,10 +1533,16 @@ if find(methods==9)
        alpha(iter) = num/sqrt(den);
        beta(iter)  = - Zed(indexxy,iter+1)'*Ad(indexxy,iter)/sqrt(den);
        
+       % First Reorthogonalize the residual (as we use it next), in sense of M
+       for jter=1:iter-1
+           betac = Zed(indexxy,iter+1)'*Res(indexxy,jter) / (Zed(indexxy,jter)'*Res(indexxy,jter));
+           Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+       end
+       
        %% Orthogonalization
        d(:,iter+1) = Zed(:,iter+1);
        
-       for jter=1:iter
+       for jter=iter:iter
            betaij = ( Zed(indexxy,iter+1)'*Ad(indexxy,jter) );
            d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
        end
@@ -1611,11 +1617,19 @@ if find(methods==9)
    hold on
    set(gca, 'fontsize', 15);
    plot(error,'Color','blue')
-   plot(residual,'Color','red')
+   plot(residual/residual(1),'Color','red')
    legend('error','residual')
+  
+   figure; 
+   hold on;
+   plot(log10(theta),'Color','blue')
+   plot(log10(abs(Y'*b)),'Color','red')
+   plot(log10(abs(chi)),'Color','black')
+   legend('Ritz Values','RHS values','solution coefficients')
+   
    % L-curve
 %   figure
-%   loglog(residual,regulari);
+%   loglog(residual/residual(1),regulari);
     
    %% Final problem
    dirichlet = [2,1,0;2,2,0;

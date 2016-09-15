@@ -10,13 +10,15 @@ addpath(genpath('./tools'))
 E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
-niter    = 5;
-br       = 0.5;      % noise
+niter    = 10;
+br       = 1;      % noise
+brt      = 0;    % multiplication noise
 relax    = 0;      % Use a relaxation paramter
 nlociter = 1;      % Nb of localization iterations
-max_erc  = 2;      % Erc criterion for localization
-k0       = E;      % Basic Robin multiplicator
-Lc       = 0;      % Correlation length for the white noise
+%max_erc  = 2;      % Erc criterion for localization
+k0       = E*1e2;      % Basic Robin multiplicator
+Lc       = 7;      % Correlation length for the white noise
+maxmult  = 1e2;    % Maximal autorized multiplicator (because contitionnement)
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -35,11 +37,23 @@ nnodes = size(nodes,1);
 nbound = size(boundary,1);
 
 % Extract the index of the boundary
+[ node2b1, b2node1 ] = mapBound( 1, boundary, nnodes );
 [ node2b3, b2node3 ] = mapBound( 3, boundary, nnodes );
 [ node2b2, b2node2 ] = mapBound( 2, boundary, nnodes );
 index    = 2*b2node3-1;
 index    = index(size(index):-1:1);
 index2   = 2*b2node2-1;
+index1   = 2*b2node1-1;
+
+indexred = zeros( 2*size(b2node2,1) + 2*size(b2node1,1), 1 );
+for i = 1:size(b2node1,1)
+   indexred(2*i-1) = 2*b2node1(i)-1;
+   indexred(2*i) = 2*b2node1(i);
+end
+for j = 1:size(b2node2,1)
+   indexred(2*j-1+2*i) = 2*b2node2(j)-1;
+   indexred(2*j+2*i) = 2*b2node2(j);
+end
 
 % Then, build the stiffness matrix :
 [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
@@ -56,16 +70,16 @@ uin = K\f;
 uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
 
-%brbru = randn(2*nnodes,1);
-%brtro = correfilter (nodes, Lc, 'rectangle', brbru);
+brbru = randn(2*nnodes,1);
+brtro = correfilter (nodes, Lc, 'rectangle',brbru);
 %hold on;
 %plot( brbru(index2), 'Color', 'blue' );
-%plot( brtro(index2), 'Color', 'red' );
+plot( brtro(index2), 'Color', 'red' );
 
-urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
+%urefb = ( 1 + brt + br*randn(2*nnodes,1) ) .* uref;
 %urefb = correfilter (nodes, Lc, 'rectangle', urefb);
-%urefb = ( 1 + br*brtro ) .* uref;
-lagrb = ( 1 + br*randn(nbloq,1) ) .* lagr;
+urefb = ( 1 + br*brtro ) .* uref;
+lagrb = ( 1 + brt + br*randn(nbloq,1) ) .* lagr;
 fref = f( 1:2*nnodes,1 ); % Reaction forces
 
 % Compute stress :
@@ -114,6 +128,14 @@ dirichlet1 = [4,1,0;4,2,0;
 % ND problem
 dirichlet2 = [4,1,0;4,2,0];
 [K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
+
+% Apply a filter to the noise
+%hold on
+%plot(urefb([index1;index2])-uref([index1;index2]),'Color','red');
+%urefb([indexred]) = correfilter (nodes([b2node1;b2node2], :),...
+%                                       Lc, 'rectangle', urefb([indexred]));
+%plot(urefb([index1;index2])-uref([index1;index2]));
+%figure;
 
 for Bigi = 1:nlociter
   
@@ -209,10 +231,10 @@ for Bigi = 1:nlociter
   end
   
   % Tune Ko in function of Erc
-  Ko = k0*Erdc(niter*(Bigi-1)+iter)./(Erc*nberc);
+  Ko = min( max( k0*Erdc(niter*(Bigi-1)+iter)./(Erc*nberc), k0/maxmult ), k0*maxmult );
   
-%  figure;
-%  plot(Erc);
+  figure;
+  plot(Erc);
 %  figure;
 %  plot(uref-urefb);
 %  figure

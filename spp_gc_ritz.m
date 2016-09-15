@@ -1,5 +1,5 @@
 % 08/09/2016
-% Algo Steklov-Poincar� primal avec Gradient Conjugu�
+% Algo Steklov-Poincaré primal avec Gradient Conjugué
 
 close all;
 clear all;
@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 15;
+niter   = 25;
 precond = 1;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
-ratio   = 1e-20;    % Maximal ratio (for eigenfilter)
-br      = .5;      % noise
+ratio   = 1e-3;    % Maximal ratio (for eigenfilter)
+br      = 0.5;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 
@@ -109,11 +109,12 @@ dirichlet2d = [1,1,0;1,2,0;
 [K2d,C2d,nbloq2d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2d);
 
 %% Anti-cancellation trick
-% K1(indexa,indexa) = 0;
-% K2(indexa,indexa) = 0;
-% K1d(indexa,indexa) = 0;
-% K2d(indexa,indexa) = 0;
-
+K1r = K1; K2r = K2; K1dr = K1d; K2dr = K2d;
+%K1(indexa,indexa) = 0;
+%K2(indexa,indexa) = 0;
+%K1d(indexa,indexa) = 0;
+%K2d(indexa,indexa) = 0;
+%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
 Itere = zeros( 2*nnodes, 1 );
@@ -123,6 +124,7 @@ Res   = zeros( 2*nnodes, niter+1 );
 Zed   = zeros( 2*nnodes, niter+1 );
 alpha = zeros( niter+1, 1 );
 beta  = zeros( niter+1, 1 );
+alpha2 = zeros( niter+1, 1 );
 ntrunc = 0;  % In case the algo finishes at niter
 %H12   = H1demi(size(Res,1), nodes, boundary, 2 );
 %Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
@@ -156,14 +158,15 @@ lagr2 = uin2(2*nnodes+1:end,1);
 lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 %
 b = lamb2-lamb1;
-
+%plot(b(2*b2node2-1));
+%figure;
 %%
 Res(:,1) = b - Axz;
 
 if precond == 1
     % Solve 1
     f1 = [Res(:,1); zeros(nbloq1d,1)];
-    uin1 = K1d\f1;
+    uin1 = K1dr\f1;
     u1i = uin1(1:2*nnodes,1);
     u1 = keepField( u1i, 2, boundaryp1 );
     Zed(:,1) = u1;
@@ -180,6 +183,7 @@ regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
 eta      = 0;
+getmeout = 0; % utility
 %V = zeros(2*nnodes, iter);
 %H = zeros(iter);
 %%
@@ -217,7 +221,7 @@ for iter = 1:niter
     if precond == 1
         % Solve 1
         f1 = [Res(:,iter+1); zeros(nbloq1d,1)];
-        uin1 = K1d\f1;
+        uin1 = K1dr\f1;
         u1i = uin1(1:2*nnodes,1);
         u1 = keepField( u1i, 2, boundaryp1 );
         Zed(:,iter+1) = u1;
@@ -227,28 +231,37 @@ for iter = 1:niter
     
     % Needed values for the Ritz stuff
     alpha(iter) = num/sqrt(den);
-    beta(iter)  = - Zed(indexa,iter+1)'*Ad(indexa,iter)/sqrt(den);%/den;
+    alpha2(iter) = num;
+    beta(iter)  = - Zed(indexa,iter+1)'*Ad(indexa,iter)/sqrt(den);
+    
+    % First Reorthogonalize the residual (as we use it next), in sense of M
+    for jter=1:iter-1
+        betac = Zed(indexa,iter+1)'*Res(indexa,jter) / (Zed(indexa,jter)'*Res(indexa,jter));
+        Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+    end
     
     %% Orthogonalization
     d(:,iter+1) = Zed(:,iter+1);
     
-    for jter=1:iter
+    for jter=iter:iter % No need to reorthogonalize (see above)
         betaij = ( Zed(indexa,iter+1)'*Ad(indexa,jter) );%/...
             %( d(indexa,jter)'*Ad(indexa,jter) );
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
+
     end
     
     %% Ritz algo : find the Ritz elements
     % Build the matrices
     V(:,iter) = zeros(2*nnodes,1);
     V(indexa,iter) = (-1)^(iter-1)*Zed(indexa,iter)/(sqrt(Res(indexa,iter)'*Zed(indexa,iter)));
-    %norm(Zed(indexa,iter));
+    %norm(Zed(indexa,iter))
     etap   = eta;
     delta  = 1/alpha(iter);
-    eta    = sqrt(beta(1))/alpha(iter);
+    if iter > 1
+       delta  = delta + beta(iter-1)/alpha(iter-1);
+    end
+    eta    = sqrt(beta(iter))/alpha(iter);
     
-%    if iter > 2
-%       H(iter,[iter-1,iter,iter+1]) = [etap,delta,eta];
     if iter > 1
        H(iter,[iter-1,iter]) = [etap, delta];
        H(iter-1,iter)        = etap;
@@ -266,7 +279,7 @@ for iter = 1:niter
     Y = V*Q;
     
     % See if the current one converged
-    if abs(theta(ritzval+1)-oldtheta) < epsilon*oldtheta
+    if abs(theta(ritzval+1) - oldtheta) < epsilon*oldtheta
        % increment oldtheta
        ritzval = ritzval+1;
        if size(theta,1) > ritzval
@@ -279,12 +292,16 @@ for iter = 1:niter
        if ritzval > 1
           if theta(ritzval) < ratio*theta(1)
              ntrunc = ritzval-1
+             getmeout = 1;
              break;
           end
        end
     else
        oldtheta = theta(ritzval+1);
     end
+%    if getmeout == 1  % In case I use a while over there
+%       break;
+%    end
 end
 
 % Compute the solution
