@@ -1,5 +1,5 @@
-%21/03/2016
-%Algo KMF
+%13/09/2016
+%Algo KMF-Robin avec localisation
 
 close all;
 clear all;
@@ -10,11 +10,13 @@ addpath(genpath('./tools'))
 E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
-niter    = 50;
-br       = 0.;      % noise
+niter    = 5;
+br       = 0.5;      % noise
 relax    = 0;      % Use a relaxation paramter
 nlociter = 1;      % Nb of localization iterations
 max_erc  = 2;      % Erc criterion for localization
+k0       = E;      % Basic Robin multiplicator
+Lc       = 0;      % Correlation length for the white noise
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -53,7 +55,16 @@ uin = K\f;
 % Extract displacement and Lagrange multiplicators :
 uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
+
+%brbru = randn(2*nnodes,1);
+%brtro = correfilter (nodes, Lc, 'rectangle', brbru);
+%hold on;
+%plot( brbru(index2), 'Color', 'blue' );
+%plot( brtro(index2), 'Color', 'red' );
+
 urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
+%urefb = correfilter (nodes, Lc, 'rectangle', urefb);
+%urefb = ( 1 + br*brtro ) .* uref;
 lagrb = ( 1 + br*randn(nbloq,1) ) .* lagr;
 fref = f( 1:2*nnodes,1 ); % Reaction forces
 
@@ -93,26 +104,23 @@ Erdc2     = ones(niter*nlociter,1);
 u1 = uref-uref;
 u2 = u1; fri= u1; fr2= u1; v  = u1;
 theta = ones(niter+1,1); % First relaxation parameter
+Ko   = k0*ones(size(boundary,1),1);% First Robin parameter
+
+% DN problem
+dirichlet1 = [4,1,0;4,2,0;
+             3,1,0;3,2,0];
+[K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
+
+% ND problem
+dirichlet2 = [4,1,0;4,2,0];
+[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
 
 for Bigi = 1:nlociter
-  
-  % DN problem
-  dirichlet1 = [4,1,0;4,2,0;
-                3,1,0;3,2,0];
-  [K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
-  %[L1,U1] = lu(K1);
-  % ND problem
-  dirichlet2 = [4,1,0;4,2,0;
-                1,1,0;1,2,0;
-                2,1,0;2,2,0];
-  [K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
-  %[L2,U2] = lu(K2);
   
   for iter = 1:niter
       % Solve DN
       u1o = u1;
       f1in = [f1ini ; zeros(nbloq1,1)];
-      %fdir = dirichletRhs(u2, 3, C1, boundary);
       fdir = dirichletRhs2(v, 3, c2node1, boundary, nnodes );
       f1 = f1in + fdir;
   
@@ -120,7 +128,6 @@ for Bigi = 1:nlociter
       u1 = uin1(1:2*nnodes,1);
       lagr1 = uin1(2*nnodes+1:end,1);
       frio = fri; % Store fri for the residual computation
-      %fri = lagr2forces2( lagr1, c2node1, 3, boundary, nnodes );
       fri = Kinter*u1;
       
   %     sigma1 = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
@@ -130,13 +137,14 @@ for Bigi = 1:nlociter
       % Solve ND
       u2o = u2;
       fr = [ fri; zeros(size(C2,2),1) ]; % Give to fr the right size
-      fdir1 = dirichletRhs2(urefb, 1, c2node2, boundary, nnodes);
-      %fdir2 = dirichletRhs2(urefb, 2, c2node2, boundary, nnodes);
+      [Krob, fdir1] = robinRHS( nbloq2, nodes, boundary, urefb, Ko, 1 );
+      %fdir1 = dirichletRhs2(urefb, 1, c2node2, boundary, nnodes);
+
       % Assembly the dirichlet RHS (ensure a redundant CL isn't imposed 2
       % times
       f2 = fr + fdir1; %assembleDirichlet( [fdir1,fdir2] );
   
-      uin2 = K2\f2;
+      uin2 = (K2+Krob)\f2;
       u2 = uin2(1:2*nnodes,1);
       fr2o = fr2;
       fr2 = Kinter*u2;
@@ -150,8 +158,6 @@ for Bigi = 1:nlociter
           theta(iter+1) = myps(e1,e1-e2,Kinter,boundary,M,nodes) /...
               myps(e1-e2,e1-e2,Kinter,boundary,M,nodes);
       end
-  
-  %     sigma2 = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
       
       error2(niter*(Bigi-1)+iter) = sqrt((u2-uref)'*(u2-uref)/(uref'*uref));
       ferror2(niter*(Bigi-1)+iter) = sqrt((fr2-fref)'*(fr2-fref)/(fref'*fref));
@@ -181,16 +187,6 @@ for Bigi = 1:nlociter
             deltau = u2(map) - u2o(map);
             %Erc(i) = deltaf'*Me*deltau;
             %nberc = nberc+1;
-    %        deltaf1 = fri([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - fref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        deltau1 = u1([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - uref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        Erc1(i) = deltaf'*Me*deltau;
-    %        deltaf2 = fr2([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - fref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        deltau2 = u2([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - uref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        Erc2(i) = deltaf'*Me*deltau;
          end
          if boundary(i,1) == 1 % Redondant data boundary
             no1 = boundary(i,2);
@@ -205,65 +201,26 @@ for Bigi = 1:nlociter
             deltau = urefb(map) - u1(map);
             Erc(i) = deltaf'*Me*deltau;
             nberc = nberc+1;
-    %        deltaf1 = fri([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - fref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        deltau1 = u1([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - uref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        Erc1(i) = deltaf'*Me*deltau;
-    %        deltaf2 = fr2([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - fref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        deltau2 = u2([2*no1-1, 2*no1, 2*no2-1, 2*no2])...
-    %                 - uref([2*no1-1, 2*no1, 2*no2-1, 2*no2]);
-    %        Erc2(i) = deltaf'*Me*deltau;
+
        end
     end
     Erc = abs(Erc); % Why are there < 0 therms ?
     Erdc(niter*(Bigi-1)+iter) = sum(Erc);
-  %  Erdc1(niter*(Bigi-1)+(1:niter)) = sum(abs(Erc1));
-  %  Erdc2(niter*(Bigi-1)+(1:niter)) = sum(abs(Erc2));
   end
   
-  figure;
-  plot(Erc);
+  % Tune Ko in function of Erc
+  Ko = k0*Erdc(niter*(Bigi-1)+iter)./(Erc*nberc);
   
-  % Who will be localized ?
-  Erlim = sum(Erc)/nberc * max_erc;
-  nlocelem = 0;
-  for i=1:nbound
-     if (boundary(i,1) == 3 || boundary(i,1) == 1)  % Other ones are safe (for now)
-        if Erc(i) > Erlim;
-           boundary(i,1) = 3;  % this one is suspect
-           nlocelem = nlocelem+1;
-        else
-           %boundary(i,1) = 1; % this one is clean
-        end
-     end
-  end
-  
-  disp(['number of localized elements: ', num2str(nlocelem)])
-  
-  % Replace urefb and f1ini TODO : be sure there are the good ones
-  urefb = u2;
-  f1ini = keepField( fri, 1, boundary);
-  
-  % Plot the solution
+%  figure;
+%  plot(Erc);
+%  figure;
+%  plot(uref-urefb);
 %  figure
-%  hold on;
-%  plot(u2(index), 'Color', 'red');
-%  plot(uref(index), 'Color', 'blue');
-%  legend('solution', 'reference');
-%  
-%  figure
-%  hold on;
-%  plot(u2(index2), 'Color', 'red');
-%  plot(uref(index2), 'Color', 'blue');
-%  legend('solution', 'reference');
+%  plot(Ko);
 
 end
 
 Erdc = Erdc/Erdc(1);  % In order to normalize the stuff
-%Erdc1 = Erdc1/Erdc1(1);
-%Erdc2 = Erdc2/Erdc2(1);
 residual(1) = 1; % tiny hack
 figure;
 hold on;
@@ -275,15 +232,11 @@ plot(log10(error2),'Color','blue')
 plot(log10(ferror1),'Color','yellow')
 plot(log10(ferror2),'Color','cyan')
 %plot(log10(fresidual),'Color','magenta')
-%plot(log10(Erdc1),'Color','red')
-%plot(log10(Erdc2),'Color','magenta')
 plot(log10(Erdc),'Color','green')
 %legend('error1 (log)','error2 (log)','residual (log)','ferror1 (log)',...
        %'ferror2 (log)','fresidual (log)','Erc(log)')
 legend('error1 (log)','error2 (log)','ferror1 (log)',...
        'ferror2 (log)','Erc(log)')
-%legend('error1 (log)','error2 (log)','Erc1 (log)',...
-%       'Erc2 (log)','Erc(log)')
 
 % L-curve
 %figure;

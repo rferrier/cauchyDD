@@ -10,13 +10,13 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
+niter   = 15;
 precond = 1;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
-ratio   = 1e-1;    % Maximal ratio (for eigenfilter)
-br      = 0.1;      % noise
+ratio   = 1e-20;    % Maximal ratio (for eigenfilter)
+br      = .5;      % noise
 brt     = 0;      % "translation" noise
-epsilon = 1e-2;   % Convergence criterion for ritz value
+epsilon = 1e-1;   % Convergence criterion for ritz value
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -237,15 +237,12 @@ for iter = 1:niter
             %( d(indexa,jter)'*Ad(indexa,jter) );
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
     end
-
-%     betaij = ( Zed(indexa,iter+1)'*Ad(indexa,iter) )/...
-%         ( d(indexa,iter)'*Ad(indexa,iter) );
-%     d(:,iter+1) = d(:,iter+1) - d(:,iter) * betaij;
     
     %% Ritz algo : find the Ritz elements
-    
     % Build the matrices
-    V(:,iter) = (-1)^(iter-1)*Zed(:,iter)/(sqrt(Res(:,iter)'*Zed(:,iter)));
+    V(:,iter) = zeros(2*nnodes,1);
+    V(indexa,iter) = (-1)^(iter-1)*Zed(indexa,iter)/(sqrt(Res(indexa,iter)'*Zed(indexa,iter)));
+    %norm(Zed(indexa,iter));
     etap   = eta;
     delta  = 1/alpha(iter);
     eta    = sqrt(beta(1))/alpha(iter);
@@ -282,7 +279,7 @@ for iter = 1:niter
        if ritzval > 1
           if theta(ritzval) < ratio*theta(1)
              ntrunc = ritzval-1
-             break
+             break;
           end
        end
     else
@@ -296,6 +293,13 @@ if ntrunc > 0
    chi(ntrunc:end) = 0;
 end
 ItereR = Y*chi;
+
+hold on;
+plot(log10(theta),'Color','blue')
+plot(log10(abs(Y'*b)),'Color','red')
+plot(log10(abs(chi)),'Color','black')
+legend('Ritz Values','RHS values','solution coefficients')
+figure;
 
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')
@@ -344,7 +348,8 @@ fsolR = Kinter*usolR;
 hold on;
 plot(fsol(2*b2node2-1),'Color','red')
 plot(fsolR(2*b2node2-1),'Color','blue')
-legend('brutal solution','filtred solution')
+plot(f(2*b2node2-1),'Color','green')
+legend('brutal solution','filtred solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :
