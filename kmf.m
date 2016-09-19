@@ -11,7 +11,7 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 20;
-br      = 0.;      % noise
+br      = 0.2;      % noise
 relax   = 0;      % Use a relaxation paramter
 
 % Boundary conditions
@@ -152,10 +152,11 @@ for iter = 1:niter
 %     ferror2(iter) = sqrt( myps(frio-fref,frio-fref,Kinter,boundary,M,nodes)/...
 %         myps(fref,fref,Kinter,boundary,M,nodes) );
 %     serror2(iter) = transpose(sigma-sigma2)*(sigma-sigma2) / (sigma'*sigma);
-    
-    residual(iter) = sqrt( myps(u1-u2,u1-u2,Kinter,boundary,M,nodes)/...
-                     sqrt(myps(u1,u1,Kinter,boundary,M,nodes)*...
-                     myps(u2,u2,Kinter,boundary,M,nodes)) );
+    if iter > 1
+       residual(iter) = sqrt( myps(u1-u2,u1-u2,Kinter,boundary,M,nodes)/...
+                        sqrt(myps(u1,u1,Kinter,boundary,M,nodes)*...
+                        myps(u2,u2,Kinter,boundary,M,nodes)) );
+    end
 %     sresidual(iter) = (sigma1-sigma2)'*(sigma1-sigma2) /...
 %                        sqrt( (sigma1'*sigma1)*(sigma2'*sigma2) );
                  
@@ -180,7 +181,6 @@ figure
 % figure
 % L-curve
 loglog(residual,regulari);
-figure
 % plot(regulari.*residual)
 
 % Plot solution

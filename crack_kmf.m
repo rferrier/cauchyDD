@@ -1142,7 +1142,7 @@ if find(methods == 7)
           % Check small value / hold value
           if ritzval > 1
              if theta(ritzval) < ratio*theta(1)
-                ntrunc = ritzval-1
+                ntrunc = ritzval
                 getmeout = 1;
                 break;
              end

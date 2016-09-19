@@ -1,5 +1,6 @@
-% 06/06/2016
-% Algo Steklov-Poincar� primal avec Gradient Conjugu� multipr�conditionn�
+% 19/09/2016
+% Algo Steklov-Poincaré primal avec Gradient Conjugué multipréconditionné : 
+% critère d'arr\^et par valeurs de Ritz.
 
 close all;
 clear all;
@@ -10,9 +11,10 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 5;
-mu      = 0.;    % Regularization parameter
-br      = 0.;     % noise
+niter   = 8;
+br      = 0.01;     % noise
+epsilon = 1e-1;   % Convergence criterion for ritz value
+ratio   = 1e-12;   % Max ratio between eigenvalues
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -21,8 +23,8 @@ br      = 0.;     % noise
 % [0,1,value] marks a dirichlet regularization therm on x
 dirichlet = [1,1,0; 1,2,0 ;
              3,1,0; 3,2,0 ];
-neumann   = [2,1,fscalar;
-             4,1,fscalar];
+neumann   = [2,1,fscalar,0,fscalar;
+             4,1,fscalar,0,-fscalar];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
@@ -83,7 +85,7 @@ dirichlet1 = [4,1,0;4,2,0;
 dirichlet2 = [1,1,0;1,2,0;
               2,1,0;2,2,0;
               3,1,0;3,2,0];
-neumann2   = [4,1,fscalar];
+neumann2   = [4,1,fscalar,0,-fscalar];
 neumann0   = [];
 [K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
 
@@ -118,6 +120,13 @@ Ad2   = zeros( 2*nnodes, niter+1 );
 Res   = zeros( 2*nnodes, niter+1 );
 Zed1  = zeros( 2*nnodes, niter+1 );
 Zed2  = zeros( 2*nnodes, niter+1 );
+alpha = zeros( 2, niter+1 );
+beta  = cell(niter+1,1);
+
+ritzval  = 0;
+oldtheta = 0;
+ntrunc   = 0;
+getmeout = 0;
 
 %% Perform A x0 :
 % Solve 1
@@ -130,10 +139,8 @@ f2 = dirichletRhs2( Itere, 2, c2node2, boundaryp2, nnodes );
 uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
 lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-% Regularization term
-Nu = regul(Itere, nodes, boundary, 2);
 %
-Axz = mu*Nu+lamb1-lamb2;
+Axz = lamb1-lamb2;
 %%%%
 %% Compute Rhs :
 % Solve 1
@@ -190,10 +197,8 @@ for iter = 1:niter
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
     lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-    % Regularization term
-    Nu = regul(d1(:,iter+1), nodes, boundaryp2, 2);
     %
-    Ad1(:,iter) = mu*Nu+lamb1-lamb2;
+    Ad1(:,iter) = lamb1-lamb2;
     
     %% Ad2
     % Solve 1
@@ -208,18 +213,17 @@ for iter = 1:niter
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
     lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-    % Regularization term
-    Nu = regul(d2(:,iter+1), nodes, boundaryp2, 2);
     %
-    Ad2(:,iter) = mu*Nu+lamb1-lamb2;
+    Ad2(:,iter) = lamb1-lamb2;
 
     %%
-    Delta = ([Ad1(indexa,iter),Ad2(indexa,iter)]'*[d1(indexa,iter),d2(indexa,iter)]);
-    gamma = ([Zed1(indexa,iter),Zed2(indexa,iter)]'*Res(indexa,iter));
-    alpha = Delta\gamma;
+    Delta           = ([Ad1(indexa,iter),Ad2(indexa,iter)]'*...
+                                             [d1(indexa,iter),d2(indexa,iter)]);
+    gamma           = ([Zed1(indexa,iter),Zed2(indexa,iter)]'*Res(indexa,iter));
+    alpha(:,iter) = Delta\gamma;
 
-    Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha;
-    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha;
+    Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha(:,iter);
+    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha(:,iter);
     
     residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
     error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
@@ -240,29 +244,182 @@ for iter = 1:niter
     Zed1(:,iter+1) = u1;
     Zed2(:,iter+1) = u2;
     
+    % First Reorthogonalize the residual
+    for jter=1:iter-1
+        betac = Zed1(indexa,iter+1)'*Res(indexa,jter) /...
+                   (Zed1(indexa,jter)'*Res(indexa,jter));
+        Zed1(:,iter+1) = Zed1(:,iter+1) - Zed1(:,jter) * betac;
+        betac = Zed2(indexa,iter+1)'*Res(indexa,jter) /...
+                   (Zed2(indexa,jter)'*Res(indexa,jter));
+        Zed2(:,iter+1) = Zed2(:,iter+1) - Zed2(:,jter) * betac;
+    end
+    
     %% Orthogonalization
     d1(:,iter+1) = Zed1(:,iter+1);
     d2(:,iter+1) = Zed2(:,iter+1);
     
     for jter=1:iter
-        betaij = ( [Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,iter+1),d2(indexa,iter+1)] );
-        Prov = [d1(:,iter+1),d2(:,iter+1)] - [d1(:,jter),d2(:,jter)] *...
-            ( ([Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,jter),d2(indexa,jter)]) \ betaij );
+        phiij      = ( [Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,iter+1),d2(indexa,iter+1)] );
+       % matpr = inv([Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,jter),d2(indexa,jter)])
+        betaij     = ([Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,jter),d2(indexa,jter)]) \ phiij;
+        beta(iter) = betaij;
+        Prov = [d1(:,iter+1),d2(:,iter+1)] - [d1(:,jter),d2(:,jter)] * betaij;
         
         d1(:,iter+1) = Prov(:,1);
         d2(:,iter+1) = Prov(:,2);
     end
     
-end
+    %% Build V
+%    V(:,2*iter-1)  = zeros(4*nnodes,1);
+%    V(:,2*iter)    = zeros(4*nnodes,1);
+%    V(2*indexa-1,2*iter-1) = (-1)^(iter-1)*Zed1(indexa,iter)/...
+%                             (sqrt(Res(indexa,iter)'*Zed1(indexa,iter)));
+%    V(2*indexa,2*iter)     = (-1)^(iter-1)*Zed2(indexa,iter)/...
+%                             (sqrt(Res(indexa,iter)'*Zed2(indexa,iter)));
+    V(:,2*iter-1)  = zeros(2*nnodes,1);
+    V(:,2*iter)    = zeros(2*nnodes,1);
+%    V(indexa,2*iter-1) = (-1)^(iter-1)*Zed1(indexa,iter);%/...
+%                             (sqrt(Res(indexa,iter)'*Zed1(indexa,iter)));
+%    V(indexa,2*iter)   = (-1)^(iter-1)*Zed2(indexa,iter);%/...
+%                             (sqrt(Res(indexa,iter)'*Zed2(indexa,iter)));
+    V(indexa,2*iter-1) = Zed1(indexa,iter);
+    V(indexa,2*iter)   = Zed2(indexa,iter);
+                             
+    if iter > 1
+       betapa = cell2mat(beta(iter-1));
+       zt1p = zt1; zt2p = zt2; Azt1p = Azt1; Azt2p = Azt2; 
+       zt1  = d1(:,iter) + betapa(1,1)*d1(:,iter-1) + betapa(2,1)*d2(:,iter-1);
+       Azt1 = Ad1(:,iter) + betapa(1,1)*Ad1(:,iter-1) + betapa(2,1)*Ad2(:,iter-1);
+       zt2  = d2(:,iter) + betapa(1,2)*d1(:,iter-1) + betapa(2,2)*d2(:,iter-1);
+       Azt2 = Ad2(:,iter) + betapa(1,2)*Ad1(:,iter-1) + betapa(2,2)*Ad2(:,iter-1);
+       
+%       H(2*iter-1,2*iter-1) = d1(:,iter)'*Ad1(:,iter)...
+%                              + betapa(1,1)^2 * d1(:,iter-1)'*Ad1(:,iter-1)...
+%                              + betapa(1,2)^2 * d2(:,iter-1)'*Ad2(:,iter-1)...
+%                              + 2*betapa(1,1)*betapa(2,1) * d1(:,iter-1)'*Ad2(:,iter-1);
+%
+%       H(2*iter,2*iter)     = d2(:,iter)'*Ad2(:,iter)...
+%                              + betapa(2,1)^2 * d1(:,iter-1)'*Ad1(:,iter-1)...
+%                              + betapa(2,2)^2 * d2(:,iter-1)'*Ad2(:,iter-1)...
+%                              + 2*betapa(1,2)*betapa(2,2) * d1(:,iter-1)'*Ad2(:,iter-1);
+       ind = [2*iter-1;2*iter];
+       H(ind,ind) = [zt1(indexa),zt2(indexa)]'*[Azt1(indexa),Azt2(indexa)];
+       H(ind-2,ind) = [zt1p(indexa),zt2p(indexa)]'*[Azt1(indexa),Azt2(indexa)];
+       H(ind,ind-2) = [zt1(indexa),zt2(indexa)]'*[Azt1p(indexa),Azt2p(indexa)];
 
-hold on
-plot(log10(error),'Color','blue')
-plot(log10(residual),'Color','red')
-legend('error (log)','residual (log)')
+    else
+       zt1  = d1(:,iter);
+       Azt1 = Ad1(:,iter);
+       zt2  = d2(:,iter);
+       Azt2 = Ad2(:,iter);
+       ind = [2*iter-1;2*iter];
+       H(ind,ind) = [d1(:,iter),d2(:,iter)]'*[Ad1(:,iter),Ad2(:,iter)];
+    end
+    
+    % Compute eigenelems of the Hessenberg :
+    [Q,Theta1] = eig(H);
+    theta = diag(Theta1);
+    % Sort it
+    [theta,Ind] = sort(theta,'descend');
+    Q = Q(:,Ind);
+    Theta1 = Theta1(Ind,Ind);
+    Y = V*Q;
+    
+    % See if the current two converged
+    if abs(theta(ritzval+1) - oldtheta) < epsilon*oldtheta
+       % increment oldtheta
+       ritzval = ritzval+1;
+       if size(theta,1) > ritzval
+          oldtheta = theta(ritzval+1);
+       else
+          oldtheta = 0;
+       end
+       
+       % Check small value / hold value
+       if ritzval > 1
+          if theta(ritzval) < ratio*theta(1)
+             ntrunc = ritzval
+             getmeout = 1;
+             break;
+          end
+       end
+    else
+       oldtheta = theta(ritzval+1);
+    end
+    
+    % Do it again ( I'm too lazy to debug my while )
+    if abs(theta(ritzval+1) - oldtheta) < epsilon*oldtheta
+       % increment oldtheta
+       ritzval = ritzval+1;
+       if size(theta,1) > ritzval
+          oldtheta = theta(ritzval+1);
+       else
+          oldtheta = 0;
+       end
+       
+       % Check small value / hold value
+       if ritzval > 1
+          if theta(ritzval) < ratio*theta(1)
+             ntrunc = ritzval
+             getmeout = 1;
+             break;
+          end
+       end
+    else
+       oldtheta = theta(ritzval+1);
+    end
+ end
+ 
+ % Compute the solution
+chi = inv(Theta1)*Y'*b;
+if ntrunc > 0
+   chi(ntrunc:end) = 0;
+end
+ItereR = Y*chi;
+ 
+%    %% Build H from V (DEBUG)
+%for iter = 1:size(V,2)
+%    %% Avi
+%    % Solve 1
+%    rhs1 = V(:,iter);
+%    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+%    uin1 = K1\f1;
+%    lagr1 = uin1(2*nnodes+1:end,1);
+%    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+%    % Solve 2
+%    rhs2 = V(:,iter);
+%    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+%    uin2 = K2\f2;
+%    lagr2 = uin2(2*nnodes+1:end,1);
+%    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+%    %
+%    AV(:,iter) = lamb1-lamb2;
+%end
+%
+%He = V'*AV;
+
+hold on;
+plot(log10(theta),'Color','blue')
+plot(log10(abs(Y'*b)),'Color','red')
+plot(log10(abs(chi)),'Color','black')
+legend('Ritz Values','RHS values','solution coefficients')
 figure;
+
+hold on;
+plot(Itere(2*b2node2-1),'Color','red')
+plot(ItereR(2*b2node2-1),'Color','blue')
+plot(uref(2*b2node2-1),'Color','green')
+legend('brutal solution','filtred solution', 'reference')
+%figure;
+
+%hold on
+%plot(log10(error),'Color','blue')
+%plot(log10(residual),'Color','red')
+%legend('error (log)','residual (log)')
+%figure;
 % L-curve :
-loglog(residual,regulari);
-figure
+%loglog(residual,regulari);
+%figure
 %%%%
 %% Final problem : compute u
 % DN problem
@@ -279,7 +436,7 @@ usoli = K \ (fdir4 + fdir2);
 usol = usoli(1:2*nnodes,1);
 fsol = Kinter*usol;
 
-plot(fsol(2*b2node2-1))
+%plot(fsol(2*b2node2-1))
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :
