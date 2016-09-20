@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 6;
-precond = 1;      % 1 : Use a dual precond
+niter   = 25;
+precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-3;    % Maximal ratio (for eigenfilter)
-br      = 0.01;      % noise
+br      = .5;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 
@@ -126,8 +126,8 @@ alpha = zeros( niter+1, 1 );
 beta  = zeros( niter+1, 1 );
 alpha2 = zeros( niter+1, 1 );
 ntrunc = 0;  % In case the algo finishes at niter
-%H12   = H1demi(size(Res,1), nodes, boundary, 2 );
-%Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
+H12   = H1demi(size(Res,1), nodes, boundary, 2 );
+Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
 
 %% Perform A x0 :
 % Solve 1
@@ -170,6 +170,10 @@ if precond == 1
     u1i = uin1(1:2*nnodes,1);
     u1 = keepField( u1i, 2, boundaryp1 );
     Zed(:,1) = u1;
+elseif precond == 2
+    Zed(index,1) = 1/E*H12(index,index)\Res(index,1);
+elseif precond == 3
+    Zed(index,1) = 1/E*Mgr(index,index)\Res(index,1);
 else
     Zed(:,1) = Res(:,1);
 end
@@ -225,6 +229,10 @@ for iter = 1:niter
         u1i = uin1(1:2*nnodes,1);
         u1 = keepField( u1i, 2, boundaryp1 );
         Zed(:,iter+1) = u1;
+    elseif precond == 2
+        Zed(index,iter+1) = 1/E*H12(index,index)\Res(index,iter+1);
+    elseif precond == 3
+        Zed(index,iter+1) = 1/E*Mgr(index,index)\Res(index,iter+1);
     else
         Zed(:,iter+1) = Res(:,iter+1);
     end
@@ -311,28 +319,66 @@ if ntrunc > 0
 end
 ItereR = Y*chi;
 
-hold on;
-plot(log10(theta),'Color','blue')
-plot(log10(abs(Y'*b)),'Color','red')
-plot(log10(abs(chi)),'Color','black')
-legend('Ritz Values','RHS values','solution coefficients')
-figure;
+%%for i=1:niter
+%   plot(V(2*b2node2-1,20:25))
+%   figure;
+%%end
 
-hold on;
-plot(Itere(2*b2node2-1),'Color','red')
-plot(ItereR(2*b2node2-1),'Color','blue')
-plot(uref(2*b2node2-1),'Color','green')
-legend('brutal solution','filtred solution', 'reference')
-figure;
+regS = zeros(niter,1);
+resS = zeros(niter,1);
+%% Build the L-curve regul, ntrunc
+for i = 1:iter+1
+   chiS   = inv(Theta1)*Y'*b; chiS(i:end) = 0;
+   ItereS = Y*chiS;
+   
+   % Solve 1
+   rhs1 = ItereS;
+   f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+   uin1 = K1\f1;
+   lagr1 = uin1(2*nnodes+1:end,1);
+   lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+   % Solve 2
+   rhs2 = ItereS;
+   f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+   uin2 = K2\f2;
+   lagr2 = uin2(2*nnodes+1:end,1);
+   lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+   % Regularization term
+   AI = lamb1-lamb2;
+   
+   ResS = AI-b;
+   resS(i) = sqrt(norm(ResS));   
+   regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
+end
+
+%hold on;
+%plot(log10(theta),'Color','blue')
+%plot(log10(abs(Y'*b)),'Color','red')
+%plot(log10(abs(chi)),'Color','black')
+%legend('Ritz Values','RHS values','solution coefficients')
+%figure;
+%
+%hold on;
+%plot(Itere(2*b2node2-1),'Color','red')
+%plot(ItereR(2*b2node2-1),'Color','blue')
+%plot(uref(2*b2node2-1),'Color','green')
+%legend('brutal solution','filtred solution', 'reference')
+%figure;
 
 %hold on
 %plot(log10(error(2:end)),'Color','blue')
 %plot(log10(residual(2:end)),'Color','red')
 %legend('error (log)','residual (log)')
 %figure;
-% L-curve :
-%loglog(residual(2:end),regulari(2:end));
+%L-curve :
+hold on;
+loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
 %figure
+loglog(resS(2:iter+1),regS(2:iter+1),'-+');
+legend('L-curve','RL-curve')
+figure
+findCorner (residual(2:iter+1), regulari(2:iter+1))
+findCorner (log10(resS(2:iter+1)), log10(regS(2:iter+1)))
 %%%%%
 %% Final problem : compute u
 dirichlet = [4,1,0;4,2,0;

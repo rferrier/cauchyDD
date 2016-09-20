@@ -11,7 +11,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 50;
+niter   = 10;
 precond = 0;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
@@ -200,15 +200,13 @@ ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
 eta      = 0;
 getmeout = 0; % utility
-%V = zeros(2*nnodes, iter);
-%H = zeros(iter);
+
 %%
 for iter = 1:niter
     
     den = (Ad(indexa,iter)'*Ad(indexa,iter));
     %d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
-    num = Zed(indexa,iter)'*Ad(indexa,iter);
-    
+    num = Res(indexa,iter)'*Ad(indexa,iter);
     Itere         = Itere + d(:,iter)*num/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num/den;
     
@@ -231,15 +229,30 @@ for iter = 1:niter
     alpha(iter) = num/den;%/sqrt(den);
     beta(iter)  = - Ad(indexa,iter+1)'*Ad(indexa,iter)/den;%sqrt(den);
     
-    % First Reorthogonalize the residual (as we use it next), in sense of M
-%    for jter=1:iter-1
-%        betac = Zed(indexa,iter+1)'*Res(indexa,jter) / (Zed(indexa,jter)'*Res(indexa,jter));
-%        Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
-%    end
-    
+    % First Reorthogonalize the residual (as we use it next), in sense of A'M
+    % Solve 1 (DEBUG)
+%    rhs1 = Res(:,iter);
+%    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+%    uin1 = K1\f1;
+%    lagr1 = uin1(2*nnodes+1:end,1);
+%    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+%    % Solve 2
+%    rhs2 = Res(:,iter);
+%    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+%    uin2 = K2\f2;
+%    lagr2 = uin2(2*nnodes+1:end,1);
+%    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+%    %
+%    ARes(:,iter) = lamb1-lamb2;
+    for jter=1:iter-1
+        betac = Zed(indexa,iter+1)'*Ad(indexa,jter) / (Zed(indexa,jter)'*Ad(indexa,jter));
+        Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+    end
+
     %% Orthogonalization
-    d(:,iter+1) = Ad(:,iter);
+    d(:,iter+1) = Zed(:,iter+1);%Ad(:,iter);
     
+    % Solve 1
     rhs1 = d(:,iter+1);
     f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
     uin1 = K1\f1;
@@ -255,8 +268,6 @@ for iter = 1:niter
     Nu = regul(d(:,iter+1), nodes, boundaryp2, 2);
     %
     Ad(:,iter+1) = mu*Nu+lamb1-lamb2;
-    
-    % Solve 1
     
     for jter=max(1,iter-1):iter % No need to reorthogonalize (see above)
         betaij = ( Ad(indexa,iter+1)'*Ad(indexa,jter) ) / ( Ad(indexa,jter)'*Ad(indexa,jter) );
@@ -318,6 +329,40 @@ for iter = 1:niter
 %    end
 end
 
+% Debug : compute He
+AV = zeros( 2*nnodes, niter );
+for i=1:niter
+    rhs1 = V(:,i);
+    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+    uin1 = K1\f1;
+    lagr1 = uin1(2*nnodes+1:end,1);
+    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+    % Solve 2
+    rhs2 = V(:,i);
+    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+    uin2 = K2\f2;
+    lagr2 = uin2(2*nnodes+1:end,1);
+    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+    %
+    AV(:,i) = lamb1-lamb2;
+end
+for i=1:niter
+    rhs1 = AV(:,i);
+    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+    uin1 = K1\f1;
+    lagr1 = uin1(2*nnodes+1:end,1);
+    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+    % Solve 2
+    rhs2 = AV(:,i);
+    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+    uin2 = K2\f2;
+    lagr2 = uin2(2*nnodes+1:end,1);
+    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+    %
+    AtAV(:,i) = lamb1-lamb2;
+end
+He = V'*AtAV;
+
 % Compute the solution
 chi = inv(Theta1)*Y'*b;
 if ntrunc > 0
@@ -332,12 +377,12 @@ ItereR = Y*chi;
 %legend('Ritz Values','RHS values','solution coefficients')
 %figure;
 %
-%hold on;
-%plot(Itere(2*b2node2-1),'Color','red')
+hold on;
+plot(Itere(2*b2node2-1),'Color','red')
 %plot(ItereR(2*b2node2-1),'Color','blue')
-%plot(uref(2*b2node2-1),'Color','green')
-%legend('brutal solution','filtred solution', 'reference')
-%figure;
+plot(uref(2*b2node2-1),'Color','green')
+legend('brutal solution','filtred solution', 'reference')
+figure;
 
 hold on
 plot(log10(error(2:end)),'Color','blue')

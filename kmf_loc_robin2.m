@@ -11,14 +11,14 @@ E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
 niter    = 10;
-br       = 0.3;      % noise
-brt      = 0;    % multiplication noise
+br       = .01;    % noise
+brt      = 0;      % multiplication noise
 relax    = 0;      % Use a relaxation paramter
-nlociter = 10;      % Nb of localization iterations
-%max_erc  = 2;      % Erc criterion for localization
-k0       = E*1e-2;      % Basic Robin multiplicator
-Lc       = .01;      % Correlation length for the white noise
-maxmult  = 1;    % Maximal autorized multiplicator (because contitionnement)
+nlociter = 10;     % Nb of localization iterations
+%max_erc  = 2;     % Erc criterion for localization
+k0       = E*1e-2; % Basic Robin multiplicator
+Lc       = 0.01;   % Correlation length for the white gaussian noise
+maxmult  = 1;      % Maximal autorized multiplicator (because contitionnement)
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -72,7 +72,7 @@ lagr = uin(2*nnodes+1:end,1);
 
 %brbru = randn(2*nnodes,1);
 brtro = correfilter (nodes, Lc, 'Hanning', randn(2*nnodes,1), 0);
-brtrf = 0*correfilter (nodes, Lc, 'Hanning', randn(2*nnodes,1), 0);
+brtrf = 0;%correfilter (nodes, Lc, 'Hanning', randn(2*nnodes,1), 0);
 %hold on;
 %plot( brbru([index1;index2]), 'Color', 'blue' );
 %plot( brtro([index1;index2]), 'Color', 'red' );
@@ -112,8 +112,7 @@ ferror1   = zeros(niter,1); % Error for reaction force
 ferror2   = zeros(niter,1);
 fresidual = zeros(niter,1);
 Erdc      = ones(niter*nlociter,1);
-Erdc1     = ones(niter*nlociter,1);
-Erdc2     = ones(niter*nlociter,1);
+Erdcm     = ones(niter*nlociter,1);
 
 % init :
 u1 = uref-uref;
@@ -252,7 +251,8 @@ for Bigi = 1:nlociter
 
 end
 
-Erdcm = Erdcm/Erdcm(1);  % In order to normalize the stuff
+Erdc  = Erdc/(Erdcm(1)+Erdc(1));  % In order to normalize the stuff
+Erdcm = Erdcm/(Erdcm(1)+Erdc(1));  % In order to normalize the stuff
 residual(1) = 1; % tiny hack
 figure;
 hold on;
@@ -264,7 +264,7 @@ plot(log10(error2),'Color','blue')
 plot(log10(ferror1),'Color','yellow')
 plot(log10(ferror2),'Color','cyan')
 %plot(log10(fresidual),'Color','magenta')
-plot(log10(Erdcm),'Color','green')
+plot(log10(Erdcm+Erdc),'Color','green')
 %legend('error1 (log)','error2 (log)','residual (log)','ferror1 (log)',...
        %'ferror2 (log)','fresidual (log)','Erc(log)')
 legend('error1 (log)','error2 (log)','ferror1 (log)',...

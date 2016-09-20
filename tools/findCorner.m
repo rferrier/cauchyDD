@@ -54,7 +54,7 @@ function [index] = findCorner (xl, yl)
     % Test if the candidate is smaller than the current R
     if R == 0 || Rc < R
        R = Rc;
-       index = i
+       index = i;
     end
  end
  

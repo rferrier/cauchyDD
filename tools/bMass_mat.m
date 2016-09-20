@@ -1,6 +1,7 @@
 function [M] = bMass_mat (nodes, boundary, index)
 % This function computes the boundary mass matrix
-% such that u'Mu = int_{Gamma}(u^2)
+% such that u'Mv = int_{Gamma}(u*v) 
+% provided u and v are interpolated with shape functions
 
 % /!\ Problem at corner nodes
 
