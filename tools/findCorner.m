@@ -6,7 +6,7 @@ function [index] = findCorner (xl, yl)
  end
  
  % put into loglog
- x = log(xl); y = log(yl);
+ x = log10(xl); y = log10(yl);
  
  sx = size(x,1);  % size of x (hopefully too the size of y)
  n  = floor(sx/2)+1;%max(sx-2,floor(sx/2)+1);   % degree of polynoms
@@ -33,27 +33,30 @@ function [index] = findCorner (xl, yl)
  R = 0;
  index = 0;
  xx = zeros(sx,1);  yy = zeros(sx,1); %debug stuff
- for i=1:sx
+ xx1 = zeros(sx,1);  yy1 = zeros(sx,1);
+ xx2 = zeros(sx,1);  yy2 = zeros(sx,1);
+ Ga = zeros(sx,1);
+ for i=2:sx-1  % First and last are forbitten (because of interpolation bound effects)
     tt = zeros(n+1,1);
     for j=1:n+1
        tt(j) = t(i)^(n+1-j);
     end
     
     % Compute values on this point
-    xx(i) = px'*tt; xx1 = px1'*tt; xx2 = px2'*tt;
-    yy(i) = py'*tt; yy1 = py1'*tt; yy2 = py2'*tt;
+    xx(i) = px'*tt; xx1(i) = px1'*tt; xx2(i) = px2'*tt;
+    yy(i) = py'*tt; yy1(i) = py1'*tt; yy2(i) = py2'*tt;
     
-    denom = yy2*xx1 - xx2*yy1;
+    denom = (xx1(i)^2 + yy1(i)^2)^(3/2);
     
     if denom ~= 0
-       Rc = (xx1^2 + yy1^2)^(3/2) / denom;
+       Ga(i) =  (yy2(i)*xx1(i) - xx2(i)*yy1(i)) / denom;
     else
-       Rc = R+1.;  % eliminate this candidate
+       Ga(i) = R+1.;  % eliminate this candidate
     end
     
-    % Test if the candidate is smaller than the current R
-    if R == 0 || Rc < R
-       R = Rc;
+    % Test if the candidate is smaller than the current curvature
+    if R == 0 || Ga(i) < R % Ga < 0
+       R = Ga(i);
        index = i;
     end
  end

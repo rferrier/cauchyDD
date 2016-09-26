@@ -244,7 +244,7 @@ for iter = 1:niter
 %    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
 %    %
 %    ARes(:,iter) = lamb1-lamb2;
-    for jter=1:iter-1
+    for jter=1:iter-1   % Reorthogonalize the residual
         betac = Zed(indexa,iter+1)'*Ad(indexa,jter) / (Zed(indexa,jter)'*Ad(indexa,jter));
         Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
     end

@@ -358,12 +358,12 @@ end
 %legend('Ritz Values','RHS values','solution coefficients')
 %figure;
 %
-%hold on;
-%plot(Itere(2*b2node2-1),'Color','red')
-%plot(ItereR(2*b2node2-1),'Color','blue')
-%plot(uref(2*b2node2-1),'Color','green')
-%legend('brutal solution','filtred solution', 'reference')
-%figure;
+hold on;
+plot(Itere(2*b2node2-1),'Color','red')
+plot(ItereR(2*b2node2-1),'Color','blue')
+plot(uref(2*b2node2-1),'Color','green')
+legend('brutal solution','filtred solution', 'reference')
+figure;
 
 %hold on
 %plot(log10(error(2:end)),'Color','blue')
@@ -378,7 +378,7 @@ loglog(resS(2:iter+1),regS(2:iter+1),'-+');
 legend('L-curve','RL-curve')
 figure
 findCorner (residual(2:iter+1), regulari(2:iter+1))
-findCorner (log10(resS(2:iter+1)), log10(regS(2:iter+1)))
+findCorner (resS(2:iter+1), regS(2:iter+1))
 %%%%%
 %% Final problem : compute u
 dirichlet = [4,1,0;4,2,0;

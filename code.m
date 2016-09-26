@@ -16,45 +16,35 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 % second index : 1=x, 2=y
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
-dirichlet = [0,1,0 ; 0,2,0 ; 0,3,0];
-neumann1  = [3,2,1];
-neumann2  = [1,2,-1];
-neumann   = [3,2,1 ; 1,2,-1];
+%dirichlet = [0,1,0 ; 0,2,0 ; 0,3,0];
+%dirichlet = [1,1,0,0 ; 1,2,0,0 ; 4,1,-.0005,1];
+dirichlet = [1,1,0,0 ; 1,2,0,0 ; 3,2,0,-1];
+neumann   = [4,1,fscalar];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
 
-[node2to, to2node] = mapBound(2, boundary, nnodes);
+%[node2to, to2node] = mapBound(2, boundary, nnodes);
 
 % Then, build the stiffness matrix :
-[K,C,nbloq,node2c,c2node] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+%[K,C,nbloq,node2c,c2node] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
 
 % The right hand side :
-% f1 = loading(nbloq,nodes,boundary,neumann1);
-% f2 = loading(nbloq,nodes,boundary,neumann2);
-f  = loading(nbloq,nodes,boundary,neumann);
+%f  = loading(nbloq,nodes,boundary,neumann);
+f  = loading(0,nodes,boundary,neumann);
+%f = volumicLoad( 0, nodes, elements, 2, -fscalar );
 
-% % Regularize the problem :
-% g1 = zeros(2*nnodes,1); g2 = g1; g3p = g1;
-% ind = 2:2:2*nnodes;
-% g1(ind,1) = 1; g2(ind-1,1) = 1;
-% %g1 = keepField( g1, 1, boundary );
-% %g2 = keepField( g2, 1, boundary );
-% g3p(ind,1) = nodes(ind/2,1);
-% g3p(ind-1,1) = -nodes(ind/2,2);
-% %g3p = keepField( g3p, 1, boundary );
-% % orthogonalize
-% g3 = g3p - (g3p'*g1)/(g1'*g1)*g1 - (g3p'*g2)/(g2'*g2)*g2;
-% 
-% G = [g1,g2,g3];
-% % G = null(full(K));
-% Kr = [K,G;G',zeros(size(G,2))];
+mat = [0, E, nu];
+eta = .3;
+
+% Cause corner pauses problem (as usual)
+boundary = suppressBound( boundary, [1], 4 );
 
 % Solve the problem :
-% uin1 = Kr\[f1;zeros(size(G,2),1)];
-% uin2 = Kr\[f2;zeros(size(G,2),1)];
-uin = K\f;
+uin = statusContact( nodes, elements, mat, 1, boundary, dirichlet, eta, 10, ntoelem, f, 1 );
+
+%uin = K\f;
 % uin = uin1+uin2;
 
 % Extract displacement :

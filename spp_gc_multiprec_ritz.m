@@ -12,9 +12,9 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 8;
-br      = 0.01;     % noise
+br      = 0.5;     % noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
-ratio   = 1e-12;   % Max ratio between eigenvalues
+ratio   = 1e-5;   % Max ratio between eigenvalues
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -282,9 +282,11 @@ for iter = 1:niter
 %                             (sqrt(Res(indexa,iter)'*Zed1(indexa,iter)));
 %    V(indexa,2*iter)   = (-1)^(iter-1)*Zed2(indexa,iter);%/...
 %                             (sqrt(Res(indexa,iter)'*Zed2(indexa,iter)));
-    V(indexa,2*iter-1) = Zed1(indexa,iter);
-    V(indexa,2*iter)   = Zed2(indexa,iter);
-                             
+    V(indexa,2*iter-1) = Zed1(indexa,iter)/(sqrt(Res(indexa,iter)'*Zed1(indexa,iter)));
+    V(indexa,2*iter)   = Zed2(indexa,iter)/(sqrt(Res(indexa,iter)'*Zed2(indexa,iter)));
+%    V(indexa,2*iter-1) = Zed1(indexa,iter);
+%    V(indexa,2*iter)   = Zed2(indexa,iter);
+%                             
     if iter > 1
        betapa = cell2mat(beta(iter-1));
        zt1p = zt1; zt2p = zt2; Azt1p = Azt1; Azt2p = Azt2; 
@@ -293,20 +295,31 @@ for iter = 1:niter
        zt2  = d2(:,iter) + betapa(1,2)*d1(:,iter-1) + betapa(2,2)*d2(:,iter-1);
        Azt2 = Ad2(:,iter) + betapa(1,2)*Ad1(:,iter-1) + betapa(2,2)*Ad2(:,iter-1);
        
-%       H(2*iter-1,2*iter-1) = d1(:,iter)'*Ad1(:,iter)...
-%                              + betapa(1,1)^2 * d1(:,iter-1)'*Ad1(:,iter-1)...
-%                              + betapa(1,2)^2 * d2(:,iter-1)'*Ad2(:,iter-1)...
-%                              + 2*betapa(1,1)*betapa(2,1) * d1(:,iter-1)'*Ad2(:,iter-1);
-%
-%       H(2*iter,2*iter)     = d2(:,iter)'*Ad2(:,iter)...
-%                              + betapa(2,1)^2 * d1(:,iter-1)'*Ad1(:,iter-1)...
-%                              + betapa(2,2)^2 * d2(:,iter-1)'*Ad2(:,iter-1)...
-%                              + 2*betapa(1,2)*betapa(2,2) * d1(:,iter-1)'*Ad2(:,iter-1);
+       H(2*iter-1,2*iter-1) = d1(:,iter)'*Ad1(:,iter)...
+                              + betapa(1,1)^2 * d1(:,iter-1)'*Ad1(:,iter-1)...
+                              + betapa(1,2)^2 * d2(:,iter-1)'*Ad2(:,iter-1)...
+                              + 2*betapa(1,1)*betapa(2,1) * d1(:,iter-1)'*Ad2(:,iter-1);
+
+       H(2*iter,2*iter)     = d2(:,iter)'*Ad2(:,iter)...
+                              + betapa(2,1)^2 * d1(:,iter-1)'*Ad1(:,iter-1)...
+                              + betapa(2,2)^2 * d2(:,iter-1)'*Ad2(:,iter-1)...
+                              + 2*betapa(1,2)*betapa(2,2) * d1(:,iter-1)'*Ad2(:,iter-1);
        ind = [2*iter-1;2*iter];
        H(ind,ind) = [zt1(indexa),zt2(indexa)]'*[Azt1(indexa),Azt2(indexa)];
        H(ind-2,ind) = [zt1p(indexa),zt2p(indexa)]'*[Azt1(indexa),Azt2(indexa)];
        H(ind,ind-2) = [zt1(indexa),zt2(indexa)]'*[Azt1p(indexa),Azt2p(indexa)];
 
+%%       % Compute denominators
+       de1  = sqrt(Res(indexa,iter)'*Zed1(indexa,iter));
+       de2  = sqrt(Res(indexa,iter)'*Zed2(indexa,iter));
+       de1p = sqrt(Res(indexa,iter-1)'*Zed1(indexa,iter-1));
+       de2p = sqrt(Res(indexa,iter-1)'*Zed2(indexa,iter-1));
+       
+       % And apply it
+       H(ind,ind) = H(ind,ind) ./ ([de1,de2]'*[de1,de2]);
+       H(ind-2,ind) = H(ind-2,ind) ./ ([de1p,de2p]'*[de1,de2]);
+       H(ind,ind-2) = H(ind,ind-2) ./ ([de1,de2]'*[de1p,de2p]);
+       
     else
        zt1  = d1(:,iter);
        Azt1 = Ad1(:,iter);
@@ -314,6 +327,9 @@ for iter = 1:niter
        Azt2 = Ad2(:,iter);
        ind = [2*iter-1;2*iter];
        H(ind,ind) = [d1(:,iter),d2(:,iter)]'*[Ad1(:,iter),Ad2(:,iter)];
+       de1  = sqrt(Res(indexa,iter)'*Zed1(indexa,iter));
+       de2  = sqrt(Res(indexa,iter)'*Zed2(indexa,iter));
+       H(ind,ind) = H(ind,ind) ./ ([de1,de2]'*[de1,de2]);
     end
     
     % Compute eigenelems of the Hessenberg :

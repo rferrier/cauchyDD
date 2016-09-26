@@ -11,14 +11,15 @@ E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
 niter    = 10;
-br       = .01;    % noise
+br       = 1;    % noise
 brt      = 0;      % multiplication noise
 relax    = 0;      % Use a relaxation paramter
-nlociter = 10;     % Nb of localization iterations
+nlociter = 1;     % Nb of localization iterations
 %max_erc  = 2;     % Erc criterion for localization
-k0       = E*1e-2; % Basic Robin multiplicator
+k0       = E*.01; % Basic Robin multiplicator
 Lc       = 0.01;   % Correlation length for the white gaussian noise
 maxmult  = 1;      % Maximal autorized multiplicator (because contitionnement)
+epsilon  = 1e-2;   % Multiplicator : Ko = epsilon*alphaK
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -114,6 +115,8 @@ fresidual = zeros(niter,1);
 Erdc      = ones(niter*nlociter,1);
 Erdcm     = ones(niter*nlociter,1);
 
+alphaK    = zeros(size(boundary,1),1); % Robin coefficients
+
 % init :
 u1 = uref-uref;
 u2 = u1; fri = u1; fr2 = u1; v = u1;
@@ -163,6 +166,7 @@ for Bigi = 1:nlociter
       fr = [ fri; zeros(size(C2,2),1) ]; % Give to fr the right size
       if Bigi > 1
          [Krob, fdir1] = robinRHS( nbloq2, nodes, boundary, urefb, Ko, 1 );
+         %fdir1 = fdir1 + [frefb; zeros(nbloq2,1)] ;  % Add also the loading
       else
          fdir1 = dirichletRhs2(urefb, 1, c2node2, boundary, nnodes);
          Krob = sparse( size(K2,1), size(K2,2) );
@@ -229,6 +233,8 @@ for Bigi = 1:nlociter
             deltau = urefb(map) - u1(map);
             Erc(i) = deltaf'*Me*deltau;
             nberc = nberc+1;
+            
+            alphaK(i) = abs(fr2(map)'*deltaf/(deltaf'*Me*deltau));
 
        end
     end
@@ -241,8 +247,12 @@ for Bigi = 1:nlociter
   % Tune Ko in function of Erc
   if Bigi == 1
      Ko = min( max( k0*Erdc(niter*(Bigi-1)+iter)./(Erc*nberc), k0/maxmult ), k0*maxmult );
+     %Ko = epsilon*alphaK;
      figure;
      plot(Erc);
+     figure;
+     %plot(alphaK/E);
+     %median(alphaK/E)
   end
 %  figure;
 %  plot(uref-urefb);
@@ -251,7 +261,7 @@ for Bigi = 1:nlociter
 
 end
 
-Erdc  = Erdc/(Erdcm(1)+Erdc(1));  % In order to normalize the stuff
+%Erdc  = Erdc/(Erdc(1));  % In order to normalize the stuff
 Erdcm = Erdcm/(Erdcm(1)+Erdc(1));  % In order to normalize the stuff
 residual(1) = 1; % tiny hack
 figure;
@@ -264,7 +274,7 @@ plot(log10(error2),'Color','blue')
 plot(log10(ferror1),'Color','yellow')
 plot(log10(ferror2),'Color','cyan')
 %plot(log10(fresidual),'Color','magenta')
-plot(log10(Erdcm+Erdc),'Color','green')
+plot(log10(Erdc),'Color','green')
 %legend('error1 (log)','error2 (log)','residual (log)','ferror1 (log)',...
        %'ferror2 (log)','fresidual (log)','Erc(log)')
 legend('error1 (log)','error2 (log)','ferror1 (log)',...
