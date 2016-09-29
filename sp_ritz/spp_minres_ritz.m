@@ -6,16 +6,17 @@ close all;
 clear all;
 
 addpath(genpath('./tools'))
+addpath(genpath('./sp_ritz'))
 
 % Parameters
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
+niter   = 5;
 precond = 0;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
-ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
-br      = 0.0;      % noise
+ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
+br      = 0.;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 
@@ -118,14 +119,13 @@ K1r = K1; K2r = K2; K1dr = K1d; K2dr = K2d;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
-Itere = zeros( 2*nnodes, 1 );
-d     = zeros( 2*nnodes, niter+1 );
-Ad    = zeros( 2*nnodes, niter+1 );
-Res   = zeros( 2*nnodes, niter+1 );
-Zed   = zeros( 2*nnodes, niter+1 );
-alpha = zeros( niter+1, 1 );
-beta  = zeros( niter+1, 1 );
-alpha2 = zeros( niter+1, 1 );
+Itere  = zeros( 2*nnodes, 1 );
+d      = zeros( 2*nnodes, niter+1 );
+Ad     = zeros( 2*nnodes, niter+1 );
+Res    = zeros( 2*nnodes, niter+1 );
+MRes   = zeros( 2*nnodes, niter+1 );
+AMRes  = zeros( 2*nnodes, niter+1 );  % AMRes = A*M*Res
+Zed    = zeros( 2*nnodes, niter+1 );
 ntrunc = 0;  % In case the algo finishes at niter
 
 %% Perform A x0 :
@@ -168,30 +168,30 @@ if precond == 1
     uin1 = K1dr\f1;
     u1i = uin1(1:2*nnodes,1);
     u1 = keepField( u1i, 2, boundaryp1 );
-    Zed(:,1) = u1;
+    d(:,1) = u1;
 else
-    Zed(:,1) = Res(:,1);
+    d(:,1) = Res(:,1);
 end
 
-d(:,1) = Zed(:,1);
+MRes(:,1) = d(:,1);
 
- % Solve 1
- rhs1 = d(:,1);
- f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
- uin1 = K1\f1;
- lagr1 = uin1(2*nnodes+1:end,1);
- lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
- % Solve 2
- rhs2 = d(:,1);
- f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
- uin2 = K2\f2;
- lagr2 = uin2(2*nnodes+1:end,1);
- lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
- % Regularization term
- Nu = regul(d(:,1), nodes, boundaryp2, 2);
- %
- Ad(:,1) = mu*Nu+lamb1-lamb2;
+% Solve 1
+rhs1 = d(:,1);
+f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+uin1 = K1\f1;
+lagr1 = uin1(2*nnodes+1:end,1);
+lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+% Solve 2
+rhs2 = d(:,1);
+f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+uin2 = K2\f2;
+lagr2 = uin2(2*nnodes+1:end,1);
+lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+%
+Ad(:,1) = lamb1-lamb2;
 
+AMRes(:,1) = Ad(:,1);
+ 
 residual(1) = sqrt( norm(Res( indexa,1)));
 error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
@@ -204,53 +204,32 @@ getmeout = 0; % utility
 %%
 for iter = 1:niter
     
-    den = (Ad(indexa,iter)'*Ad(indexa,iter));
-    %d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
-    num = Res(indexa,iter)'*Ad(indexa,iter);
-    Itere         = Itere + d(:,iter)*num/den;
-    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num/den;
+    if precond == 1
+        % Solve 1
+        f1 = [Ad(:,iter); zeros(nbloq1d,1)];
+        uin1 = K1dr\f1;
+        u1i = uin1(1:2*nnodes,1);
+        u1 = keepField( u1i, 2, boundaryp1 );
+        Zed(:,iter) = u1;
+    else
+        Zed(:,iter) = Ad(:,iter);
+    end
+    
+    den = (Ad(indexa,iter)'*Zed(indexa,iter));
+    d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den); 
+    Zed(:,iter) = Zed(:,iter)/sqrt(den);
+    
+    num = Res(indexa,iter)'*Zed(indexa,iter);
+    Itere          = Itere + d(:,iter)*num;%/den;
+    Res(:,iter+1)  = Res(:,iter) - Ad(:,iter)*num;%/den;
+    MRes(:,iter+1) = MRes(:,iter) - Zed(:,iter)*num;%/den;
     
     residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
     error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
-    
-    if precond == 1
-        % Solve 1
-        f1 = [Res(:,iter+1); zeros(nbloq1d,1)];
-        uin1 = K1dr\f1;
-        u1i = uin1(1:2*nnodes,1);
-        u1 = keepField( u1i, 2, boundaryp1 );
-        Zed(:,iter+1) = u1;
-    else
-        Zed(:,iter+1) = Res(:,iter+1);
-    end
-    
-    % Needed values for the Ritz stuff
-    alpha(iter) = num/den;%/sqrt(den);
-    beta(iter)  = - Ad(indexa,iter+1)'*Ad(indexa,iter)/den;%sqrt(den);
-    
-    % First Reorthogonalize the residual (as we use it next), in sense of A'M
-    % Solve 1 (DEBUG)
-%    rhs1 = Res(:,iter);
-%    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
-%    uin1 = K1\f1;
-%    lagr1 = uin1(2*nnodes+1:end,1);
-%    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
-%    % Solve 2
-%    rhs2 = Res(:,iter);
-%    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
-%    uin2 = K2\f2;
-%    lagr2 = uin2(2*nnodes+1:end,1);
-%    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-%    %
-%    ARes(:,iter) = lamb1-lamb2;
-    for jter=1:iter-1   % Reorthogonalize the residual
-        betac = Zed(indexa,iter+1)'*Ad(indexa,jter) / (Zed(indexa,jter)'*Ad(indexa,jter));
-        Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
-    end
 
     %% Orthogonalization
-    d(:,iter+1) = Zed(:,iter+1);%Ad(:,iter);
+    d(:,iter+1) = Zed(:,iter); % Ad(:,iter+1);
     
     % Solve 1
     rhs1 = d(:,iter+1);
@@ -264,13 +243,20 @@ for iter = 1:niter
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
     lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-    % Regularization term
-    Nu = regul(d(:,iter+1), nodes, boundaryp2, 2);
     %
-    Ad(:,iter+1) = mu*Nu+lamb1-lamb2;
+    Ad(:,iter+1) = lamb1-lamb2;
     
-    for jter=max(1,iter-1):iter % No need to reorthogonalize (see above)
-        betaij = ( Ad(indexa,iter+1)'*Ad(indexa,jter) ) / ( Ad(indexa,jter)'*Ad(indexa,jter) );
+    AMRes(:,iter+1) = AMRes(:,iter) - Ad(:,iter+1)*num;%/den;  % For AV. /!\ in case of precond
+    
+%    for jter=1:iter   % Reorthogonalize the residual in sense of AM
+%        betac = Res(indexa,iter+1)'*AMRes(indexa,jter) / (Res(indexa,jter)'*AMRes(indexa,jter));
+%        MRes(:,iter+1) = MRes(:,iter+1) - MRes(:,jter) * betac;
+%        Res(:,iter+1)  = Res(:,iter+1) - Res(:,jter) * betac;
+%        AMRes(:,iter+1) = AMRes(:,iter+1) - AMRes(:,jter) * betac;
+%    end
+    
+    for jter = 1:iter % max(1,iter-1):iter 
+        betaij = ( Ad(indexa,iter+1)'*Zed(indexa,jter) ) / ( Ad(indexa,jter)'*Zed(indexa,jter) );
         d(:,iter+1)  = d(:,iter+1) - d(:,jter) * betaij;
         Ad(:,iter+1) = Ad(:,iter+1) - Ad(:,jter) * betaij;
     end
@@ -278,24 +264,27 @@ for iter = 1:niter
     %% Ritz algo : find the Ritz elements
     % Build the matrices
     V(:,iter) = zeros(2*nnodes,1);
-    V(indexa,iter) = (-1)^(iter-1)*Zed(indexa,iter)/(sqrt(Res(indexa,iter)'*Zed(indexa,iter)));
-    %norm(Zed(indexa,iter))
-    etap   = eta;
-    delta  = 1/alpha(iter);
-    if iter > 1
-       delta  = delta + beta(iter-1)/alpha(iter-1);
-    end
-    eta    = sqrt(beta(iter))/alpha(iter);
+    V(indexa,iter) = (-1)^(iter-1)*MRes(indexa,iter)/(sqrt(Res(indexa,iter)'*AMRes(indexa,iter)));
+    Vo(:,iter) = zeros(2*nnodes,1);
+    Vo(indexa,iter) = (-1)^(iter-1)*Res(indexa,iter)/(sqrt(Res(indexa,iter)'*AMRes(indexa,iter)));
     
+    %norm(Zed(indexa,iter))
+
     if iter > 1
-       H(iter,[iter-1,iter]) = [etap, delta];
-       H(iter-1,iter)        = etap;
-    else
-       H(iter,iter) = delta;
+       Hb(iter,iter-1) = - AMRes(indexa,iter)'*AMRes(indexa,iter-1)/ ...
+                             ( sqrt(Res(indexa,iter)'*AMRes(indexa,iter)) * ...
+                             sqrt(Res(indexa,iter-1)'*AMRes(indexa,iter-1)) );
+       Hb(iter-1,iter) = - AMRes(indexa,iter)'*AMRes(indexa,iter-1)/ ...
+                             ( sqrt(Res(indexa,iter)'*AMRes(indexa,iter)) * ...
+                             sqrt(Res(indexa,iter-1)'*AMRes(indexa,iter-1)) );
     end
+    %H(iter,iter)  = AMRes(indexa,iter)'*Res(indexa,iter) / ...
+                                %(Res(indexa,iter)'*AMRes(indexa,iter));  %= 1
+    Hb(iter,iter) = AMRes(indexa,iter)'*AMRes(indexa,iter) / ...
+                                (Res(indexa,iter)'*AMRes(indexa,iter));
     
     % Compute eigenelems of the Hessenberg :
-    [Q,Theta1] = eig(H);
+    [Q,Theta1] = eig(Hb);
     theta = diag(Theta1);
     % Sort it
     [theta,Ind] = sort(theta,'descend');
@@ -346,25 +335,11 @@ for i=1:niter
     %
     AV(:,i) = lamb1-lamb2;
 end
-for i=1:niter
-    rhs1 = AV(:,i);
-    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
-    uin1 = K1\f1;
-    lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
-    % Solve 2
-    rhs2 = AV(:,i);
-    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
-    uin2 = K2\f2;
-    lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
-    %
-    AtAV(:,i) = lamb1-lamb2;
-end
-He = V'*AtAV;
+He = V'*AV;
+Heb = AV'*AV;
 
 % Compute the solution
-chi = inv(Theta1)*Y'*b;
+chi = Y'*b;%inv(Theta1)*Y'*b;
 if ntrunc > 0
    chi(ntrunc:end) = 0;
 end
@@ -379,7 +354,7 @@ ItereR = Y*chi;
 %
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')
-%plot(ItereR(2*b2node2-1),'Color','blue')
+plot(ItereR(2*b2node2-1),'Color','blue')
 plot(uref(2*b2node2-1),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
 figure;

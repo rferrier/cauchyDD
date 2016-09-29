@@ -13,7 +13,7 @@ fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 25;
 precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
-ratio   = 1e-3;    % Maximal ratio (for eigenfilter)
+ratio   = 1e-5;    % Maximal ratio (for eigenfilter)
 br      = .5;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
@@ -351,6 +351,24 @@ for i = 1:iter+1
    regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
 end
 
+% Residual in the diagonal base :
+%resD = zeros(iter,1);  regD = zeros(iter,1);  bt = Y'*b;
+%for i=1:iter
+%   resD(i) = sqrt( sum( bt(i:end).^2) );
+%   regD(i) = sqrt( sum((theta(1:i) .* chit(1:i)).^2) );
+%end
+traD = 1 - sum(theta(1:ntrunc-1))/sum(theta)
+regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
+for i = 1:iter+1
+   chiD   = inv(Theta1)*Y'*b; chiD(i:end) = 0;
+   ItereD = Y*chiD;
+   %AI = Y*Theta1*Y'*ItereD;
+   %ResD = AI-b;
+   %resD(i) = sqrt(norm(ResD));  %Problem with the preconditionner
+   resD(i) = sqrt( sum( bt(i:end).^2) );  
+   regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 2) );
+end
+
 %hold on;
 %plot(log10(theta),'Color','blue')
 %plot(log10(abs(Y'*b)),'Color','red')
@@ -379,6 +397,13 @@ legend('L-curve','RL-curve')
 figure
 findCorner (residual(2:iter+1), regulari(2:iter+1))
 findCorner (resS(2:iter+1), regS(2:iter+1))
+
+%hold on;
+%loglog(resS(2:iter+1),regS(2:iter+1),'Color','red','-*');
+loglog(resD(2:iter),regD(2:iter),'-+');
+%legend('RL-curve (natural basis)','RL-curve (diagonal basis)')
+figure
+findCorner (resD(2:iter), regD(2:iter))
 %%%%%
 %% Final problem : compute u
 dirichlet = [4,1,0;4,2,0;

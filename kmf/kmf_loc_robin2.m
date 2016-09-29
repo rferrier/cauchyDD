@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
-niter    = 10;
+niter    = 2;
 br       = 1;    % noise
 brt      = 0;      % multiplication noise
 relax    = 0;      % Use a relaxation paramter
@@ -102,6 +102,30 @@ for i=1:nbound
    end
 end
 
+%% Rough estimate of the Schur complement's norm
+testFieldc = ones(2*nnodes,1);
+testFieldb = rand(2*nnodes,1);
+
+dirichlet2 = [4,1,0;4,2,0;
+              1,1,0;1,2,0];
+[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
+
+fdirc = dirichletRhs2(testFieldc, 1, c2node2, boundary, nnodes );
+fdirb = dirichletRhs2(testFieldb, 1, c2node2, boundary, nnodes );
+
+solc1 = K2\fdirc; solc = solc1(1:2*nnodes); fc = Kinter*solc;
+solb1 = K2\fdirb; solb = solb1(1:2*nnodes); fb = Kinter*solb;
+
+nSc = sqrt( fc'*norm_bound(fc, nodes, boundary, 1) /...
+                    (testFieldc'*norm_bound(testFieldc, nodes, boundary, 1) ));
+nSb = sqrt( fb'*norm_bound(fb, nodes, boundary, 1) /...
+                    (testFieldb'*norm_bound(testFieldb, nodes, boundary, 1) ));
+                    
+k = .1*nSc;
+%nSc = sqrt( norm(fc) / norm(testFieldc) )
+%nSb = sqrt( norm(fb) / norm(testFieldb) )
+
+%% Initialization of KMF
 error1   = zeros(niter*nlociter,1);
 error2   = zeros(niter*nlociter,1);
 residual = zeros(niter*nlociter,1);
