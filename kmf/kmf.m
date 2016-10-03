@@ -11,7 +11,7 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 20;
-br      = 0.2;      % noise
+br      = 0.;      % noise
 relax   = 0;      % Use a relaxation paramter
 
 % Boundary conditions

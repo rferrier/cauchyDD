@@ -8,6 +8,7 @@ function [K,C,ntot,node2c,c2node] = Krig (nodes, elem, E, nu, order,...
  %         order    : order of the elements
  %         bc       : boundary conditions
  %         varargin : if 1 : plane deformations else plane constrains
+ %         varargin2: multiplicator for C
  
  % output : K    : global stiffness matrix
  %          ntot : number of nodes on the uy=0 border
@@ -19,6 +20,11 @@ function [K,C,ntot,node2c,c2node] = Krig (nodes, elem, E, nu, order,...
  mo = 0;
  if numel(varargin)>0
      mo = cell2mat(varargin(1));
+ end
+ 
+ mul = 1;
+ if numel(varargin)>1
+     mul = cell2mat(varargin(2));
  end
  
  if mo == 0
@@ -166,6 +172,6 @@ function [K,C,ntot,node2c,c2node] = Krig (nodes, elem, E, nu, order,...
      end
  end
 
- K = [Kin,C;C',zeros(ntot)];
+ K = [Kin,mul*C;mul*C',zeros(ntot)];
  
 end

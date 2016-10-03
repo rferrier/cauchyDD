@@ -10,13 +10,13 @@ addpath(genpath('./tools'))
 E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
-niter    = 2;
-br       = 1;    % noise
+niter    = 20;
+br       = 0.15;     % noise
 brt      = 0;      % multiplication noise
 relax    = 0;      % Use a relaxation paramter
-nlociter = 1;     % Nb of localization iterations
+nlociter = 7;     % Nb of localization iterations
 %max_erc  = 2;     % Erc criterion for localization
-k0       = E*.01; % Basic Robin multiplicator
+k0       = E*.01;  % Basic Robin multiplicator
 Lc       = 0.01;   % Correlation length for the white gaussian noise
 maxmult  = 1;      % Maximal autorized multiplicator (because contitionnement)
 epsilon  = 1e-2;   % Multiplicator : Ko = epsilon*alphaK
@@ -86,9 +86,7 @@ fref = f( 1:2*nnodes,1 ); % Reaction forces
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 % Output :
 plotGMSH({uref,'U_vect';sigma,'stress'}, elements, nodes(:,[1,2]), 'reference');
-% patch('Faces',elements(:,1:3),'Vertices',nodes,'FaceAlpha',0);
-% axis equal
-% figure
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Initialize redondant boundary
 neumann1   = [1,2,fscalar;
@@ -104,7 +102,7 @@ end
 
 %% Rough estimate of the Schur complement's norm
 testFieldc = ones(2*nnodes,1);
-testFieldb = rand(2*nnodes,1);
+testFieldb = randn(2*nnodes,1);
 
 dirichlet2 = [4,1,0;4,2,0;
               1,1,0;1,2,0];
@@ -140,6 +138,7 @@ Erdc      = ones(niter*nlociter,1);
 Erdcm     = ones(niter*nlociter,1);
 
 alphaK    = zeros(size(boundary,1),1); % Robin coefficients
+isK       = zeros(size(indexred,1),1); % Lists the dof where we have interest to use Robin
 
 % init :
 u1 = uref-uref;
@@ -223,6 +222,31 @@ for Bigi = 1:nlociter
       fresidual(niter*(Bigi-1)+iter) = sqrt((fri-fr2)'*(fri-fr2)/sqrt((fri'*fri)*(fr2'*fr2)));
                    
       regulari(niter*(Bigi-1)+iter) = sqrt(u2'*regul(u2, nodes, boundary, 3));
+      
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+      %% See if it is a good idea to use a Robin condition
+      if Bigi == 1 && iter == 1
+%         for dof = 1:size(indexred,1)
+%            if br*solb(dof) > fr2(dof)-k*u2(dof)
+%               isK(dof) = 1;
+%            end
+%         end
+
+%         dirichlet2c = [4,1,0;4,2,0];
+%         [K2c,C2c,nbloq2c,node2c2c,c2node2c] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2c);
+%
+%         Df2 = K2c\[fr2 ; zeros(nbloq2c,1)];  Df2 = Df2(1:2*nnodes);
+
+%         br*solb(indexred(1:5))
+%         fr2(indexred(1:5))) %k*u2
+         ft = br*norm( solb(indexred) )
+         st = nSc * norm( u2(indexred) )
+         us = norm( fr2(indexred) )
+         %norm( k*Df2(indexred) )
+         if br*norm( solb(indexred) ) > nSc * norm( u2(indexred) )
+            isK(:) = 1;
+         end
+      end
   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% Computation of the constitutive law error (at each boundary element)
@@ -270,11 +294,10 @@ for Bigi = 1:nlociter
   
   % Tune Ko in function of Erc
   if Bigi == 1
-     Ko = min( max( k0*Erdc(niter*(Bigi-1)+iter)./(Erc*nberc), k0/maxmult ), k0*maxmult );
+     Ko = min( max( k*Erdc(niter*(Bigi-1)+iter)./(Erc*nberc), k/maxmult ), k*maxmult );
      %Ko = epsilon*alphaK;
-     figure;
-     plot(Erc);
-     figure;
+%     figure;
+%     plot(Erc);
      %plot(alphaK/E);
      %median(alphaK/E)
   end

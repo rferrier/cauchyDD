@@ -1,5 +1,5 @@
 % 06/06/2016
-% Algo Steklov-Poincaré primal avec Gradient Conjugué
+% Algo Steklov-Poincarï¿½ primal avec Gradient Conjuguï¿½
 
 close all;
 clear all;
@@ -243,7 +243,7 @@ plot(log10(residual),'Color','red')
 legend('error (log)','residual (log)')
 figure;
 % L-curve :
-loglog(residual,regulari);
+loglog(residual(2:end),regulari(2:end));
 figure
 %%%%
 %% Final problem : compute u

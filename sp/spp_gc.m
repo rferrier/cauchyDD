@@ -10,8 +10,8 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
-precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
+niter   = 1;
+precond = 0;      % 1 : Use a dual precond, 2 : use regul precond
 mu      = 0.;    % Regularization parameter
 br      = 0.;     % noise
 
@@ -290,7 +290,6 @@ for iter = 1:niter
     den = (d(indexa,iter)'*Ad(indexa,iter));
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
     num = Res(indexa,iter)'*d(indexa,iter);
-
     Itere         = Itere + d(:,iter)*num;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
     

@@ -7,6 +7,7 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
  %         order    : order of the elements
  %         bc       : boundary conditions
  %         varargin : if 1 : plane deformations else plane constrains
+ %         varargin2: multiplicator for C (better condition number)
  
  % mat = [0, E, nu] if isotropic
  % mat = [1, Ex, Ey, nuxy, Gxy] TODO : add rotation of the axis
@@ -21,6 +22,11 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
  mo = 0;
  if numel(varargin)>0
      mo = cell2mat(varargin(1));
+ end
+ 
+ mul = 1;
+ if numel(varargin)>1
+     mul = cell2mat(varargin(2));
  end
  
  if mat(1) == 0
@@ -181,6 +187,6 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
      end
  end
 
- K = [Kin,C;C',zeros(ntot)];
+ K = [Kin,mul*C;mul*C',zeros(ntot)];
  
 end

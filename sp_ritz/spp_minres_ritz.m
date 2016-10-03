@@ -12,7 +12,7 @@ addpath(genpath('./sp_ritz'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 5;
+niter   = 13;
 precond = 0;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
@@ -33,6 +33,10 @@ neumann   = [2,1,fscalar,0,fscalar;
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
+
+noises = load('./noises/noise1.mat'); % Particular noise vector
+noise  = noises.bruit1;
+%noise = randn(2*nnodes,1);
 
 % find the nodes in the corners and suppress the element :
 xmax = max(nodes(:,1));
@@ -123,8 +127,8 @@ Itere  = zeros( 2*nnodes, 1 );
 d      = zeros( 2*nnodes, niter+1 );
 Ad     = zeros( 2*nnodes, niter+1 );
 Res    = zeros( 2*nnodes, niter+1 );
-MRes   = zeros( 2*nnodes, niter+1 );
-AMRes  = zeros( 2*nnodes, niter+1 );  % AMRes = A*M*Res
+MRes   = zeros( 2*nnodes, niter+1 );  % MRes  = M-1*Res
+AMRes  = zeros( 2*nnodes, niter+1 );  % AMRes = A*M-1*Res
 Zed    = zeros( 2*nnodes, niter+1 );
 ntrunc = 0;  % In case the algo finishes at niter
 
@@ -201,6 +205,11 @@ oldtheta = 0;
 eta      = 0;
 getmeout = 0; % utility
 
+V(:,1) = zeros(2*nnodes,1);
+V(indexa,1) = MRes(indexa,1)/(sqrt(MRes(indexa,1)'*AMRes(indexa,1)));
+
+Hb(1,1) = AMRes(indexa,1)'*AMRes(indexa,1) / (MRes(indexa,1)'*AMRes(indexa,1));
+ 
 %%
 for iter = 1:niter
     
@@ -229,7 +238,7 @@ for iter = 1:niter
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
     %% Orthogonalization
-    d(:,iter+1) = Zed(:,iter); % Ad(:,iter+1);
+    d(:,iter+1) = Zed(:,iter); %MRes(:,iter); % Ad(:,iter+1);
     
     % Solve 1
     rhs1 = d(:,iter+1);
@@ -248,13 +257,13 @@ for iter = 1:niter
     
     AMRes(:,iter+1) = AMRes(:,iter) - Ad(:,iter+1)*num;%/den;  % For AV. /!\ in case of precond
     
-%    for jter=1:iter   % Reorthogonalize the residual in sense of AM
-%        betac = Res(indexa,iter+1)'*AMRes(indexa,jter) / (Res(indexa,jter)'*AMRes(indexa,jter));
-%        MRes(:,iter+1) = MRes(:,iter+1) - MRes(:,jter) * betac;
-%        Res(:,iter+1)  = Res(:,iter+1) - Res(:,jter) * betac;
-%        AMRes(:,iter+1) = AMRes(:,iter+1) - AMRes(:,jter) * betac;
-%    end
-    
+    for jter=1:iter   % Reorthogonalize the residual in sense of MAM
+        betac = MRes(indexa,iter+1)'*AMRes(indexa,jter) / (MRes(indexa,jter)'*AMRes(indexa,jter));
+        MRes(:,iter+1) = MRes(:,iter+1) - MRes(:,jter) * betac;
+        Res(:,iter+1)  = Res(:,iter+1) - Res(:,jter) * betac;
+        AMRes(:,iter+1) = AMRes(:,iter+1) - AMRes(:,jter) * betac;
+    end
+
     for jter = 1:iter % max(1,iter-1):iter 
         betaij = ( Ad(indexa,iter+1)'*Zed(indexa,jter) ) / ( Ad(indexa,jter)'*Zed(indexa,jter) );
         d(:,iter+1)  = d(:,iter+1) - d(:,jter) * betaij;
@@ -263,25 +272,25 @@ for iter = 1:niter
     
     %% Ritz algo : find the Ritz elements
     % Build the matrices
-    V(:,iter) = zeros(2*nnodes,1);
-    V(indexa,iter) = (-1)^(iter-1)*MRes(indexa,iter)/(sqrt(Res(indexa,iter)'*AMRes(indexa,iter)));
-    Vo(:,iter) = zeros(2*nnodes,1);
-    Vo(indexa,iter) = (-1)^(iter-1)*Res(indexa,iter)/(sqrt(Res(indexa,iter)'*AMRes(indexa,iter)));
+    V(:,iter+1) = zeros(2*nnodes,1);
+    V(indexa,iter+1) = (-1)^(iter-1)*MRes(indexa,iter+1)/(sqrt(MRes(indexa,iter+1)'*AMRes(indexa,iter+1)));
+%    Vo(:,iter) = zeros(2*nnodes,1);
+%    Vo(indexa,iter) = (-1)^(iter-1)*Res(indexa,iter)/(sqrt(Res(indexa,iter)'*AMRes(indexa,iter)));
     
     %norm(Zed(indexa,iter))
 
-    if iter > 1
-       Hb(iter,iter-1) = - AMRes(indexa,iter)'*AMRes(indexa,iter-1)/ ...
-                             ( sqrt(Res(indexa,iter)'*AMRes(indexa,iter)) * ...
-                             sqrt(Res(indexa,iter-1)'*AMRes(indexa,iter-1)) );
-       Hb(iter-1,iter) = - AMRes(indexa,iter)'*AMRes(indexa,iter-1)/ ...
-                             ( sqrt(Res(indexa,iter)'*AMRes(indexa,iter)) * ...
-                             sqrt(Res(indexa,iter-1)'*AMRes(indexa,iter-1)) );
-    end
-    %H(iter,iter)  = AMRes(indexa,iter)'*Res(indexa,iter) / ...
-                                %(Res(indexa,iter)'*AMRes(indexa,iter));  %= 1
-    Hb(iter,iter) = AMRes(indexa,iter)'*AMRes(indexa,iter) / ...
-                                (Res(indexa,iter)'*AMRes(indexa,iter));
+    %if iter > 1
+    Hb(iter+1,iter) = - AMRes(indexa,iter+1)'*AMRes(indexa,iter)/ ...
+                          ( sqrt(MRes(indexa,iter+1)'*AMRes(indexa,iter+1)) * ...
+                          sqrt(MRes(indexa,iter)'*AMRes(indexa,iter)) );
+    Hb(iter,iter+1) = - AMRes(indexa,iter+1)'*AMRes(indexa,iter)/ ...
+                          ( sqrt(MRes(indexa,iter+1)'*AMRes(indexa,iter+1)) * ...
+                          sqrt(MRes(indexa,iter)'*AMRes(indexa,iter)) );
+    %end
+    %H(iter,iter)  = AMRes(indexa,iter+1)'*MRes(indexa,iter+1) / ...
+                                %(MRes(indexa,iter+1)'*AMRes(indexa,iter+1));  %= 1
+    Hb(iter,iter) = AMRes(indexa,iter+1)'*AMRes(indexa,iter+1) / ...
+                                (MRes(indexa,iter+1)'*AMRes(indexa,iter+1));
     
     % Compute eigenelems of the Hessenberg :
     [Q,Theta1] = eig(Hb);
@@ -320,7 +329,7 @@ end
 
 % Debug : compute He
 AV = zeros( 2*nnodes, niter );
-for i=1:niter
+for i=1:iter
     rhs1 = V(:,i);
     f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
     uin1 = K1\f1;
@@ -356,6 +365,12 @@ hold on;
 plot(Itere(2*b2node2-1),'Color','red')
 plot(ItereR(2*b2node2-1),'Color','blue')
 plot(uref(2*b2node2-1),'Color','green')
+legend('brutal solution','filtred solution', 'reference')
+figure;
+hold on;
+plot(Itere(2*b2node2),'Color','red')
+plot(ItereR(2*b2node2),'Color','blue')
+plot(uref(2*b2node2),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
 figure;
 

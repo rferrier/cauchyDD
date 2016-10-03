@@ -1,15 +1,20 @@
-function [index] = findCorner (xl, yl)
+function [index] = findCorner (xl, yl, varargin)
  % This function finds the corner of an L-curve
 
  if size(xl,1) <= 2
     error('Not enough points on L-curve : it has no corner')
  end
  
+ d = 1;
+ if numel(varargin)>0
+     d = cell2mat(varargin(1));
+ end
+ 
  % put into loglog
  x = log10(xl); y = log10(yl);
  
  sx = size(x,1);  % size of x (hopefully too the size of y)
- n  = floor(sx/2)+1;%max(sx-2,floor(sx/2)+1);   % degree of polynoms
+ n  = floor(sx/d)+1;%max(sx-2,floor(sx/2)+1);   % degree of polynoms
  t  = (1:1:sx)';   % coarse mesh
  tp = (1:.1:sx)';  % fine mesh (useless for now)
  

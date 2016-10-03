@@ -14,7 +14,7 @@ nnodes = size(nodes, 1);
  if numel(varargin)>0
     germ = cell2mat(varargin(1));
  else
-    germ = rand( 2*nnodes, 1 );
+    germ = randn( 2*nnodes, 1 );
  end
  
  if numel(varargin)>1
