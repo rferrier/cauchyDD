@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 E        = 70000;  % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 1;      % N.mm-1 : Loading on the plate
-niter    = 20;
-br       = 0.15;     % noise
+niter    = 10;
+br       = 0.3;     % noise
 brt      = 0;      % multiplication noise
 relax    = 0;      % Use a relaxation paramter
-nlociter = 7;     % Nb of localization iterations
+nlociter = 5;     % Nb of localization iterations
 %max_erc  = 2;     % Erc criterion for localization
 k0       = E*.01;  % Basic Robin multiplicator
 Lc       = 0.01;   % Correlation length for the white gaussian noise
@@ -240,7 +240,7 @@ for Bigi = 1:nlociter
 %         br*solb(indexred(1:5))
 %         fr2(indexred(1:5))) %k*u2
          ft = br*norm( solb(indexred) )
-         st = nSc * norm( u2(indexred) )
+         st = 2*nSc * norm( u2(indexred) )
          us = norm( fr2(indexred) )
          %norm( k*Df2(indexred) )
          if br*norm( solb(indexred) ) > nSc * norm( u2(indexred) )

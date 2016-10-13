@@ -175,8 +175,8 @@ end
 
 d(:,1) = Zed(:,1);
 
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - fref(indexa) / norm(fref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 %%
@@ -205,8 +205,8 @@ for iter = 1:niter
     Itere         = Itere + d(:,iter)*num;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
     
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     if precond == 1

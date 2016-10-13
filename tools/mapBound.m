@@ -47,4 +47,3 @@ function [ node2b, b2node ] = mapBound( entity, boundary, nnodes, varargin )
  b2node(j:nnodes) = [];
 
 end
-

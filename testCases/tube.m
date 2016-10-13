@@ -10,13 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.;      % noise
+br      = 0.1;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz
+% 100=KMF-R+ERC
 
-methods = [9];
+methods = [100];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -79,10 +80,11 @@ plot(thetax,fref(index-1,1),'Color','red');
 legend('fy','fx')
 xlabel('angle(rad)')
 
-indexxy = [index;index+1];
+indexxy = [index-1;index];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% KMF prequisites
-if size(find(methods==1),1) == 1 || size(find(methods==2),1) == 1
+if size(find(methods==1),1) == 1 || size(find(methods==2),1) == 1 ||...
+    size(find(methods==100),1) == 1
     % DN problem
     dirichlet1 = [2,1,0;2,2,0;
                   3,1,0;3,2,0];
@@ -186,6 +188,160 @@ if find(methods==1)
     total_error = norm(uref-u2)/norm(uref);
     total_errorf = norm(fref-efe)/norm(fref);
     
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% KMF-R+ERC algo : ~ iterations
+if find(methods==100)
+
+    %% Rough estimate of the Schur complement's norm
+    testFieldc = ones(2*nnodes,1);
+    testFieldb = randn(2*nnodes,1);
+   
+    %dirichlet2 = [4,1,0;4,2,0;
+     %             1,1,0;1,2,0];
+    %[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
+   
+    fdirc = dirichletRhs2(testFieldc, 1, c2node2, boundary, nnodes );
+    fdirb = dirichletRhs2(testFieldb, 1, c2node2, boundary, nnodes );
+   
+    solc1 = K2\fdirc; solc = solc1(1:2*nnodes); fc = Kinter*solc;
+    solb1 = K2\fdirb; solb = solb1(1:2*nnodes); fb = Kinter*solb;
+   
+    nSc = sqrt( fc'*norm_bound(fc, nodes, boundary, 1) /...
+                        (testFieldc'*norm_bound(testFieldc, nodes, boundary, 1) ));
+    nSb = sqrt( fb'*norm_bound(fb, nodes, boundary, 1) /...
+                        (testFieldb'*norm_bound(testFieldb, nodes, boundary, 1) ));
+                       
+    k = .1*nSc;
+
+    %% Some usefull stuff
+    indexred = zeros( 2*size(b2node1,1), 1 );
+    for i = 1:size(b2node1,1)
+       indexred(2*i-1) = 2*b2node1(i)-1;
+       indexred(2*i) = 2*b2node1(i);
+    end
+    
+    %% Is it good to use KMF-R ?
+    % Solve DN
+    f1 = dirichletRhs2(uref-uref, 3, c2node1, boundary, nnodes);
+    uin1 = K1\f1;
+    u1 = uin1(1:2*nnodes,1);
+    fri = Kinter*u1;
+    % Solve ND
+    fr = [ fri ; zeros(size(C2,2),1) ]; % Give to fr the right size
+    uin2 = K2\(fr+f2);
+    u2 = uin2(1:2*nnodes,1);
+    fr2 = Kinter*u2;
+    
+    st = 2* nSc * norm( u2(indexred) )
+    us = norm( fr2(indexred) )
+    robin = 0;
+    if us > st
+       robin = 1
+    end
+    
+    % Do both computations
+    for robin = [0,1]
+       %% Re-determine K2
+          % ND problem
+       if robin == 1
+          dirichlet2 = [2,1,0;2,2,0];
+          [K2,C2,nbloq2,node2c2,c2node2] =...
+                          Krig (nodes,elements,E,nu,order,boundary,dirichlet2,1);
+       end
+   
+       niter = 50;
+       % init :
+       u1    = uref-uref;
+       u2    = u1;
+       fri   = u1;
+   
+       error1   = zeros(niter,1);
+       error2   = zeros(niter,1);
+       ferror1  = zeros(niter,1);
+       ferror2  = zeros(niter,1);
+       residual = zeros(niter,1);
+       regulari = zeros(niter,1);
+       theta    = ones(niter,1); % Relxation parameter
+   
+       for iter = 1:niter
+           % Solve DN
+           %nru2 = norm(regul(u2, nodes, boundary, 3))
+           f1 = dirichletRhs2(u2, 3, c2node1, boundary, nnodes);
+           %nfr1 = norm(f1)
+           uin1 = K1\f1;
+           u1 = uin1(1:2*nnodes,1);
+           fri = Kinter*u1;
+           %nf1 = norm(fri(indexxy))
+           
+           error1(iter) = norm(u1(indexxy)-uref(indexxy)) / norm(uref(indexxy));
+           ferror1(iter) = norm(fri(indexxy)-fref(indexxy)) / norm(fref(indexxy));
+           
+           % Solve ND
+           if robin == 1
+              [Krob, fdir1] = robinRHS( nbloq2, nodes, boundary, urefb, k, 1 );
+           else
+              fdir1 = dirichletRhs2(urefb, 1, c2node2, boundary, nnodes);
+              Krob = sparse( size(K2,1), size(K2,2) );
+           end
+           fr = [ fri ; zeros(size(C2,2),1) ]; % Give to fr the right size
+
+           uin2 = (K2+Krob)\(fr+fdir1);
+           u2 = uin2(1:2*nnodes,1);
+           fri2 = Kinter*u2;
+           %nu2 = norm(u2(indexxy))
+           
+           error2(iter) = norm(u2(indexxy)-uref(indexxy)) / norm(uref(indexxy));
+           ferror2(iter) = norm(fri2(indexxy)-fref(indexxy)) / norm(fref(indexxy));
+           residual(iter) = norm(u1(indexxy)-u2(indexxy)); %/...
+                            %sqrt ( norm(u1(indexxy))*norm(u2(indexxy)) );             
+           regulari(iter) = sqrt(u2'*( regul(u2, nodes, boundary, 3) ));
+       end
+       
+       % Scale the residual
+       residual = residual/residual(1);
+       
+%       figure
+%       hold on;
+%       set(gca, 'fontsize', 15);
+%       plot(log10(error1),'Color','black')
+%       plot(log10(error2),'Color','blue')
+%       plot(log10(residual),'Color','red')
+%       legend('error1 (log)','error2 (log)','residual (log)')
+       figure
+       hold on;
+       set(gca, 'fontsize', 15);
+       plot(log10(ferror2),'Color','black')
+       plot(log10(error2),'Color','blue')
+       %plot(log10(ferror2.*error2),'Color','red')
+       legend('ferror (log)','error (log)')
+       % L-curve
+%       figure
+%       loglog(residual,regulari);
+       % Compute stress :
+       sigma = stress(u2,E,nu,nodes,elements,order,1,ntoelem,1);
+       % Output :
+       plotGMSH({u2,'U_vect';sigma,'stress'}, elements, nodes, 'field2');
+       % Plot displacement on the interface :
+       efe = Kinter*u2;
+%       figure
+%       hold on
+%       set(gca, 'fontsize', 15);
+%       plot(thetax,u2(index,1));
+%       plot(thetax,u2(index-1,1), 'Color', 'red');
+%       legend('uy','ux')
+%       xlabel('angle(rad)')
+%       figure
+%       hold on
+%       set(gca, 'fontsize', 15);
+%       plot(thetax,efe(index,1));
+%       plot(thetax,efe(index-1,1), 'Color', 'red');
+%       legend('fy','fx')
+%       xlabel('angle(rad)')
+   
+       total_error = norm(uref-u2)/norm(uref);
+       total_errorf = norm(fref-efe)/norm(fref);
+    end
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% KMF Orthodir 10 iterations
@@ -478,7 +634,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Primal SP with Orthodir (niter = 10)
 if find(methods==4)
-    niter   = 10;
+    niter   = 5;
     mu      = 0;      % Regularization parameter
     precond = 0;      % use a dual precond ?
     
@@ -631,7 +787,7 @@ if find(methods==4)
     legend('error','residual')
     % L-curve
     figure
-    loglog(residual,regulari);
+    loglog(residual,regulari,'-+');
     
     %% Final problem
     dirichlet = [2,1,0;2,2,0;
@@ -1425,9 +1581,9 @@ if find(methods==8)
 end
 %%
 if find(methods==9)
-   niter   = 25;
+   niter   = 30;
    precond = 0;      % 1 : Use a dual precond
-   ratio   = 1e-10;  % Maximal ratio (for eigenfilter)
+   ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
    
    %% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
@@ -1438,7 +1594,7 @@ if find(methods==9)
    Zed   = zeros( 2*nnodes, niter+1 );
    alpha = zeros( niter+1, 1 );
    beta  = zeros( niter+1, 1 );
-   ntrunc = 0;  % In case the algo finishes before max ratio is reached
+   ntrunc = 6;  % In case the algo finishes before max ratio is reached
    
    %% Perform A x0 :
    % Solve 1
@@ -1482,12 +1638,13 @@ if find(methods==9)
    
    d(:,1) = Zed(:,1);
    
-   residual(1) = sqrt( norm(Res( indexxy,1)));
-   error(1)    = sqrt( norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy)));
+   residual(1) = norm(Res( indexxy,1));
+   error(1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
    regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
    
    ritzval  = 0; % Last ritz value that converged
    oldtheta = 0;
+   eta      = 0;
    %%
    for iter = 1:niter
        %% Optimal step
@@ -1514,8 +1671,8 @@ if find(methods==9)
        Itere         = Itere + d(:,iter)*num;%/den;
        Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
        
-       residual(iter+1) = sqrt( norm(Res(indexxy,iter+1)));
-       error(iter+1)    = sqrt( norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy)));
+       residual(iter+1) = norm(Res(indexxy,iter+1));
+       error(iter+1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
        regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
        
        if precond == 1
@@ -1530,15 +1687,19 @@ if find(methods==9)
        end
        
        % Needed values for the Ritz stuff
-       alpha(iter) = num/sqrt(den);
-       beta(iter)  = - Zed(indexxy,iter+1)'*Ad(indexxy,iter)/sqrt(den);
+       %alpha(iter) = num/sqrt(den);
+       alpha(iter) = Res(indexxy,iter)'*Res(indexxy,iter) / den;
+       %beta(iter)  = - Zed(indexxy,iter+1)'*Ad(indexxy,iter)/sqrt(den);
+       beta(iter)  = Zed(indexxy,iter+1)'*Res(indexxy,iter+1) /... 
+                                   (Zed(indexxy,iter)'*Res(indexxy,iter));
        
        % First Reorthogonalize the residual (as we use it next), in sense of M
-       for jter=1:iter-1
+       for jter=1:iter
            betac = Zed(indexxy,iter+1)'*Res(indexxy,jter) / (Zed(indexxy,jter)'*Res(indexxy,jter));
            Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+           Res(:,iter+1) = Res(:,iter+1) - Res(:,jter) * betac;
        end
-       
+       %Zed(indexxy,iter+1)'*Zed(indexxy,iter)/( Zed(indexxy,iter+1)'*Zed(indexxy,iter+1) )
        %% Orthogonalization
        d(:,iter+1) = Zed(:,iter+1);
        
@@ -1546,33 +1707,25 @@ if find(methods==9)
            betaij = ( Zed(indexxy,iter+1)'*Ad(indexxy,jter) );
            d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
        end
-       
+
        %% Ritz algo : find the Ritz elements
-       V = zeros(2*nnodes, iter);
-       H = zeros(iter);
-       
        % Build the matrices
-       V(:,1) = Zed(:,1)/(sqrt(Res(:,1)'*Zed(:,1)));
-       delta  = 1/alpha(1);
-       eta    = sqrt(beta(1))/alpha(1);
+       V(:,iter) = zeros(2*nnodes,1);
+       V(indexxy,iter) = (-1)^(iter-1)*Zed(indexxy,iter) / ...
+                               (sqrt(Res(indexxy,iter)'*Zed(indexxy,iter)));
+
+       etap   = eta;
+       delta  = 1/alpha(iter);
        if iter > 1
-          H(1,[1,2]) = [delta, eta];
+          delta  = delta + beta(iter-1)/alpha(iter-1);
+       end
+       eta    = sqrt(beta(iter))/alpha(iter);
+       
+       if iter > 1
+          H(iter,[iter-1,iter]) = [etap, delta];
+          H(iter-1,iter)        = etap;
        else
-          H(1,1) = delta;
-       end
-       
-       for i=1:iter-2
-          V(:,i+1) = (-1)^i*Zed(:,i+1)/(sqrt(Res(:,i+1)'*Zed(:,i+1)));
-          etap  = eta;
-          delta = 1/alpha(i+1) + beta(i)/alpha(i);
-          eta   = sqrt(beta(i+1))/alpha(i+1);
-          H(i+1,[i,i+1,i+2]) = [etap,delta,eta];
-       end
-       
-       if iter > 1
-         V(:,iter) = (-1)^(iter-1)*Zed(:,iter)/(sqrt(Res(:,iter)'*Zed(:,iter)));
-         delta = 1/alpha(iter) + beta(iter-1)/alpha(iter-1);
-         H(iter,[iter-1,iter]) = [eta,delta];
+          H(iter,iter) = delta;
        end
        
        % Compute eigenelems of the Hessenberg :
@@ -1580,6 +1733,7 @@ if find(methods==9)
        theta = diag(Theta1);
        % Sort it
        [theta,Ind] = sort(theta,'descend');
+       
        Q = Q(:,Ind);
        Theta1 = Theta1(Ind,Ind);
        Y = V*Q;
@@ -1627,10 +1781,28 @@ if find(methods==9)
    plot(log10(abs(chi)),'Color','black')
    legend('Ritz Values','RHS values','solution coefficients')
    
-   % L-curve
+   regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
+   for i = 1:iter+1
+      chiD   = inv(Theta1)*Y'*b; chiD(i:end) = 0;
+      ItereD = Y*chiD;
+      resD(i) = sqrt( sum( bt(i:end).^2) );  
+      regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 3) );
+   end
+   % RL-curve
+   figure
+   loglog(resD(2:iter),regD(2:iter),'-+');
+%   % L-curve
 %   figure
-%   loglog(residual/residual(1),regulari);
-    
+%   loglog(residual/residual(1),regulari,'-+');
+
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(thetax,Itere(index-1,1));
+%   plot(thetax,ItereR(index-1,1), 'Color', 'red');
+%   plot(thetax,uref(index-1,1), 'Color', 'green');
+%   xlabel('angle(rad)')
+   
    %% Final problem
    dirichlet = [2,1,0;2,2,0;
                 3,1,0;3,2,0];

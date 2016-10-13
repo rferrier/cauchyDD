@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 15;
+niter   = 25;
 precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
@@ -190,8 +190,8 @@ end
 
 d(:,1) = Zed(:,1);
 
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 ritzval  = 0; % Last ritz value that converged
@@ -226,8 +226,8 @@ for iter = 1:niter
     Itere         = Itere + d(:,iter)*num;%/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     if precond == 1
@@ -252,14 +252,15 @@ for iter = 1:niter
     end
     
     % Needed values for the Ritz stuff
-    alpha(iter) = num/sqrt(den);
-    alpha2(iter) = num;
-    beta(iter)  = - Zed(indexa,iter+1)'*Ad(indexa,iter)/sqrt(den);
+    alpha(iter) = Res(indexa,iter)'*Res(indexa,iter) / den;
+    beta(iter)  = Zed(indexa,iter+1)'*Res(indexa,iter+1) /... 
+                                (Zed(indexa,iter)'*Res(indexa,iter));
     
     % First Reorthogonalize the residual (as we use it next), in sense of M
-    for jter=1:iter-1
+    for jter=1:iter
         betac = Zed(indexa,iter+1)'*Res(indexa,jter) / (Zed(indexa,jter)'*Res(indexa,jter));
         Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+        Res(:,iter+1) = Res(:,iter+1) - Res(:,jter) * betac;
     end
     
     %% Orthogonalization
@@ -360,7 +361,7 @@ for i = 1:iter+1
    AI = u2-u1;
    
    ResS = AI-b;
-   resS(i) = sqrt(norm(ResS));   
+   resS(i) = norm(ResS);   
    regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
 end
 
@@ -373,12 +374,12 @@ for i = 1:iter+1
    regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 2) );
 end
 
-%hold on;
-%plot(log10(theta),'Color','blue')
-%plot(log10(abs(Y'*b)),'Color','red')
-%plot(log10(abs(chi)),'Color','black')
-%legend('Ritz Values','RHS values','solution coefficients')
-%figure;
+hold on;
+plot(log10(theta),'Color','blue')
+plot(log10(abs(Y'*b)),'Color','red')
+plot(log10(abs(chi)),'Color','black')
+legend('Ritz Values','RHS values','solution coefficients')
+figure;
 %
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')

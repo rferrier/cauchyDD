@@ -12,7 +12,7 @@ addpath(genpath('./sp_ritz'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 15;
+niter   = 25;
 precond = 0;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
