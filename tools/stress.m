@@ -45,6 +45,7 @@ function sigma = stress( u,E,nu,nodes,elem,order,gorp,ntoelem,varargin )
     
     % Build Ke
     Ke = stifmat(Xloc,order,Sm1,1);
+
     % Extract ue
     mapu = [2*elem(i,1)-1,2*elem(i,1),2*elem(i,2)-1,...
            2*elem(i,2),2*elem(i,3)-1,2*elem(i,3)];
@@ -69,4 +70,3 @@ function sigma = stress( u,E,nu,nodes,elem,order,gorp,ntoelem,varargin )
  end
  
 end
-

@@ -11,25 +11,25 @@ function K = stifmat (Xloc,order,A,format)
  % output : K     : elementary stiffness matrix
  
  if order == 1
-    a = [1/3;1/3]; % Coordinates of the gauss point
-    Belem = shapefunc(a,1,1);
-
-    BJ1 = [Belem(1,1),0,Belem(1,2),0,Belem(1,3),0 ;...
-           0,Belem(1,1),0,Belem(1,2),0,Belem(1,3)] ; % derivative/a1
-    BJ2 = [Belem(2,1),0,Belem(2,2),0,Belem(2,3),0 ;...
-           0,Belem(2,1),0,Belem(2,2),0,Belem(2,3)] ; % derivative/a2
-
-    J = [BJ1*Xloc,BJ2*Xloc];
-    Ja = det(J);  % Jacobian
-    Jm1 = inv(J);
-    B1 = Jm1*Belem;
-    
-    B = [B1(1,1),0,B1(1,2),0,B1(1,3),0 ;...
-         0,B1(2,1),0,B1(2,2),0,B1(2,3) ;
-         B1(1,1)/2,B1(2,1)/2,B1(1,3)/2,...
-         B1(2,3)/2,B1(1,2)/2,B1(2,2)/2] ;
-    
-    K = B'*A*B*Ja;
+%    a = [1/3;1/3]; % Coordinates of the gauss point
+%    Belem = shapefunc(a,1,1);
+%
+%    BJ1 = [Belem(1,1),0,Belem(1,2),0,Belem(1,3),0 ;...
+%           0,Belem(1,1),0,Belem(1,2),0,Belem(1,3)] ; % derivative/a1
+%    BJ2 = [Belem(2,1),0,Belem(2,2),0,Belem(2,3),0 ;...
+%           0,Belem(2,1),0,Belem(2,2),0,Belem(2,3)] ; % derivative/a2
+%
+%    J = [BJ1*Xloc,BJ2*Xloc];
+%    Ja = det(J);  % Jacobian
+%    Jm1 = inv(J);
+%    B1 = Jm1*Belem;
+%    
+%    B = [B1(1,1),0,B1(1,2),0,B1(1,3),0 ;...
+%         0,B1(2,1),0,B1(2,2),0,B1(2,3) ;
+%         B1(1,1)/2,B1(2,1)/2,B1(1,3)/2,...
+%         B1(2,3)/2,B1(1,2)/2,B1(2,2)/2] ;
+%    
+%    K = B'*A*B*Ja;
     % TODO : fix because it's KK
     
     % Other method, dirtier but works
@@ -40,8 +40,10 @@ function K = stifmat (Xloc,order,A,format)
     S = abs( .5*((x21-x11)*(x32-x12)-(x31-x11)*(x22-x12)) );% element area
     Be=[x22-x32,0,x32-x12,0,x12-x22,0;
         0,x31-x21,0,x11-x31,0,x21-x11;
-        x31-x21,x22-x32,x11-x31, ...
-        x32-x12,x21-x11,x12-x22]/(2*S);
+%        x31-x21,x22-x32,x11-x31, ...
+%        x32-x12,x21-x11,x12-x22]/(2*S);
+        (x31-x21)/2,(x22-x32)/2,(x11-x31)/2, ...
+        (x32-x12)/2,(x21-x11)/2,(x12-x22)/2]/(2*S);
     
     if format == 0
         K=S*Be'*A*Be;
