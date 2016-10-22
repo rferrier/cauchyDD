@@ -17,7 +17,7 @@ function [K,C,ntot,node2c,c2node] = KrigDam (nodes, elem, E, nu, order,...
  %Kin = zeros(2*size(nodes,1), 2*size(nodes,1));
  
  % First build the model's stiffness matrix
- S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,1+nu];
+ S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
  Sm1 = inv(S);
  
  Kin = sparse(2*size(nodes,1), 2*size(nodes,1)); % 'cause I love when things go fast

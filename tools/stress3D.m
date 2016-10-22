@@ -17,7 +17,7 @@ function sigma = stress3D( u,mat,nodes,elem,order,gorp,ntoelem )
  if mat(1) == 0
     E = mat(2); nu = mat(3);
     S = 1/E*[1,-nu,-nu,0,0,0 ; -nu,1,-nu,0,0,0 ; -nu,-nu,1,0,0,0 ;...
-             0,0,0,1+nu,0,0 ; 0,0,0,0,1+nu,0 ; 0,0,0,0,0,1+nu];
+             0,0,0,1+nu,0,0 ; 0,0,0,0,1+nu,0 ; 0,0,0,0,0,2*(1+nu)];
     Sm1 = inv(S);
  else
     error('The required material behaviour is not implemented')

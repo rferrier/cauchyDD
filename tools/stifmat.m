@@ -40,10 +40,10 @@ function K = stifmat (Xloc,order,A,format)
     S = abs( .5*((x21-x11)*(x32-x12)-(x31-x11)*(x22-x12)) );% element area
     Be=[x22-x32,0,x32-x12,0,x12-x22,0;
         0,x31-x21,0,x11-x31,0,x21-x11;
-%        x31-x21,x22-x32,x11-x31, ...
-%        x32-x12,x21-x11,x12-x22]/(2*S);
-        (x31-x21)/2,(x22-x32)/2,(x11-x31)/2, ...
-        (x32-x12)/2,(x21-x11)/2,(x12-x22)/2]/(2*S);
+        x31-x21,x22-x32,x11-x31, ...
+        x32-x12,x21-x11,x12-x22]/(2*S);
+%        (x31-x21)/2,(x22-x32)/2,(x11-x31)/2, ...
+%        (x32-x12)/2,(x21-x11)/2,(x12-x22)/2]/(2*S);
     
     if format == 0
         K=S*Be'*A*Be;
@@ -53,9 +53,50 @@ function K = stifmat (Xloc,order,A,format)
         error('unknown format asked')
     end
 
+ elseif order == 2
+    % Again adapted from the same code
+    
+    a_gauss=1/6*[4 1 1; 1 4 1; 1 1 4];           % Gauss abscissae
+    w_gauss=[1/6 1/6 1/6];                       % Gauss weights
+
+    Xloc1 = [Xloc(1:2:11) , Xloc(2:2:12)];       % Transform the data
+    
+    if format == 0
+        K=zeros(12);
+    elseif format == 1
+        K=zeros(3,12);
+    end
+    
+    for g=1:3,                                   % loop over Gauss points
+      a=a_gauss(g,:);                            % param. coordinates for gauss point
+      DN=[4*a(1)-1 0 -4*a(3)+1 4*a(2)...         % derivative of shape functions...
+          -4*a(2) 4*(a(3)-a(1));                 % w.r.t. a_1,a_2
+          0 4*a(2)-1 -4*a(3)+1 4*a(1) ...
+          4*(a(3)-a(2)) -4*a(1)]';
+      J=Xloc1'*DN;                               % jacobian matrix
+      detJ=J(1,1)*J(2,2)-J(1,2)*J(2,1);          % jacobian
+      invJ=1/detJ*[ J(2,2) -J(1,2); ...          % inverse jacobian matrix
+                   -J(2,1)  J(1,1)];
+      GN=DN*invJ;                                % gradient of shape functions
+      Be=[GN(1,1) 0 GN(2,1) 0 GN(3,1) 0 ...
+          GN(4,1) 0 GN(5,1) 0 GN(6,1) 0;
+          0 GN(1,2) 0 GN(2,2) 0 GN(3,2)...
+          0 GN(4,2) 0 GN(5,2) 0 GN(6,2);
+          GN(1,2) GN(1,1) GN(2,2) GN(2,1) ...
+          GN(3,2) GN(3,1) GN(4,2) GN(4,1) ...
+          GN(5,2) GN(5,1) GN(6,2) GN(6,1)];
+      
+       if format == 0
+          K=K+Be'*A*Be*detJ*w_gauss(g);        % contribution to stiffness matrix
+       elseif format == 1
+          K=K+A*Be;
+       else
+          error('unknown format asked')
+       end
+    end
+    
  else
      error('Order of element not implemented');
  end
 
 end
-

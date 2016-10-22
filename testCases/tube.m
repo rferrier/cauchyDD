@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.1;      % noise
+br      = 0.01;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
-% 9=SPP GC Ritz
+% 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [100];
+methods = [10];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -30,6 +30,10 @@ dirichlet   = [2,1,0; 2,2,0];
 [ nodes,elements,ntoelem,boundary,order ] =...
     readmesh( 'meshes/tube.msh' );
 nnodes = size(nodes,1);
+
+%noises = load('./noises/noisetube0.mat'); % Particular noise vector
+%noise  = noises.bruit1;
+noise  = randn(2*nnodes,1);
 
 % patch('Faces',elements,'Vertices',nodes,'FaceAlpha',0);
 % figure
@@ -54,8 +58,8 @@ uin = K\f;
 uref = uin(1:2*nnodes,1);
 fref = Kinter*uref;
 lagr = uin(2*nnodes+1:end,1);
-urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
-frefb = ( 1 + br*randn(2*nnodes,1) ) .* fref;
+urefb = ( 1 + br*noise ) .* uref;
+frefb = ( 1 + br*noise ) .* fref;
 
 % Compute stress :
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem,1);
@@ -602,7 +606,8 @@ if find(methods==3)
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% SP prequisites
-if size(find(methods==4),1) == 1 || size(find(methods==5),1) == 1 || size(find(methods==9),1) == 1
+if size(find(methods==4),1) == 1 || size(find(methods==5),1) == 1 ...
+        || size(find(methods==9),1) == 1 || size(find(methods==10),1) == 1
     % no node to suppress
     boundaryp = boundary;
     %% Definition of the operators
@@ -1581,7 +1586,7 @@ if find(methods==8)
 end
 %%
 if find(methods==9)
-   niter   = 30;
+   niter   = 10;
    precond = 0;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
@@ -1590,11 +1595,12 @@ if find(methods==9)
    Itere = zeros( 2*nnodes, 1 );
    d     = zeros( 2*nnodes, niter+1 );
    Ad    = zeros( 2*nnodes, niter+1 );
+   AZed  = zeros( 2*nnodes, niter+1 );
    Res   = zeros( 2*nnodes, niter+1 );
    Zed   = zeros( 2*nnodes, niter+1 );
    alpha = zeros( niter+1, 1 );
    beta  = zeros( niter+1, 1 );
-   ntrunc = 6;  % In case the algo finishes before max ratio is reached
+   ntrunc = 25;  % In case the algo finishes before max ratio is reached
    
    %% Perform A x0 :
    % Solve 1
@@ -1636,7 +1642,23 @@ if find(methods==9)
        Zed(:,1) = Res(:,1);
    end
    
+%   % Solve 1
+%   rhs1 = Zed(:,1);
+%   f1 = dirichletRhs(rhs1, 3, C1, boundaryp);
+%   uin1 = K1\f1;
+%   lagr1 = uin1(2*nnodes+1:end,1);
+%   lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+%   % Solve 2
+%   rhs2 = Zed(:,1);
+%   f2 = dirichletRhs(rhs2, 3, C2, boundaryp);
+%   uin2 = K2\f2;
+%   lagr2 = uin2(2*nnodes+1:end,1);
+%   lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+%   %
+%   Azed(:,1) = lamb1-lamb2;
+   
    d(:,1) = Zed(:,1);
+   %Ad(:,1) = AZed(:,1);
    
    residual(1) = norm(Res( indexxy,1));
    error(1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
@@ -1700,6 +1722,298 @@ if find(methods==9)
            Res(:,iter+1) = Res(:,iter+1) - Res(:,jter) * betac;
        end
        %Zed(indexxy,iter+1)'*Zed(indexxy,iter)/( Zed(indexxy,iter+1)'*Zed(indexxy,iter+1) )
+       
+       % Solve 1
+%       rhs1 = Zed(:,iter);
+%       f1 = dirichletRhs(rhs1, 3, C1, boundaryp);
+%       uin1 = K1\f1;
+%       lagr1 = uin1(2*nnodes+1:end,1);
+%       lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+%       % Solve 2
+%       rhs2 = Zed(:,iter);
+%       f2 = dirichletRhs(rhs2, 3, C2, boundaryp);
+%       uin2 = K2\f2;
+%       lagr2 = uin2(2*nnodes+1:end,1);
+%       lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+%       %
+%       AZed(:,iter) = lamb1-lamb2;
+       
+       %% Orthogonalization
+       d(:,iter+1) = Zed(:,iter+1);
+       %Ad(:,iter+1) = AZed(:,iter+1);
+       
+       for jter=iter:iter
+           betaij = ( Zed(indexxy,iter+1)'*Ad(indexxy,jter) );
+           d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
+           %Ad(:,iter+1) = Ad(:,iter+1) - Ad(:,jter) * betaij;
+       end
+
+       %% Ritz algo : find the Ritz elements
+       % Build the matrices
+       V(:,iter) = zeros(2*nnodes,1);
+       V(indexxy,iter) = (-1)^(iter-1)*Zed(indexxy,iter) / ...
+                               (sqrt(Res(indexxy,iter)'*Zed(indexxy,iter)));
+
+       etap   = eta;
+       delta  = 1/alpha(iter);
+       if iter > 1
+          delta  = delta + beta(iter-1)/alpha(iter-1);
+       end
+       eta    = sqrt(beta(iter))/alpha(iter);
+       
+       if iter > 1
+          H(iter,[iter-1,iter]) = [etap, delta];
+          H(iter-1,iter)        = etap;
+       else
+          H(iter,iter) = delta;
+       end
+%       if iter > 1
+%          Hb(iter,iter-1) = - Zed(indexxy,iter)'*AZed(indexxy,iter-1)/ ...
+%                          ( sqrt(Zed(indexxy,iter)'*Res(indexxy,iter)) * ...
+%                          sqrt(Zed(indexxy,iter-1)'*Res(indexxy,iter-1)) );
+%          Hb(iter-1,iter) = - Zed(indexxy,iter)'*AZed(indexxy,iter-1)/ ...
+%                          ( sqrt(Zed(indexxy,iter)'*Res(indexxy,iter)) * ...
+%                          sqrt(Zed(indexxy,iter-1)'*Res(indexxy,iter-1)) );
+%       end             
+%       Hb(iter,iter) = Zed(indexxy,iter)'*AZed(indexxy,iter) / ...
+%                                   (Zed(indexxy,iter)'*Zed(indexxy,iter));
+       
+       % Compute eigenelems of the Hessenberg :
+       [Q,Theta1] = eig(H);
+       theta = diag(Theta1);
+       % Sort it
+       [theta,Ind] = sort(theta,'descend');
+       
+       Q = Q(:,Ind);
+       Theta1 = Theta1(Ind,Ind);
+       Y = V*Q;
+       
+       % See if the current one converged
+       if abs(theta(ritzval+1)-oldtheta) < epsilon*oldtheta
+          % increment oldtheta
+          ritzval = ritzval+1;
+          if size(theta,1) > ritzval
+             oldtheta = theta(ritzval+1);
+          else
+             oldtheta = 0;
+          end
+          
+          % Check small value / hold value
+          if ritzval > 1
+             if theta(ritzval) < ratio*theta(1)
+                ntrunc = ritzval
+                break
+             end
+          end
+       else
+          oldtheta = theta(ritzval+1);
+       end
+   end
+   
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(error,'Color','blue')
+%   plot(residual/residual(1),'Color','red')
+%   legend('error','residual')
+  
+%   figure; 
+%   hold on;
+%   plot(log10(theta),'Color','blue')
+%   plot(log10(abs(Y'*b)),'Color','red')
+%   plot(log10(abs(chi)),'Color','black')
+%   legend('Ritz Values','RHS values','solution coefficients')
+   
+   regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
+   for i = 1:iter+1
+      chiD   = inv(Theta1)*Y'*b; chiD(i:end) = 0;
+      ItereD = Y*chiD;
+      resD(i) = sqrt( sum( bt(i:end).^2) );  
+      regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 3) );
+   end
+   % RL-curve
+   figure
+   loglog(resD(2:iter),regD(2:iter),'-+');
+%   % L-curve
+   figure
+   loglog(residual/residual(1),regulari,'-+');
+%   ntrunc = findCorner (resD(2:iter), regD(2:iter), 3)
+%   findCorner (residual(2:iter)', regulari(2:iter)', 3);
+   
+   % Compute the solution
+   chi = inv(Theta1)*Y'*b;
+   if ntrunc > 0
+      chi(ntrunc:end) = 0;
+   end
+   ItereR = Y*chi;
+   
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(thetax,Itere(index-1,1));
+%   plot(thetax,ItereR(index-1,1), 'Color', 'red');
+%   plot(thetax,uref(index-1,1), 'Color', 'green');
+%   xlabel('angle(rad)')
+   
+   %% Final problem
+   dirichlet = [2,1,0;2,2,0;
+                3,1,0;3,2,0];
+   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
+   fdir3R = dirichletRhs(ItereR, 3, C, boundary);
+   fdir3 = dirichletRhs(Itere, 3, C, boundary);
+   usoli = K \ fdir3R ;
+   usolR = usoli(1:2*nnodes,1);
+   
+%   usoli = K \ fdir3 ;
+%   usol = usoli(1:2*nnodes,1);
+
+   % Compute stress :
+   sigma = stress(usolR,E,nu,nodes,elements,order,1,ntoelem,1);
+   plotGMSH({usolR,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
+   
+   % Plot displacement on the interface :
+   efeR = Kinter*usolR;
+   figure
+   hold on
+   set(gca, 'fontsize', 15);
+   plot(thetax,usolR(index,1));
+   plot(thetax,usolR(index-1,1), 'Color', 'red');
+   xlabel('angle(rad)')
+   figure
+   hold on
+   set(gca, 'fontsize', 15);
+   plot(thetax,efeR(index,1));
+   plot(thetax,efeR(index-1,1), 'Color', 'red');
+   xlabel('angle(rad)')
+   
+%   efe = Kinter*usol;
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(thetax,usol(index,1));
+%   plot(thetax,usol(index-1,1), 'Color', 'red');
+%   xlabel('angle(rad)')
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(thetax,efe(index,1));
+%   plot(thetax,efe(index-1,1), 'Color', 'red');
+%   xlabel('angle(rad)')
+    
+   total_error = norm(uref-usolR)/norm(uref);
+   total_errorf = norm(fref-efeR)/norm(fref);
+ 
+end
+%%
+if find(methods==10)
+   niter   = 50;
+   precond = 0;      % 1 : Use a dual precond
+   ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
+   epsilon = 1e-1;   % Convergence criterion for ritz value
+   
+   %% Conjugate Gradient for the problem : (D20-D10) x = D1-D2
+   Itere = zeros( 2*nnodes, 1 );
+   d     = zeros( 2*nnodes, niter+1 );
+   Ad    = zeros( 2*nnodes, niter+1 );
+   AZed  = zeros( 2*nnodes, niter+1 );
+   Res   = zeros( 2*nnodes, niter+1 );
+   Zed   = zeros( 2*nnodes, niter+1 );
+   alpha = zeros( niter+1, 1 );
+   beta  = zeros( niter+1, 1 );
+   ntrunc = 18;  % In case the algo finishes before max ratio is reached
+   
+   %% Perform A x0 :
+   % Solve 1
+   f1 = [Itere; zeros(nbloq1d,1)];
+   uin1 = K1d\f1;
+   u1i = uin1(1:2*nnodes,1);
+   u1 = keepField( u1i, 3, boundaryp );
+   % Solve 2
+   f2 = [Itere; zeros(nbloq2d,1)];
+   uin2 = K2d\f2;
+   u2i = uin2(1:2*nnodes,1);
+   u2 = keepField( u2i, 3, boundaryp );
+   %
+   Axz = u2-u1;
+   %%%%
+    
+   %% Compute Rhs :
+   % Solve 1
+   f1 = dirichletRhs2( urefb, 1, c2node1s, boundaryp, nnodes );
+   uin1 = K1d\f1;
+   u1i = uin1(1:2*nnodes,1);
+   u1 = keepField( u1i, 3, boundaryp );
+   % Solve 2 (ZERO)
+   f = zeros(2*nnodes+nbloq2d,1);
+   uin2 = K2d\f;
+   u2i = uin2(1:2*nnodes,1);
+   u2 = keepField( u2i, 3, boundaryp );
+   b = u1-u2;
+   %
+   Res(:,1) = b - Axz;
+   
+   if precond == 1
+       Zed(:,1) = Res(:,1); % No precond for now
+   else
+       Zed(:,1) = Res(:,1);
+   end
+   
+   d(:,1) = Zed(:,1);
+   
+   residual(1) = norm(Res( indexxy,1));
+   error(1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
+   regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
+   
+   ritzval  = 0; % Last ritz value that converged
+   oldtheta = 0;
+   eta      = 0;
+   %%
+   for iter = 1:niter
+       %% Optimal step
+       
+       %% Perform A d :
+       % Solve 1
+       f1 = [d(:,iter); zeros(nbloq1d,1)];
+       uin1 = K1d\f1;
+       u1i = uin1(1:2*nnodes,1);
+       u1 = keepField( u1i, 3, boundaryp );
+       % Solve 2
+       f2 = [d(:,iter); zeros(nbloq2d,1)];
+       uin2 = K2d\f2;
+       u2i = uin2(1:2*nnodes,1);
+       u2 = keepField( u2i, 3, boundaryp );
+       %
+       Ad(:,iter) = u2-u1;
+       
+       den = (d(indexxy,iter)'*Ad(indexxy,iter));
+       d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
+       num = Res(indexxy,iter)'*d(indexxy,iter);
+       
+       Itere         = Itere + d(:,iter)*num;
+       Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
+       
+       residual(iter+1) = norm(Res(indexxy,iter+1));
+       error(iter+1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
+       regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
+       
+       if precond == 1
+           Zed(:,iter+1) = Res(:,iter+1); % No precond
+       else
+           Zed(:,iter+1) = Res(:,iter+1);
+       end
+       
+       % Needed values for the Ritz stuff
+       alpha(iter) = Res(indexxy,iter)'*Res(indexxy,iter) / den;
+       beta(iter)  = Zed(indexxy,iter+1)'*Res(indexxy,iter+1) /... 
+                                   (Zed(indexxy,iter)'*Res(indexxy,iter));
+       
+       % First Reorthogonalize the residual (as we use it next), in sense of M
+       for jter=1:iter
+           betac = Zed(indexxy,iter+1)'*Res(indexxy,jter) / (Zed(indexxy,jter)'*Res(indexxy,jter));
+           Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+           Res(:,iter+1) = Res(:,iter+1) - Res(:,jter) * betac;
+       end
+       
        %% Orthogonalization
        d(:,iter+1) = Zed(:,iter+1);
        
@@ -1782,19 +2096,23 @@ if find(methods==9)
    legend('Ritz Values','RHS values','solution coefficients')
    
    regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
+   errD = zeros(niter,1);
    for i = 1:iter+1
       chiD   = inv(Theta1)*Y'*b; chiD(i:end) = 0;
       ItereD = Y*chiD;
       resD(i) = sqrt( sum( bt(i:end).^2) );  
       regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 3) );
+      errD(i) = norm(ItereD(indexxy) - fref(indexxy)) / norm(fref(indexxy));
    end
    % RL-curve
    figure
    loglog(resD(2:iter),regD(2:iter),'-+');
 %   % L-curve
-%   figure
-%   loglog(residual/residual(1),regulari,'-+');
-
+   figure
+   loglog(residual/residual(1),regulari,'-+');
+%   ntrunc = findCorner (resD(2:iter), regD(2:iter), 3)
+%   findCorner (residual(2:iter)', regulari(2:iter)', 3);
+   
 %   figure
 %   hold on
 %   set(gca, 'fontsize', 15);
@@ -1804,33 +2122,33 @@ if find(methods==9)
 %   xlabel('angle(rad)')
    
    %% Final problem
-   dirichlet = [2,1,0;2,2,0;
-                3,1,0;3,2,0];
+   dirichlet = [2,1,0;2,2,0];
    [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
-   fdir3 = dirichletRhs(ItereR, 3, C, boundary);
-   usoli = K \ fdir3 ;
-   usol = usoli(1:2*nnodes,1);
+   fdir3R = [ ItereR ; zeros(nbloq,1) ];
+   fdir3 = [ Itere ; zeros(nbloq,1) ];
+   usoli = K \ fdir3R ;
+   usolR = usoli(1:2*nnodes,1);
 
    % Compute stress :
-   sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem,1);
-   plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
+   sigma = stress(usolR,E,nu,nodes,elements,order,1,ntoelem,1);
+   plotGMSH({usolR,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
    
    % Plot displacement on the interface :
-   efe = Kinter*usol;
+   efeR = Kinter*usolR;
    figure
    hold on
    set(gca, 'fontsize', 15);
-   plot(thetax,usol(index,1));
-   plot(thetax,usol(index-1,1), 'Color', 'red');
+   plot(thetax,usolR(index,1));
+   plot(thetax,usolR(index-1,1), 'Color', 'red');
    xlabel('angle(rad)')
    figure
    hold on
    set(gca, 'fontsize', 15);
-   plot(thetax,efe(index,1));
-   plot(thetax,efe(index-1,1), 'Color', 'red');
+   plot(thetax,efeR(index,1));
+   plot(thetax,efeR(index-1,1), 'Color', 'red');
    xlabel('angle(rad)')
     
-   total_error = norm(uref-usol)/norm(uref);
-   total_errorf = norm(fref-efe)/norm(fref);
+   total_error = norm(uref-usolR)/norm(uref);
+   total_errorf = norm(fref-efeR)/norm(fref);
  
 end

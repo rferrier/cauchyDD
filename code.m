@@ -61,19 +61,20 @@ mat = [0, E, nu];
 % second index : 1=x, 2=y
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
-dirichlet = [ 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0 ; 1,1,0 ; 3,1,0 ];
-%neumann   = [4,1,fscalar];
+dirichlet = [ 1,1,0 ; 1,2,0 ];
+neumann   = [3,1,fscalar];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
 nnodes = size(nodes,1);
 
 % Then, build the stiffness matrix :
 [K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
 
 % The right hand side :
-%f  = loading(nbloq,nodes,boundary,neumann);
-f = volumicLoad( nbloq, nodes, elements, 2, fscalar );
+f  = loading(nbloq,nodes,boundary,neumann);
+%f = volumicLoad( nbloq, nodes, elements, 2, fscalar );
 %udir = ones( 2*nnodes );
 %udi = keepField( udir, 4, boundary, 2 );
 %f = [ zeros(2*nnodes) ; C'*udi ];

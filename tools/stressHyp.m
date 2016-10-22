@@ -38,7 +38,7 @@ function sigma = stressHyp( u,E,nu,nodes,elem,order,gorp,ntoelem,alpha,varargin 
     end
     
     if mo == 0
-        S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,1+nu];
+        S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
         Sm1 = inv(S);
     else
         kappa = E/(3*(1-2*nu));
@@ -46,7 +46,7 @@ function sigma = stressHyp( u,E,nu,nodes,elem,order,gorp,ntoelem,alpha,varargin 
 
         Sm1 = [4*mu/3+kappa, kappa-2*mu/3, 0;...
                kappa-2*mu/3, 4*mu/3+kappa, 0;...
-               0, 0, 2*mu];
+               0, 0, mu];
     end
     
     % Build Ke

@@ -32,14 +32,14 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
  if mat(1) == 0
     E = mat(2); nu = mat(3);
     if mo == 0
-       S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,1+nu];
+       S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
        Sm1 = inv(S);
     else
        kappa = E/(3*(1-2*nu));
        mu = E/(2*(1+nu));
        Sm1 = [4*mu/3+kappa, kappa-2*mu/3, 0;...
               kappa-2*mu/3, 4*mu/3+kappa, 0;...
-              0, 0, 2*mu];
+              0, 0, mu];
     end
  elseif mat(1) == 1
     Ex = mat(2); Ey = mat(3); nuxy = mat(4); Gxy = mat(5);
@@ -59,15 +59,15 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
      Xloc1 = nodes(elem(i,:),:);    % Extract and adapt coords
      nnodes = size(Xloc1,1);
      Xloc = zeros(2*nnodes,1);
+
+     map = zeros(1,2*nnodes);
      for j=1:nnodes
+         map(1,[2*j-1,2*j]) = [2*elem(i,j)-1, 2*elem(i,j)];
          Xloc([2*j-1,2*j],1) = [Xloc1(j,1);Xloc1(j,2)];
      end
-     
      Ke = stifmat(Xloc,order,Sm1,0);
      
      % Build K
-     map = [2*elem(i,1)-1,2*elem(i,1),2*elem(i,2)-1,...
-            2*elem(i,2),2*elem(i,3)-1,2*elem(i,3)];
      Kin(map,map) = Kin(map,map) + Ke;
  end
  

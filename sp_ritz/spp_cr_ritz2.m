@@ -12,13 +12,17 @@ addpath(genpath('./sp_ritz'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 25;
+niter   = 20;
 precond = 0;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
-br      = 0.;      % noise
+br      = 0.01;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
+
+%noises = load('./noises/noise1.mat'); % Particular noise vector
+%noise  = noises.bruit1;
+noise = randn(2*nnodes,1);
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -74,7 +78,7 @@ uin = K\f;
 uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
 
-urefb = ( 1 + brt + br*randn(2*nnodes,1) ) .* uref;
+urefb = ( 1 + brt + br*noise ) .* uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
@@ -371,10 +375,26 @@ hold on
 plot(log10(error(2:end)),'Color','blue')
 plot(log10(residual(2:end)),'Color','red')
 legend('error (log)','residual (log)')
-%figure;
+figure;
+
+regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
+%errD = zeros(niter,1);
+for i = 1:iter+1
+   chiD   = inv(Theta1)*Y'*b; chiD(i:end) = 0;
+   ItereD = Y*chiD;
+   resD(i) = sqrt( sum( bt(i:end).^2) );  
+   regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 2) );
+   %errD(i) = norm(ItereD(indexa) - fref(indexa)) / norm(fref(indexa));
+end
+% RL-curve
+loglog(resD(2:iter),regD(2:iter),'-+');
+legend('L-curve')
+figure
+
 % L-curve :
-%loglog(residual(2:end),regulari(2:end));
-%figure
+loglog(residual(2:end),regulari(2:end),'-o');
+legend('RL-curve')
+
 %%%%%
 %% Final problem : compute u
 dirichlet = [4,1,0;4,2,0;

@@ -27,7 +27,7 @@ function [K,C,ntot,node2c,c2node] = Krig3D (nodes, elem, mat, order,...
  if mat(1) == 0
     E = mat(2); nu = mat(3);
     S = 1/E*[1,-nu,-nu,0,0,0 ; -nu,1,-nu,0,0,0 ; -nu,-nu,1,0,0,0 ;...
-             0,0,0,1+nu,0,0 ; 0,0,0,0,1+nu,0 ; 0,0,0,0,0,1+nu];
+             0,0,0,2*(1+nu),0,0 ; 0,0,0,0,2*(1+nu),0 ; 0,0,0,0,0,2*(1+nu)];
     Sm1 = inv(S);
  elseif mat(1) == 1
     error('Orthotropic material not implemented in 3D (altrough its easier than in 2D...)')

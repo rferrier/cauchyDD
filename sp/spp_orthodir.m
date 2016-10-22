@@ -1,5 +1,5 @@
 % 24/03/2016
-% Algo Steklov-Poincaré primal avec Orthodir
+% Algo Steklov-Poincarï¿½ primal avec Orthodir
 
 close all;
 clear all;
@@ -12,7 +12,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 5;
 precond = 0;      % Use a dual precond
-mu      = 0.;    % Regularization parameter
+mu      = 0;    % Regularization parameter
 br      = 0.;     % noise
 
 % Boundary conditions

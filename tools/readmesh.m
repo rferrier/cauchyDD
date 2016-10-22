@@ -16,16 +16,24 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
 
     elseif strcmpi(line,'$Elements') % Elements flag
         nb = sscanf(fgetl(file), '%d',1); % number of elements
-        elements = zeros(nb,3);
-        boundary = zeros(nb,3);
+        elements = zeros(nb,6);
+        boundary = zeros(nb,4);
         nelem = 1;
         nbound = 1;
         for i=1:nb
             data = sscanf(fgetl(file), '%d');
             if data(2) == 2  % Core elements
-                elements(nelem,:) = data(data(3)+4:end); % Only read index of nodes
+                order = 1;   % Yes, that's not very optimized
+                elements(nelem,1:3) = data(data(3)+4:end); % Only read index of nodes
                 nelem = nelem+1;
             elseif data(2) == 1 % Boundary elements
+                boundary(nbound,1:3) = data([data(3)+2,data(3)+4:end]);
+                nbound = nbound+1;
+            elseif data(2) == 9  % Core elements T6
+                order = 2;
+                elements(nelem,:) = data(data(3)+4:end); % Only read index of nodes
+                nelem = nelem+1;
+            elseif data(2) == 8 % Boundary elements S3
                 boundary(nbound,:) = data([data(3)+2,data(3)+4:end]);
                 nbound = nbound+1;
             else
@@ -40,18 +48,19 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
         else
             boundary = [];
         end
+        if order == 1
+           elements(:,4:end) = [];
+           boundary(:,4:end) = [];
+        end
     end
  end
 
  % ntoelem is a table storing the number of elements to witch each node belongs
  ntoelem = zeros(size(nodes,1), 1);
  for i=1:size(elements,1)
-     for j=1:3
+     for j=1:size(elements,2)
          ntoelem(elements(i,j),1) = ntoelem(elements(i,j),1) + 1;
      end
  end
- 
- % Only implemented order
- order = 1;
 
 end
