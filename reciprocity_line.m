@@ -382,19 +382,21 @@ axis('equal');
 %% And now, the crack itself
 
 % Compute L (provisionnal formula assuming that something<Cte<0
-tangent = [normal(2) ; -normal(1)]; b = 5;
+tangent = [normal(2) ; -normal(1)]; b = 10;
 a = tangent(2)/tangent(1)*b; L = sqrt(a^2+b^2);
 %
-Rp     = zeros(nbase,1);
-Rm     = zeros(nbase,1);
-lambda = zeros(nbase,1);
-fourn  = zeros(nbase,1);
+Rp     = zeros(nbase+1,1);
+Rm     = zeros(nbase+1,1);
+lambda = zeros(nbase+1,1);
+fourn  = zeros(nbase+1,1);
+akan   = zeros(nbase,1);
+bkan   = zeros(nbase,1);
 
-for k=1:nbase
-
+for kp=2:nbase+1
+   k = kp-1;
    vp = zeros(2*nnodes2,1);
    vm = zeros(2*nnodes2,1);
-   lambda(k) = 2*k*pi/L;
+   lambda(kp) = 2*k*pi/L;
    for i=1:nnodes2
       x = nodes2(i,1);
       y = nodes2(i,2);
@@ -402,17 +404,52 @@ for k=1:nbase
       ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
       Xs(i) = X; Ys(i) = Y;
       
-      v1 = -I*lambda(k)*exp(-I*lambda(k)*X)* ...
-                         ( exp(lambda(k)*Y)+exp(-lambda(k)*Y) );
-      v2 = lambda(k)*exp(-I*lambda(k)*X)*( exp(lambda(k)*Y)-exp(-lambda(k)*Y) );
+      v1 = -I*lambda(kp)*exp(-I*lambda(kp)*X)* ...
+                         ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
+      v2 = lambda(kp)*exp(-I*lambda(kp)*X)* ...
+                         ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
       vloc = [ v1 ; v2 ];
       % Change base (for vector), in the other direction
       vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
    end
-   fp = Kinter2*vp; norm(fp);
-
-   Rp(k) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+   fp = Kinter2*vp;
+   %fr1(indexbound2)'*vp(indexbound2)
+   %fp(indexbound2)'*ur1(indexbound2)
+   Rp(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
    
    % Fourier coefficient
-   fourn(k) = (1+nu)/(2*E*lambda(k)^2)*Rp(k);
+   fourn(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
+   akan(k) = 2*real(fourn(kp));
+   bkan(k) = 2*imag(fourn(kp));
 end
+
+%% DEBUG :
+%ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
+%plotGMSH({ux,'U_x';uy,'U_y';imag(vp),'U_vect'}, elements2, nodes2, 'test field');
+
+% The constant term
+fourn(1) = -(R11+R21)/L;
+
+% Plot the reference normal displacement (first test case)
+udepx  = u1(icrack5x)-u1(icrack6x);
+udepy  = u1(icrack5y)-u1(icrack6y);
+Xx     = nodes(b2node5,1); Yy = nodes(b2node5,2);
+ubase  = Q'*[udepx,udepy]'; ubase = ubase';
+XY     = Q'*[Xx,Yy]'; XY = XY'; newX = XY(:,1);
+offset = Q(1,2)/Q(1,1)*CteR;   % /!\ Only in case rectangle
+
+left  = offset : (-offset+newX(1))/(size(newX,1)) : newX(1) ;
+right = newX(end) : (offset + L - newX(end))/(size(newX,1)) : offset + L ;
+newXo = newX;
+newX  = [left(1:end-1)';
+         newX;
+         right(2:end)']; % Add a few points
+
+solu = fourn(1) + sum ( [0*newX' ;...  % Hack in case there is 1 element only
+           akan.*cos(lambda(2:end)*newX') + bkan.*sin(lambda(2:end)*newX') ] );
+solu = solu';
+
+figure
+hold on;
+plot(newX, [0*newXo;ubase(:,2);0*newXo])
+plot(newX, solu, 'Color', 'red')

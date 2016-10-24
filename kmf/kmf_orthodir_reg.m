@@ -17,7 +17,7 @@ br       = .0;      % noise
 brt      = .0;     % "Translation" noise : constant noise
 mu       = 0;%30;      % Regularization parameter
 ev0      = 0;      % Wether or not to use the evanescent regularization (Cimetière)
-bestiter = 1;      % Wether to choose the best iteration
+bestiter = 0;      % Wether to choose the best iteration
 
 noises = load('./noises/noise0r.mat'); % Particular noise vector
 noise  = noises.bruit1;
