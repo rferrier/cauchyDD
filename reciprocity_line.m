@@ -389,6 +389,7 @@ Rp     = zeros(nbase+1,1);
 Rm     = zeros(nbase+1,1);
 lambda = zeros(nbase+1,1);
 fourn  = zeros(nbase+1,1);
+fournm = zeros(nbase+1,1);
 akan   = zeros(nbase,1);
 bkan   = zeros(nbase,1);
 
@@ -397,30 +398,39 @@ for kp=2:nbase+1
    vp = zeros(2*nnodes2,1);
    vm = zeros(2*nnodes2,1);
    lambda(kp) = 2*k*pi/L;
-   for i=1:nnodes2
-      x = nodes2(i,1);
-      y = nodes2(i,2);
-      % Change base (for coordiantes)
-      ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
-      Xs(i) = X; Ys(i) = Y;
+   for sx = [1,-1]  % sx=-1 is not really used, but Debug stuff
+      lambdae = sx*lambda(kp);
+      for i=1:nnodes2
+         x = nodes2(i,1);
+         y = nodes2(i,2);
+         % Change base (for coordiantes)
+         ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+         Xs(i) = X; Ys(i) = Y;
+         
+         v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
+                            ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
+         v2 = lambda(kp)*exp(-I*lambdae*X)* ...
+                            ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
+         vloc = [ v1 ; v2 ];
+         % Change base (for vector), in the other direction
+         vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
+      end
+      fp = Kinter2*vp;
+      %fr1(indexbound2)'*vp(indexbound2)
+      %fp(indexbound2)'*ur1(indexbound2)
       
-      v1 = -I*lambda(kp)*exp(-I*lambda(kp)*X)* ...
-                         ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
-      v2 = lambda(kp)*exp(-I*lambda(kp)*X)* ...
-                         ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
-      vloc = [ v1 ; v2 ];
-      % Change base (for vector), in the other direction
-      vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
+      
+      % Fourier coefficient
+      if sx == 1
+         Rp(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+         fourn(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
+         akan(k) = 2*real(fourn(kp));
+         bkan(k) = 2*imag(fourn(kp));
+      else
+         Rpm = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+         fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpm;
+      end
    end
-   fp = Kinter2*vp;
-   %fr1(indexbound2)'*vp(indexbound2)
-   %fp(indexbound2)'*ur1(indexbound2)
-   Rp(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
-   
-   % Fourier coefficient
-   fourn(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
-   akan(k) = 2*real(fourn(kp));
-   bkan(k) = 2*imag(fourn(kp));
 end
 
 %% DEBUG :

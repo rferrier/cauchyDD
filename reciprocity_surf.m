@@ -5,6 +5,7 @@ close all;
 clear all;
 
 addpath(genpath('./tools'))
+addpath(genpath('/usr/share/octave/packages/geometry-2.1.0')) % Geomptry pkg
 
 % Parameters
 E       = 210000; % MPa : Young modulus
@@ -12,7 +13,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 
-nbase     = 1; % Number of Fourier basis functions
+nbase     = 2; % Number of Fourier basis functions
 loadfield = 1; % If 0 : recompute the reference problem and re-pass mesh
 
 if loadfield == 0
@@ -100,8 +101,14 @@ else
    plotGMSH3D({ur1,'u1';ur2,'u2'}, elements2, nodes2, 'us');
 end
 
-fr1p = Kinter2*ur1; fr2p = Kinter2*ur2;  % This is wrong inside the domain,
+%fr1p = Kinter2*ur1; fr2p = Kinter2*ur2;  % This is wrong inside the domain,
 % but should be right at its boundary provided the crack doesn't touch the boundary
+% Well no, actually, ti is wrong everywhere.
+
+neumann1   = [2,3,fscalar ; 1,3,-fscalar];
+neumann2   = [4,1,fscalar ; 6,1,-fscalar];
+fr1 = loading3D(nbloq2,nodes2,boundary2,neumann1);
+fr2 = loading3D(nbloq2,nodes2,boundary2,neumann2);
 
 %% First determine the crack's normal.
 
@@ -192,7 +199,7 @@ normal = [phi1(2,2)*phi2(3,2) - phi2(2,2)*phi1(3,2)
 normal = normal/norm(normal);
           
 % Build the base-change matrix : [x;y;z] = Q*[X;Y;Z], [X;Y;Z] = Q'*[x;y;z]
-t = [1 ; 1 ; -(normal(1)+normal(2))/normal(3)]; t = t/norm(t); % Total random t
+t = [1 ; 0 ; -(normal(1))/normal(3)]; t = t/norm(t); % Total random t
 v = [normal(2)*t(3) - t(2)*normal(3)
      normal(3)*t(1) - t(3)*normal(1)
      normal(1)*t(2) - t(1)*normal(2)]; % v = n^t
@@ -332,9 +339,9 @@ for kpx=2:nbase+1
                ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)+Cte;
                Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
                
-               v1 = -I*lambdax(kpx)*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
+               v1 = -I*lambdaxe*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
                                   ( exp(lambda*Z)+exp(-lambda*Z) );
-               v2 = -I*lambday(kpy)*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
+               v2 = -I*lambdaye*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
                                   ( exp(lambda*Z)+exp(-lambda*Z) );
                v3 = lambda*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
                                   ( exp(lambda*Z)-exp(-lambda*Z) );
@@ -372,7 +379,7 @@ end
 
 %% DEBUG :
 %ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
-%plotGMSH({ux,'U_x';uy,'U_y';imag(vp),'U_vect'}, elements2, nodes2, 'test field');
+plotGMSH({ Xs,'x' ; Ys,'y' ; Zs,'z' ; real(vp),'U_vect'}, elements2, nodes2, 'test field');
 
 % The constant term
 fournpp(1,1) = -(R11+R21+R31)/(Lx*Ly);
@@ -389,29 +396,11 @@ for kpx=2:nbase+1
    end
 end
 
-figure;
-surf(X,Y,solu);
+% Center of the Circle
+Cc = [4;3;1]; Cc = Q'*Cc;
 
-% Plot the reference normal displacement (first test case)
-%udepx  = u1(icrack5x)-u1(icrack6x);
-%udepy  = u1(icrack5y)-u1(icrack6y);
-%Xx     = nodes(b2node5,1); Yy = nodes(b2node5,2);
-%ubase  = Q'*[udepx,udepy]'; ubase = ubase';
-%XY     = Q'*[Xx,Yy]'; XY = XY'; newX = XY(:,1);
-%offset = Q(1,2)/Q(1,1)*CteR;   % /!\ Only in case rectangle
-%
-%left  = offset : (-offset+newX(1))/(size(newX,1)) : newX(1) ;
-%right = newX(end) : (offset + L - newX(end))/(size(newX,1)) : offset + L ;
-%newXo = newX;
-%newX  = [left(1:end-1)';
-%         newX;
-%         right(2:end)']; % Add a few points
-%
-%solu = fourn(1) + sum ( [0*newX' ;...  % Hack in case there is 1 element only
-%           akan.*cos(lambda(2:end)*newX') + bkan.*sin(lambda(2:end)*newX') ] );
-%solu = solu';
-%
-%figure
-%hold on;
-%plot(newX, [0*newXo;ubase(:,2);0*newXo])
-%plot(newX, solu, 'Color', 'red')
+figure;
+hold on;
+surf(X,Y,solu);
+colorbar();
+drawCircle ( Cc(1), Cc(1), 2, 'Color', 'black', 'LineWidth', 3 );
