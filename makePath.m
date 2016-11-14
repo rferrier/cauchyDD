@@ -6,3 +6,4 @@ addpath( genpath('./kmf') );
 addpath( genpath('./sp') );
 addpath( genpath('./testCases') );
 addpath( genpath('./tools') );
+addpath( genpath('./rg') );

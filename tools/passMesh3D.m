@@ -10,19 +10,21 @@ function u2 = passMesh3D (nodes1, elements1, nodes2, elements2, u1, varargin)
 
 
 % Formula from : http://steve.hollasch.net/cgindex/geometry/ptintet.html
-
- onlybound = 0;  % Dummy for now
- if numel(varargin)>0
-    onlybound = cell2mat(varargin(1));
- else
  
  s2 = size(u1,2); % Keep in mind u1 can be a concatenation of many fields
  nnodes2 = size(nodes2,1);
  nelem1 = size(elements1,1);
  u2 = zeros( 3*nnodes2, s2 );
-
- % Keep in mind parfor is only for ornament on Octave
- parfor i = 1:nnodes2 % Find the tethraedron for this node
+ 
+ if numel(varargin) > 0
+    boundary = cell2mat(varargin(1));
+    [ ~ , list ] = mapBound3D( 0, boundary, nnodes2 ); list = list';
+ else
+    list = 1:nnodes2;
+ end
+ 
+ % Parfor is only for ornament on Octave
+ parfor i = list % Find the tethraedron for this node
     x = nodes2(i,1); y = nodes2(i,2); z = nodes2(i,3);
     for j = 1:nelem1
        elt = elements1(j,:);

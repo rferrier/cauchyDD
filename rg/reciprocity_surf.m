@@ -5,7 +5,7 @@ close all;
 clear all;
 
 addpath(genpath('./tools'))
-addpath(genpath('/usr/share/octave/packages/geometry-2.1.0')) % Geomptry pkg
+addpath(genpath('/usr/share/octave/packages/geometry-2.1.0')) % Geometry pkg
 
 % Parameters
 E       = 210000; % MPa : Young modulus
@@ -27,7 +27,7 @@ if loadfield == 0
    neumann2   = [4,1,fscalar ; 6,1,-fscalar];
    
    % First, import the mesh
-   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/plate3d_crack0.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3d/plate_c_107.msh' );
    nnodes = size(nodes,1);
    
    % mapBounds
@@ -69,7 +69,7 @@ if loadfield == 0
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/plate3d.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3d/plate107.msh' );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D (nodes2,elements2,mat,order2,boundary2,[]);
 Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
@@ -91,12 +91,12 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
                
 if loadfield == 0
    %% Pass f and u on the uncracked mesh
-   UFr = passMesh3D (nodes, elements, nodes2, elements2, [u1,u2,f1,f2]);
+   UFr = passMesh3D (nodes, elements, nodes2, elements2, [u1,u2,f1,f2], boundary2);
    ur1 = UFr(:,1); ur2 = UFr(:,2); fr1 = UFr(:,3); fr2 = UFr(:,4);
    plotGMSH3D({ur1,'u1';ur2,'u2'}, elements2, nodes2, 'us');
 else
    %load the field
-   UFR = load('fields/UFr.mat'); UFr = UFR.UFr;
+   UFR = load('fields/UFr107.mat'); UFr = UFR.UFr;
    ur1 = UFr(:,1); ur2 = UFr(:,2); fr1 = UFr(:,3); fr2 = UFr(:,4);
    plotGMSH3D({ur1,'u1';ur2,'u2'}, elements2, nodes2, 'us');
 end
@@ -278,7 +278,7 @@ Rv  = (fr1(indexbound2)'*vv(indexbound2) - fv(indexbound2)'*ur1(indexbound2));
 Rt2 = (fr2(indexbound2)'*vt(indexbound2) - ft(indexbound2)'*ur2(indexbound2));
 Rv2 = (fr2(indexbound2)'*vv(indexbound2) - fv(indexbound2)'*ur2(indexbound2));
 
-Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte is negative
+Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
 
 % Reference : we know that the point P belongs to the plane.
@@ -302,14 +302,13 @@ Pt = [4;3;1]; QPt = Q'*Pt; CteR = QPt(3);
 %% And now, the crack itself
 
 % Compute L ( (not so) provisionnal formula assuming that we have a particular case)
-b = 7;
-a = t(3)/t(1)*b; Lx = sqrt(a^2+b^2); Ly = b;
+b = 7; bt = 10;
+a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
 %
 Rp       = zeros(nbase+1,1);
 Rm       = zeros(nbase+1,1);
 lambdax  = zeros(nbase+1,1);
 lambday  = zeros(nbase+1,1);
-%lambda  = zeros(nbase+1,1);
 fournpp  = zeros(nbase+1,nbase+1);
 fournpm  = zeros(nbase+1,nbase+1);
 fournmp  = zeros(nbase+1,nbase+1);
@@ -323,7 +322,6 @@ for kpx=2:nbase+1
    for kpy=2:nbase+1
       kx = kpx-1; ky = kpy-1;
       vp = zeros(3*nnodes2,1);
-      %vm = zeros(3*nnodes2,1);
       lambdax(kpx) = 2*kx*pi/Lx; lambday(kpy) = 2*ky*pi/Ly;
       lambda = sqrt(lambdax(kpx)^2+lambday(kpy)^2);
       
@@ -336,7 +334,7 @@ for kpx=2:nbase+1
                y = nodes2(i,2);
                z = nodes2(i,3);
                % Change base (for coordiantes)
-               ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)+Cte;
+               ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)-Cte;
                Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
                
                v1 = -I*lambdaxe*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
@@ -353,7 +351,7 @@ for kpx=2:nbase+1
       
             Rp = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
             
-            % Fourier coefficient
+            % Fourier coefficients
             if sx==1 && sy==1
                fournpp(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
             elseif sx==1 && sy==-1
@@ -385,7 +383,8 @@ plotGMSH({ Xs,'x' ; Ys,'y' ; Zs,'z' ; real(vp),'U_vect'}, elements2, nodes2, 'te
 fournpp(1,1) = -(R11+R21+R31)/(Lx*Ly);
 
 % plot the identified normal gap
-X = 0:Lx/100:Lx; Y = 0:Ly/100:Ly; 
+nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
+X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
 solu = fournpp(1,1);
 for kpx=2:nbase+1
    for kpy=2:nbase+1
@@ -402,5 +401,6 @@ Cc = [4;3;1]; Cc = Q'*Cc;
 figure;
 hold on;
 surf(X,Y,solu);
+shading interp;
 colorbar();
-drawCircle ( Cc(1), Cc(1), 2, 'Color', 'black', 'LineWidth', 3 );
+drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
