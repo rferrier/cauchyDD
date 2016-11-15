@@ -13,7 +13,7 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 
 nbase = 3; % Number of Fourier basis functions
-ordp = 2;  % Number of Polynomial basis functions
+ordp = 7;  % Number of Polynomial basis functions
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -381,7 +381,7 @@ axis('equal');
 %% And now, the crack itself
 
 % Compute L (provisionnal formula assuming that something<Cte<0
-tangent = [normal(2) ; -normal(1)]; b = 10;
+tangent = [normal(2) ; -normal(1)]; b = max(nodes(:,1)) - min(nodes(:,1));
 a = tangent(2)/tangent(1)*b; L = sqrt(a^2+b^2);
 %
 Rp     = zeros(nbase+1,1);
@@ -484,29 +484,46 @@ for k = 1:ordp
    azero = -(1-nu^2)/(nu*E*(k+1));
    %Rhsco(1) = -(k-1)*k*E/(1+nu^2);
    
-   for j = 1:k
-      if mod(j,2) == 1 % Parity check
-         Axx(j,:) = [(k-(j-1)/2)*(k+1-(j-1)/2), j];% Coefficient values
-         Ayy(j,:) = [((j-1)/2+1)*((j-1)/2+2), j+2];
-         Bxy(j,:) = [(j-1)/2*(k-(j-1)/2),j+1];
-         
-         Lhsco( j, Axx(j,2) ) = E/(1-nu^2)*Axx(j,1);
-         %if j<k
-         Lhsco( j, Ayy(j,2) ) = E/(2*(1+nu))*Ayy(j,1);
-         %end
-         Lhsco( j, Bxy(j,2) ) = ( nu*E/(1-nu^2)+E/(2*(1+nu)) )*Bxy(j,1);
-      else %if mod(j,2) == 0
-         Bxx(j,:) = [(k-j/2)*(k+1-j/2), j];% Coefficient values
-         Byy(j,:) = [(j/2+1)*j/2, j+2];
-         Axy(j,:) = [j/2*(k-j/2),j+1];;
-         Lhsco( j, Bxx(j,2) ) = E/(2*(1+nu))*Bxx(j,1);
-         Lhsco( j, Byy(j,2) ) = E/(1-nu^2)*Byy(j,1);
-         Lhsco( j, Axy(j,2) ) = ( nu*E/(1-nu^2)+E/(2*(1+nu)) )*Axy(j,1);
-      end
+%   for j = 1:k
+%      if mod(j,2) == 1 % Parity check
+%         Axx(j,:) = [(k-(j-1)/2)*(k+1-(j-1)/2), j];% Coefficient values
+%         Ayy(j,:) = [((j-1)/2+1)*((j-1)/2+2), j+2];
+%         Bxy(j,:) = [(j-1)/2*(k-(j-1)/2),j+1];
+%         
+%         Lhsco( j, Axx(j,2) ) = E/(1-nu^2)*Axx(j,1);
+%         %if j<k
+%         Lhsco( j, Ayy(j,2) ) = E/(2*(1+nu))*Ayy(j,1);
+%         %end
+%         Lhsco( j, Bxy(j,2) ) = ( nu*E/(1-nu^2)+E/(2*(1+nu)) )*Bxy(j,1);
+%      else %if mod(j,2) == 0
+%         Bxx(j,:) = [(k-j/2)*(k+1-j/2), j];% Coefficient values
+%         Byy(j,:) = [(j/2+1)*j/2, j+2];
+%         Axy(j,:) = [j/2*(k-j/2),j+1];;
+%         Lhsco( j, Bxx(j,2) ) = E/(2*(1+nu))*Bxx(j,1);
+%         Lhsco( j, Byy(j,2) ) = E/(1-nu^2)*Byy(j,1);
+%         Lhsco( j, Axy(j,2) ) = ( nu*E/(1-nu^2)+E/(2*(1+nu)) )*Axy(j,1);
+%      end
+%   end
+
+   for i=0:floor( (k-1)/2 )
+      Lhsco(2*i+1,2*i+1) = (k+1-2*i)*(k-2*i)*E/(1-nu^2);  % a_i
+      Lhsco(2*i+1,2*i+2) = (2*i+1)*(k-2*i) * ( nu*E/(1-nu^2) + E/(2*(1+nu)) ); % b_i
+      Lhsco(2*i+1,2*i+3) = (2*i+1)*(2*i+2)*E/(2*(1+nu));  % a_{i+1}
    end
+   
+   for i=1:floor( k/2 )
+      Lhsco(2*i,2*i)   = (k-2*i+2)*(k-2*i+1)*E/(2*(1+nu)) ; % b_{i-1}
+      Lhsco(2*i,2*i+1) = 2*i*(k+1-2*i)*( E/(2*(1+nu)) + nu*E/(1-nu^2) ) ; % a_i
+      Lhsco(2*i,2*i+2) = 2*i*(2*i+1)*E/(1-nu^2) ; %b_i
+   end
+
    C = [ eye(2) , zeros(2,k)];
    Lhsco = [ Lhsco ; C ]; % find an unique solution
    Rhsco = [ Rhsco ; azero ; 0 ];
+   
+   Lhsco(size(Lhsco,1)-2,:) = [];  % 'cause square matrix is life
+   Rhsco(size(Rhsco,1)-2,:) = [];
+   
    coef( 1:k+2, k+1 ) = Lhsco\Rhsco;
 %   Rhsco = [ Rhsco ; azero ; 0 ]  %impose a0 = a0 and b0 = 0 with Lagrange
 %   C = [ eye(2) , zeros(2,k-1)];
@@ -536,7 +553,7 @@ for k=0:ordp
       
       % Build X^k*Y^j
       GROX = zeros(ordp+2,1);
-      for j = 0:k
+      for j = 0:k+1
          GROX(j+1) = X^(k+1-j)*Y^j;
       end
       
@@ -555,12 +572,13 @@ for i=0:ordp
    end
 end
 
-%% Actually do stuff
+%% Manual stuff for DEBUG
 
 %vp3 = zeros(2*nnodes2, 1);
 %vp2 = zeros(2*nnodes2, 1);
 %vp1 = zeros(2*nnodes2, 1);
 %vp0 = zeros(2*nnodes2, 1);
+%
 %for i=1:nnodes2
 %   x = nodes2(i,1);
 %   y = nodes2(i,2);
@@ -582,8 +600,8 @@ end
 %   
 %   a1 = (1-nu^2)/(4*nu*E); b1 = -3*(1+nu)/(nu*E);
 %   d1 = -(1-nu^2)/(6*E)*( 4*nu*E/(1-nu^2) + 2*E/(1+nu) )*b1;
-%   c1 = -(1-nu)/(6*E) * ( 2*E/(1-nu^2)*b1 + 3*nu*E/(1-nu^2)*d1 + 3*E/(2*(1+nu))*d1 );
-%   vloc = [ a1*X^4 + b1*X^2*Y^2 + c1*Y^4 ;...
+%   c1 = -(1+nu)/(6*E) * ( 2*E/(1-nu^2)*b1 + 3*nu*E/(1-nu^2)*d1 + 3*E/(2*(1+nu))*d1 );
+%   vloc = -[ a1*X^4 + b1*X^2*Y^2 + c1*Y^4 ;...
 %            d1*X*Y^3 ];
 %   vxy = Q*vloc; vp3(2*i-1) = vxy(1); vp3(2*i) = vxy(2);
 %end
@@ -617,7 +635,7 @@ end
 %%       (L2^3 - L1^3)/3, (L2^4 - L1^4)/4, (L2^5 - L1^5)/5 ];
 %%Rhs = -[Rp0]; 
 %%Lhs = [L];
-%Rhs = Rhs(1:3); Lhs = Lhs(1:3,1:3);
+%%Rhs = Rhs(1:3); Lhs = Lhs(1:3,1:3);
 McCoef = Lhs\Rhs;
 
 nbase = size(McCoef,1);
