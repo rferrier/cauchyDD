@@ -1,21 +1,21 @@
 
 // Geometric parameters
-H = 10;  //  height of plate
-L = 5;  //  width of plate
+H = 2;  //  height of plate
+L = 7;  //  width of plate
+E = 7;
 
 // Discretization parameters
-lc1 = 2; // element size at the border
-lc2 = 2; // element size at the crack tip
+lc1 = .5; // element size at the border
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc1};
 Point(2) = {L,0.0,0.0,lc1};
-Point(3) = {L,L,0.0,lc2};
-Point(4) = {0.0,L,0.0,lc2};
+Point(3) = {L,E,0.0,lc1};
+Point(4) = {0.0,E,0.0,lc1};
 Point(5) = {0.0,0.0,H,lc1};
 Point(6) = {L,0.0,H,lc1};
-Point(7) = {L,L,H,lc2};
-Point(8) = {0.0,L,H,lc2};
+Point(7) = {L,E,H,lc1};
+Point(8) = {0.0,E,H,lc1};
 
 Line(1) = {1,2};
 Line(2) = {2,3};

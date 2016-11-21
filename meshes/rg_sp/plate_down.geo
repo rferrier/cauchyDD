@@ -1,5 +1,5 @@
 // Geometric parameters
-H = 10;  //  height of plate
+H = 20;  //  height of plate
 L = 5;  //  width of plate
 
 // Discretization parameters
@@ -10,8 +10,8 @@ Point(1) = {0.0,0.0,0.0,lc1};
 Point(2) = {L,0.0,0.0,lc1};
 
 // Middle line
-Point(5) = {0.0,H/3,0.0,lc1};
-Point(6) = {L,H/3,0.0,lc1};
+Point(5) = {0.0,H/6,0.0,lc1};
+Point(6) = {L,H/6,0.0,lc1};
 
 Line(1) = {1,2};
 Line(7) = {2,6};

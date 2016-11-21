@@ -1,11 +1,11 @@
 // Geometric parameters
-H = 10;  //  height of plate
+H = 20;  //  height of plate
 L = 5;  //  width of plate
 
 // Coords of the tops of the crack
 //x5 = L/5; y5 = 2*H/3;
-x7 = 2*L/5; y7 = 2*H/3;
-x8 = L/5; y8 = 3*H/4;
+x7 = 4*L/10; y7 = 2*H/4;
+x8 = 5*L/10; y8 = 3*H/4;
 //x6 = 3*L/4; y6 = 3*H/4;
 //x5 = L/2; y5 = H/2;
 //x6 = 3*L/4; y6 = 5*H/8;
@@ -25,8 +25,8 @@ Point(3) = {L,H,0.0,lc1};
 Point(4) = {0.0,H,0.0,lc1};
 
 // Middle line
-Point(5) = {0.0,H/3,0.0,lc1};
-Point(6) = {L,H/3,0.0,lc1};
+Point(5) = {0.0,H/6,0.0,lc1};
+Point(6) = {L,H/6,0.0,lc1};
 
 // Crack tops
 Point(7) = {x7, y7, 0.0, lc2};

@@ -7,13 +7,21 @@ clear all;
 addpath(genpath('./tools'))
 
 % Parameters
-E       = 210000; % MPa : Young modulus
-nu      = 0.3;    % Poisson ratio
-fscalar = 250;    % N.mm-1 : Loading on the plate
-mat = [0, E, nu];
+E          = 210000; % MPa : Young modulus
+nu         = 0.3;    % Poisson ratio
+fscalar    = 250;    % N.mm-1 : Loading on the plate
+mat        = [0, E, nu];
+mu         = 0;%1e-5;%5e-3;     % Regularization coef
+%mu         = 3;     % Regularization coef
+dolcurve   = 0;      % Do a L-curve or not
 
-nbase = 3; % Number of Fourier basis functions
-ordp = 7;  % Number of Polynomial basis functions
+usefourier = 0;
+usepolys   = 1;
+
+nbase = 2; % Number of Fourier basis functions
+ordp = 5;  % Number of Polynomial basis functions
+
+useorder = 2; % Order of the FE computation
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -26,7 +34,12 @@ neumann2   = [2,1,fscalar ; 4,1,-fscalar];
 %neumann2   = [1,1,fscalar ; 2,2,-fscalar ; 3,1,-fscalar ; 4,2,fscalar];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate_c.msh' );
+if useorder == 1
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c.msh' );
+elseif useorder == 2
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_ct6.msh' );
+end
+
 nnodes = size(nodes,1);
 
 % mapBounds
@@ -78,7 +91,12 @@ plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'refer
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/plate_n.msh' );
+if useorder == 1
+   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_n.msh' );
+elseif useorder == 2
+   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nt6.msh' );
+end
+
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet);
 Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
@@ -91,11 +109,15 @@ Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
 
 indexbound  = [2*b2node1-1 ; 2*b2node1 ; 2*b2node2-1 ; 2*b2node2 ;...
                2*b2node3-1 ; 2*b2node3 ; 2*b2node4-1 ; 2*b2node4];
-               
-icrack5x    = [ 2*b2node5-1 ];
-icrack6x    = [ 2*b2node6(end:-1:1)-1 ];
-icrack5y    = [ 2*b2node5 ];
-icrack6y    = [ 2*b2node6(end:-1:1) ];
+
+ % Sort the nodes (in case order > 1)
+[~,order5]  = sort( nodes( b2node5, 1 ) );
+[~,order6]  = sort( nodes( b2node6, 1 ) );
+
+icrack5x    = [ 2*b2node5(order5)-1 ];
+icrack6x    = [ 2*b2node6(order6)-1 ];
+icrack5y    = [ 2*b2node5(order5) ];
+icrack6y    = [ 2*b2node6(order6) ];
 
 indexbound2 = [2*b2node12-1 ; 2*b2node12 ; 2*b2node22-1 ; 2*b2node22 ;...
                2*b2node32-1 ; 2*b2node32 ; 2*b2node42-1 ; 2*b2node42];
@@ -186,16 +208,6 @@ while i <= size(indexbound2,1)
    end
    i = i+1;
 end
-
-%R11 = 2/3*(fr1(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur1(indexbound2));
-%R21 = 2/3*(fr1(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur1(indexbound2));
-%R31 = 4/3*(fr1(indexbound2)'*v3(indexbound2) - f3(indexbound2)'*ur1(indexbound2));
-%%[R11s, R31s ; R31s, R21s]
-%
-%R12 = 2/3*(fr2(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur2(indexbound2));
-%R22 = 2/3*(fr2(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur2(indexbound2));
-%R32 = 4/3*(fr2(indexbound2)'*v3(indexbound2) - f3(indexbound2)'*ur2(indexbound2));
-%[R12s, R32s ; R32s, R22s]
 
 R11 = (fr1(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur1(indexbound2));
 R21 = (fr1(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur1(indexbound2));
@@ -383,68 +395,14 @@ axis('equal');
 % Compute L (provisionnal formula assuming that something<Cte<0
 tangent = [normal(2) ; -normal(1)]; b = max(nodes(:,1)) - min(nodes(:,1));
 a = tangent(2)/tangent(1)*b; L = sqrt(a^2+b^2);
-%
-Rp     = zeros(nbase+1,1);
-Rm     = zeros(nbase+1,1);
-lambda = zeros(nbase+1,1);
-fourn  = zeros(nbase+1,1);
-fournm = zeros(nbase+1,1);
-akan   = zeros(nbase,1);
-bkan   = zeros(nbase,1);
 
-for kp=2:nbase+1
-   k = kp-1;
-   vp = zeros(2*nnodes2,1);
-   vm = zeros(2*nnodes2,1);
-   lambda(kp) = 2*k*pi/L;
-   for sx = [1,-1]  % sx=-1 is not really used, but Debug stuff
-      lambdae = sx*lambda(kp);
-      for i=1:nnodes2
-         x = nodes2(i,1);
-         y = nodes2(i,2);
-         % Change base (for coordiantes)
-         ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
-         Xs(i) = X; Ys(i) = Y;
-         
-         v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
-                            ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
-         v2 = lambda(kp)*exp(-I*lambdae*X)* ...
-                            ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
-         vloc = [ v1 ; v2 ];
-         % Change base (for vector), in the other direction
-         vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
-      end
-      fp = Kinter2*vp;
-      %fr1(indexbound2)'*vp(indexbound2)
-      %fp(indexbound2)'*ur1(indexbound2)
-      
-      
-      % Fourier coefficient
-      if sx == 1
-         Rp(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
-         fourn(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
-         akan(k) = 2*real(fourn(kp));
-         bkan(k) = 2*imag(fourn(kp));
-      else
-         Rpm = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
-         fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpm;
-      end
-   end
-end
-
-%% DEBUG :
-%ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
-%plotGMSH({ux,'U_x';uy,'U_y';imag(vp),'U_vect'}, elements2, nodes2, 'test field');
-
-% The constant term
-fourn(1) = -(R11+R21)/L;
-
-% Plot the reference normal displacement (first test case)
+% Convenient values for plot
 udepx  = u1(icrack5x)-u1(icrack6x);
 udepy  = u1(icrack5y)-u1(icrack6y);
 Xx     = nodes(b2node5,1); Yy = nodes(b2node5,2);
 ubase  = Q'*[udepx,udepy]'; ubase = ubase';
-XY     = Q'*[Xx,Yy]'; XY = XY'; newX = XY(:,1);
+XY     = Q'*[Xx,Yy]'; XY = XY';
+[newX, orderX] = sort(XY(:,1));          % In case order > 1, need to sort
 offset = Q(1,2)/Q(1,1)*CteR;   % /!\ Only in case rectangle
 
 left  = offset : (-offset+newX(1))/(size(newX,1)) : newX(1) ;
@@ -454,210 +412,323 @@ newX  = [left(1:end-1)';
          newX;
          right(2:end)']; % Add a few points
 
-solu = fourn(1) + sum ( [0*newX' ;...  % Hack in case there is 1 element only
-           akan.*cos(lambda(2:end)*newX') + bkan.*sin(lambda(2:end)*newX') ] );
-solu = solu';
-
-figure
-hold on;
-plot(newX, [0*newXo;ubase(:,2);0*newXo])
-plot(newX, solu, 'Color', 'red')
-
+if usefourier == 1
+   Rp     = zeros(nbase+1,1);
+   Rm     = zeros(nbase+1,1);
+   lambda = zeros(nbase+1,1);
+   fourn  = zeros(nbase+1,1);
+   fournm = zeros(nbase+1,1);
+   akan   = zeros(nbase,1);
+   bkan   = zeros(nbase,1);
+   
+   for kp=2:nbase+1
+      k = kp-1;
+      vp = zeros(2*nnodes2,1);
+      vm = zeros(2*nnodes2,1);
+      lambda(kp) = 2*k*pi/L;
+      for sx = [1,-1]  % sx=-1 is not really used, but Debug stuff
+         lambdae = sx*lambda(kp);
+         for i=1:nnodes2
+            x = nodes2(i,1);
+            y = nodes2(i,2);
+            % Change base (for coordinates)
+            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+            Xs(i) = X; Ys(i) = Y;
+            
+            v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
+                               ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
+            v2 = lambda(kp)*exp(-I*lambdae*X)* ...
+                               ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
+            vloc = [ v1 ; v2 ];
+            % Change base (for vector), in the other direction
+            vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
+         end
+         fp = Kinter2*vp;
+         
+         % Fourier coefficient
+         if sx == 1
+            Rp(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+            %Rp(kp) = (fr2(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur2(indexbound2));
+            if dolcurve == 0 % No L-curve stuff
+               fourn(kp) = - 1/(1+mu*k^2) *(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
+               akan(k) = 2*real(fourn(kp));
+               bkan(k) = 2*imag(fourn(kp));
+            end
+         else
+            Rpm = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+            fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpm;
+         end
+      end
+   end
+   
+   % The constant term
+   fourn(1) = -(R11+R21)/L;
+   
+   % Invert the operator
+   if dolcurve == 1
+      listmu = -1:.1:3;
+      resid  = zeros( size(listmu) );
+      regno  = zeros( size(listmu) );
+      rhsk   = zeros(nbase+1,1);
+      i = 1;
+      for lnmu1 = listmu
+         mu1 = 10^lnmu1;
+         for kp=2:nbase+1
+            %lhsk(kp)  = - (2*E*L*lambda(kp)^2)/(1+nu);
+            rhsk(kp)  = - (1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
+            fourn(kp) = 1/(1+mu1*(kp-1)^2) * rhsk(kp);
+            akan(k)   = 2*real(fourn(kp));
+            bkan(k)   = 2*imag(fourn(kp));
+            resid(i)  = resid(i) + abs(fourn(kp) - rhsk(kp))^2;
+            regno(i)  = regno(i) + kp^2 * abs(fourn(kp))^2;
+         end
+         i = i+1;
+      end
+      figure;
+      loglog(resid,regno);
+      xlabel('residual (log)')
+      ylabel('norm (log)')
+   end
+   
+   %% DEBUG :
+   %ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
+   %plotGMSH({ux,'U_x';uy,'U_y';imag(vp),'U_vect'}, elements2, nodes2, 'test field');
+   
+   % Plot the reference normal displacement (first test case)
+   solu = fourn(1) + sum ( [0*newX' ;...  % Hack in case there is 1 element only
+              akan.*cos(lambda(2:end)*newX') + bkan.*sin(lambda(2:end)*newX') ] );
+   solu = solu';
+   
+   figure
+   hold on;
+   plot(newX, [0*newXo;ubase(:,2);0*newXo])
+   plot(newX, solu, 'Color', 'red')
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mean square polynoms
-
-% First, build the polynomial test functions.
-coef = zeros(ordp+2, ordp+1);
-coef( 1:2, 1 ) = [-(1-nu^2)/(nu*E) ; 0];
-
-for k = 1:ordp
-   Rhsco = zeros(k+1,1);
-   Lhsco = zeros(k+1);
+if usepolys == 1
+   % First, build the polynomial test functions.
+   coef = zeros(ordp+2, ordp+1);
+   coef( 1:2, 1 ) = [-(1-nu^2)/(nu*E) ; 0];
    
-   Axx = zeros(k-1,2);
-   Axy = zeros(k-1,2);
-   Ayy = zeros(k-1,2);
-   Bxx = zeros(k-1,2);
-   Bxy = zeros(k-1,2);
-   Byy = zeros(k-1,2);
-   
-   azero = -(1-nu^2)/(nu*E*(k+1));
-   %Rhsco(1) = -(k-1)*k*E/(1+nu^2);
-   
-%   for j = 1:k
-%      if mod(j,2) == 1 % Parity check
-%         Axx(j,:) = [(k-(j-1)/2)*(k+1-(j-1)/2), j];% Coefficient values
-%         Ayy(j,:) = [((j-1)/2+1)*((j-1)/2+2), j+2];
-%         Bxy(j,:) = [(j-1)/2*(k-(j-1)/2),j+1];
-%         
-%         Lhsco( j, Axx(j,2) ) = E/(1-nu^2)*Axx(j,1);
-%         %if j<k
-%         Lhsco( j, Ayy(j,2) ) = E/(2*(1+nu))*Ayy(j,1);
-%         %end
-%         Lhsco( j, Bxy(j,2) ) = ( nu*E/(1-nu^2)+E/(2*(1+nu)) )*Bxy(j,1);
-%      else %if mod(j,2) == 0
-%         Bxx(j,:) = [(k-j/2)*(k+1-j/2), j];% Coefficient values
-%         Byy(j,:) = [(j/2+1)*j/2, j+2];
-%         Axy(j,:) = [j/2*(k-j/2),j+1];;
-%         Lhsco( j, Bxx(j,2) ) = E/(2*(1+nu))*Bxx(j,1);
-%         Lhsco( j, Byy(j,2) ) = E/(1-nu^2)*Byy(j,1);
-%         Lhsco( j, Axy(j,2) ) = ( nu*E/(1-nu^2)+E/(2*(1+nu)) )*Axy(j,1);
-%      end
-%   end
-
-   for i=0:floor( (k-1)/2 )
-      Lhsco(2*i+1,2*i+1) = (k+1-2*i)*(k-2*i)*E/(1-nu^2);  % a_i
-      Lhsco(2*i+1,2*i+2) = (2*i+1)*(k-2*i) * ( nu*E/(1-nu^2) + E/(2*(1+nu)) ); % b_i
-      Lhsco(2*i+1,2*i+3) = (2*i+1)*(2*i+2)*E/(2*(1+nu));  % a_{i+1}
-   end
-   
-   for i=1:floor( k/2 )
-      Lhsco(2*i,2*i)   = (k-2*i+2)*(k-2*i+1)*E/(2*(1+nu)) ; % b_{i-1}
-      Lhsco(2*i,2*i+1) = 2*i*(k+1-2*i)*( E/(2*(1+nu)) + nu*E/(1-nu^2) ) ; % a_i
-      Lhsco(2*i,2*i+2) = 2*i*(2*i+1)*E/(1-nu^2) ; %b_i
-   end
-
-   C = [ eye(2) , zeros(2,k)];
-   Lhsco = [ Lhsco ; C ]; % find an unique solution
-   Rhsco = [ Rhsco ; azero ; 0 ];
-   
-   Lhsco(size(Lhsco,1)-2,:) = [];  % 'cause square matrix is life
-   Rhsco(size(Rhsco,1)-2,:) = [];
-   
-   coef( 1:k+2, k+1 ) = Lhsco\Rhsco;
-%   Rhsco = [ Rhsco ; azero ; 0 ]  %impose a0 = a0 and b0 = 0 with Lagrange
-%   C = [ eye(2) , zeros(2,k-1)];
-%   Lhsco = [ Lhsco , C' ; C , zeros(2,2) ]
-end
-
-% Place zeros in coef
-coefa = coef;
-coefb = coef;
-for i=1:size(coefa,1)
-   if mod(i,2) == 0
-      coefa(i,:) = 0;
-   end
-   if mod(i,2) == 1
-      coefb(i,:) = 0;
-   end
-end
-
-%% Compute the RG
-Rhs = zeros(ordp+1,1);
-vpa = zeros(2*nnodes2, 1);
-for k=0:ordp
-   for i=1:nnodes2
-      x = nodes2(i,1);
-      y = nodes2(i,2);
-      ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+   for k = 1:ordp
+      Rhsco = zeros(k+1,1);
+      Lhsco = zeros(k+1);
       
-      % Build X^k*Y^j
-      GROX = zeros(ordp+2,1);
-      for j = 0:k+1
-         GROX(j+1) = X^(k+1-j)*Y^j;
+      Axx = zeros(k-1,2);
+      Axy = zeros(k-1,2);
+      Ayy = zeros(k-1,2);
+      Bxx = zeros(k-1,2);
+      Bxy = zeros(k-1,2);
+      Byy = zeros(k-1,2);
+      
+      azero = -(1-nu^2)/(nu*E*(k+1));
+   
+      for i=0:floor( (k-1)/2 )
+         Lhsco(2*i+1,2*i+1) = (k+1-2*i)*(k-2*i)*E/(1-nu^2);  % a_i
+         Lhsco(2*i+1,2*i+2) = (2*i+1)*(k-2*i) * ( nu*E/(1-nu^2) + E/(2*(1+nu)) ); % b_i
+         Lhsco(2*i+1,2*i+3) = (2*i+1)*(2*i+2)*E/(2*(1+nu));  % a_{i+1}
       end
       
-      vloc = [ coefa(:,k+1)'*GROX ; coefb(:,k+1)'*GROX ];
-      vxy = Q*vloc; vpa(2*i-1) = vxy(1); vpa(2*i) = vxy(2);
+      for i=1:floor( k/2 )
+         Lhsco(2*i,2*i)   = (k-2*i+2)*(k-2*i+1)*E/(2*(1+nu)) ; % b_{i-1}
+         Lhsco(2*i,2*i+1) = 2*i*(k+1-2*i)*( E/(2*(1+nu)) + nu*E/(1-nu^2) ) ; % a_i
+         Lhsco(2*i,2*i+2) = 2*i*(2*i+1)*E/(1-nu^2) ; %b_i
+      end
+   
+      C = [ eye(2) , zeros(2,k)];
+      Lhsco = [ Lhsco ; C ]; % find an unique solution
+      Rhsco = [ Rhsco ; azero ; 0 ];
+      
+      Lhsco(size(Lhsco,1)-2,:) = [];  % 'cause square matrix is life
+      Rhsco(size(Rhsco,1)-2,:) = [];
+      
+      coef( 1:k+2, k+1 ) = Lhsco\Rhsco;
+   %   Rhsco = [ Rhsco ; azero ; 0 ]  %impose a0 = a0 and b0 = 0 with Lagrange
+   %   C = [ eye(2) , zeros(2,k-1)];
+   %   Lhsco = [ Lhsco , C' ; C , zeros(2,2) ]
    end
-   fpa = Kinter2*vpa;
-   Rhs(k+1) = (fr1(indexbound2)'*vpa(indexbound2) - fpa(indexbound2)'*ur1(indexbound2));
-end
-
-L1 = offset; L2 = offset+L;
-for i=0:ordp
-   for j=0:ordp
-      ord = i+j+1;
-      Lhs(i+1,j+1) = (L2^ord - L1^ord)/ord;
+   
+   % Place zeros in coef
+   coefa = coef;
+   coefb = coef;
+   for i=1:size(coefa,1)
+      if mod(i,2) == 0
+         coefa(i,:) = 0;
+      end
+      if mod(i,2) == 1
+         coefb(i,:) = 0;
+      end
    end
+   
+   %% Compute the RG
+   Rhs = zeros(ordp+1,1);
+   vpa = zeros(2*nnodes2, 1);
+   for k=0:ordp
+      for i=1:nnodes2
+         x = nodes2(i,1);
+         y = nodes2(i,2);
+         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L;
+         
+         % Build X^k*Y^j
+         GROX = zeros(ordp+2,1);
+         for j = 0:k+1
+            GROX(j+1) = X^(k+1-j)*Y^j;
+         end
+         
+         vloc = [ coefa(:,k+1)'*GROX ; coefb(:,k+1)'*GROX ];
+         vxy = Q*vloc; vpa(2*i-1) = vxy(1); vpa(2*i) = vxy(2);
+      end
+      fpa = Kinter2*vpa;
+      %Rhs(k+1) = (fr1'*vpa - fpa'*ur1);
+      Rhs(k+1) = (fr1(indexbound2)'*vpa(indexbound2) - fpa(indexbound2)'*ur1(indexbound2));
+   end
+   
+   L1 = offset; L2 = offset+L;
+   L1 = 0; L2 = 1;
+   for i=0:ordp
+      for j=0:ordp
+         ord = i+j+1;
+         Lhs(i+1,j+1) = (L2^ord - L1^ord)/ord;
+         if i>1 && j>1
+            Lhs(i+1,j+1) = Lhs(i+1,j+1) + mu*i*j/(i+j-1)*...
+                                          (L2^(i+j-1) - L1^(i+j-1));
+         end
+      end
+   end
+   
+   %% Manual stuff for DEBUG
+   
+   %vp3 = zeros(2*nnodes2, 1);
+   %vp2 = zeros(2*nnodes2, 1);
+   %vp1 = zeros(2*nnodes2, 1);
+   %vp0 = zeros(2*nnodes2, 1);
+   %
+   %for i=1:nnodes2
+   %   x = nodes2(i,1);
+   %   y = nodes2(i,2);
+   %   % Change base (for coordiantes)
+   %   ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+   %
+   %   %vloc = [nu/E*X ; -1/E*Y];
+   %   vloc = -[ (1-nu^2)/(nu*E)*X ; 0 ];
+   %   vxy = Q*vloc; vp0(2*i-1) = vxy(1); vp0(2*i) = vxy(2);
+   %   
+   %   %vloc = [ - (1+nu^2)/(2*nu*E)*X^2 + (1+nu)/(nu*E)*Y^2 ; 0 ];
+   %   vloc = -[ (1-nu^2)/(2*nu*E)*X^2 - (1+nu)/(nu*E)*Y^2 ; 0 ];
+   %   vxy = Q*vloc; vp1(2*i-1) = vxy(1); vp1(2*i) = vxy(2);
+   %   
+   %   a1 = (1-nu^2)/(3*nu*E); b1 = -2*(1+nu)/(nu*E);
+   %   c1 = -(1-nu^2)/(6*E)*( 2*nu*E/(1-nu^2) + E/(1+nu) )*b1;
+   %   vloc = -[ a1*X^3 + b1*X*Y^2 ; c1*Y^3 ];
+   %   vxy = Q*vloc; vp2(2*i-1) = vxy(1); vp2(2*i) = vxy(2);
+   %   
+   %   a1 = (1-nu^2)/(4*nu*E); b1 = -3*(1+nu)/(nu*E);
+   %   d1 = -(1-nu^2)/(6*E)*( 4*nu*E/(1-nu^2) + 2*E/(1+nu) )*b1;
+   %   c1 = -(1+nu)/(6*E) * ( 2*E/(1-nu^2)*b1 + 3*nu*E/(1-nu^2)*d1 + 3*E/(2*(1+nu))*d1 );
+   %   vloc = -[ a1*X^4 + b1*X^2*Y^2 + c1*Y^4 ;...
+   %            d1*X*Y^3 ];
+   %   vxy = Q*vloc; vp3(2*i-1) = vxy(1); vp3(2*i) = vxy(2);
+   %end
+   %fp3 = Kinter2*vp3;
+   %fp2 = Kinter2*vp2;
+   %fp1 = Kinter2*vp1;
+   %fp0 = Kinter2*vp0;
+   %
+   %Rp3 = (fr1(indexbound2)'*vp3(indexbound2) - fp3(indexbound2)'*ur1(indexbound2));
+   %Rp2 = (fr1(indexbound2)'*vp2(indexbound2) - fp2(indexbound2)'*ur1(indexbound2));
+   %Rp1 = (fr1(indexbound2)'*vp1(indexbound2) - fp1(indexbound2)'*ur1(indexbound2));
+   %Rp0 = (fr1(indexbound2)'*vp0(indexbound2) - fp0(indexbound2)'*ur1(indexbound2));
+   %
+   %%% /!\ savage zone /!\
+   %%Xs(100)
+   %%Ys(100)
+   %%sigm = stress(vp1,E,nu,nodes2,elements2,order,1,ntoelem2);
+   %%S = [sigm(3*100-2),sigm(300);sigm(300),sigm(3*100-1)]
+   %%Q'*S*Q
+   %
+   %Rhs =  [Rp0 ;Rp1 ; Rp2 ; Rp3];
+   %L1 = offset; L2 = offset+L;
+   %for i=1:4
+   %   for j=1:4
+   %      ord = i+j-1;
+   %      Lhs(i,j) = (L2^ord - L1^ord)/ord;
+   %   end
+   %end
+   %%Lhs = [L2-L1, (L2^2 - L1^2)/2, (L2^3 - L1^3)/3 ;...
+   %%       (L2^2 - L1^2)/2, (L2^3 - L1^3)/3, (L2^4 - L1^4)/4 ;...
+   %%       (L2^3 - L1^3)/3, (L2^4 - L1^4)/4, (L2^5 - L1^5)/5 ];
+   %%Rhs = -[Rp0]; 
+   %%Lhs = [L];
+   %%Rhs = Rhs(1:3); Lhs = Lhs(1:3,1:3);
+   
+      % Invert the operator
+   if dolcurve == 1
+      listmu = -6:.1:-2;
+      resid  = zeros( size(listmu) );
+      regno  = zeros( size(listmu) );
+      rhsk   = zeros(nbase+1,1);
+      index = 1;
+      for lnmu1 = listmu
+         Regop  = Lhs-Lhs;
+         mu1 = 10^lnmu1;
+         
+         % Regularize
+         for i=0:ordp
+            for j=0:ordp
+               if i>1 && j>1
+                  Regop(i+1,j+1) = Regop(i+1,j+1) + mu1*i*j/(i+j-1)*...
+                                                   (L2^(i+j-1) - L1^(i+j-1));
+               end
+            end
+         end
+         
+         % Invert
+         McCoef = (Lhs+Regop)\Rhs;
+         resid(index)  = norm(Lhs*McCoef - Rhs)^2; % Actually, it's resid^2
+         regno(index)  = McCoef'*(Regop/mu1)*McCoef;
+         index = index+1;
+      end
+      figure;
+      plot(resid,regno);
+      xlabel('residual')
+      ylabel('norm')
+      %res10 = 10.^resid'; reg10 = 10.^regno';
+      mu = 10^listmu( findCorner (resid', regno',2,0) );
+   end
+   
+   % Regularize
+   for i=0:ordp
+      for j=0:ordp
+         if i>1 && j>1
+            Lhs(i+1,j+1) = Lhs(i+1,j+1) + mu*i*j/(i+j-1)*...
+                                          (L2^(i+j-1) - L1^(i+j-1));
+         end
+      end
+   end
+   McCoef = Lhs\Rhs;
+   nbase = size(McCoef,1);
+   
+   % Plot the result
+   solref = [0*newXo ; ubase(:,2) ; 0*newXo];
+   McCoefref = polyfit( newX, solref, nbase-1 );
+   McCoefref = McCoefref(end:-1:1);
+   
+   solu = zeros(size(newX,1),1); solpref = zeros(size(newX,1),1);
+   for i=1:nbase
+      solu = solu + McCoef(i)*( (newX-offset)./L).^(i-1);
+   end
+   for i=1:nbase
+      solpref = solpref + McCoefref(i)*newX.^(i-1);
+   end
+   
+   figure
+   hold on;
+   plot(newX, solref)
+   plot(newX, solu, 'Color', 'red')
+   %plot(newX, solpref, 'Color', 'green')
+   
+   % Check the MS :
+   Sref = sum((solpref-solref).^2) / sum(solref.^2);
+   Smc  = sum((solu-solref).^2) / sum(solref.^2);
 end
-
-%% Manual stuff for DEBUG
-
-%vp3 = zeros(2*nnodes2, 1);
-%vp2 = zeros(2*nnodes2, 1);
-%vp1 = zeros(2*nnodes2, 1);
-%vp0 = zeros(2*nnodes2, 1);
-%
-%for i=1:nnodes2
-%   x = nodes2(i,1);
-%   y = nodes2(i,2);
-%   % Change base (for coordiantes)
-%   ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
-%
-%   %vloc = [nu/E*X ; -1/E*Y];
-%   vloc = -[ (1-nu^2)/(nu*E)*X ; 0 ];
-%   vxy = Q*vloc; vp0(2*i-1) = vxy(1); vp0(2*i) = vxy(2);
-%   
-%   %vloc = [ - (1+nu^2)/(2*nu*E)*X^2 + (1+nu)/(nu*E)*Y^2 ; 0 ];
-%   vloc = -[ (1-nu^2)/(2*nu*E)*X^2 - (1+nu)/(nu*E)*Y^2 ; 0 ];
-%   vxy = Q*vloc; vp1(2*i-1) = vxy(1); vp1(2*i) = vxy(2);
-%   
-%   a1 = (1-nu^2)/(3*nu*E); b1 = -2*(1+nu)/(nu*E);
-%   c1 = -(1-nu^2)/(6*E)*( 2*nu*E/(1-nu^2) + E/(1+nu) )*b1;
-%   vloc = -[ a1*X^3 + b1*X*Y^2 ; c1*Y^3 ];
-%   vxy = Q*vloc; vp2(2*i-1) = vxy(1); vp2(2*i) = vxy(2);
-%   
-%   a1 = (1-nu^2)/(4*nu*E); b1 = -3*(1+nu)/(nu*E);
-%   d1 = -(1-nu^2)/(6*E)*( 4*nu*E/(1-nu^2) + 2*E/(1+nu) )*b1;
-%   c1 = -(1+nu)/(6*E) * ( 2*E/(1-nu^2)*b1 + 3*nu*E/(1-nu^2)*d1 + 3*E/(2*(1+nu))*d1 );
-%   vloc = -[ a1*X^4 + b1*X^2*Y^2 + c1*Y^4 ;...
-%            d1*X*Y^3 ];
-%   vxy = Q*vloc; vp3(2*i-1) = vxy(1); vp3(2*i) = vxy(2);
-%end
-%fp3 = Kinter2*vp3;
-%fp2 = Kinter2*vp2;
-%fp1 = Kinter2*vp1;
-%fp0 = Kinter2*vp0;
-%
-%Rp3 = (fr1(indexbound2)'*vp3(indexbound2) - fp3(indexbound2)'*ur1(indexbound2));
-%Rp2 = (fr1(indexbound2)'*vp2(indexbound2) - fp2(indexbound2)'*ur1(indexbound2));
-%Rp1 = (fr1(indexbound2)'*vp1(indexbound2) - fp1(indexbound2)'*ur1(indexbound2));
-%Rp0 = (fr1(indexbound2)'*vp0(indexbound2) - fp0(indexbound2)'*ur1(indexbound2));
-%
-%%% /!\ savage zone /!\
-%%Xs(100)
-%%Ys(100)
-%%sigm = stress(vp1,E,nu,nodes2,elements2,order,1,ntoelem2);
-%%S = [sigm(3*100-2),sigm(300);sigm(300),sigm(3*100-1)]
-%%Q'*S*Q
-%
-%Rhs =  [Rp0 ;Rp1 ; Rp2 ; Rp3];
-%L1 = offset; L2 = offset+L;
-%for i=1:4
-%   for j=1:4
-%      ord = i+j-1;
-%      Lhs(i,j) = (L2^ord - L1^ord)/ord;
-%   end
-%end
-%%Lhs = [L2-L1, (L2^2 - L1^2)/2, (L2^3 - L1^3)/3 ;...
-%%       (L2^2 - L1^2)/2, (L2^3 - L1^3)/3, (L2^4 - L1^4)/4 ;...
-%%       (L2^3 - L1^3)/3, (L2^4 - L1^4)/4, (L2^5 - L1^5)/5 ];
-%%Rhs = -[Rp0]; 
-%%Lhs = [L];
-%%Rhs = Rhs(1:3); Lhs = Lhs(1:3,1:3);
-McCoef = Lhs\Rhs;
-
-nbase = size(McCoef,1);
-% Plot the result
-solref = [0*newXo;ubase(:,2);0*newXo];
-McCoefref = polyfit( newX, solref, nbase-1 );
-McCoefref = McCoefref(end:-1:1);
-
-solu = zeros(size(newX,1),1); solpref = zeros(size(newX,1),1);
-for i=1:nbase
-   solu = solu + McCoef(i)*newX.^(i-1);
-end
-for i=1:nbase
-   solpref = solpref + McCoefref(i)*newX.^(i-1);
-end
-
-figure
-hold on;
-plot(newX, solref)
-plot(newX, solu, 'Color', 'red')
-plot(newX, solpref, 'Color', 'green')
-
-% Check the MC :
-Sref = sum((solpref-solref).^2) / sum(solref.^2);
-Smc  = sum((solu-solref).^2) / sum(solref.^2);

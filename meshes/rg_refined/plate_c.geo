@@ -1,7 +1,8 @@
 
 // Geometric parameters
-H = .2;  //  height of plate
-L = 1;  //  width of plate
+H   = 2;  //  height of plate
+L   = 10;  //  width of plate
+eps = L/30; // refined boundary
 
 // Coords of the tops of the crack
 //x5 = L/5; y5 = 2*H/3;
@@ -19,14 +20,20 @@ x7 = xm + Ri; y7 = ym - Ri*(x6-x5)/(y6-y5);
 x8 = xm - Ri; y8 = ym + Ri*(x6-x5)/(y6-y5);
 
 // Discretization parameters
-lc1 = .02; // element size at the border
-lc2 = .02; // element size at the crack tip
+lc1 = .5;  // element size at the interior
+lc2 = .25;  // element size at the crack tip
+lc3 = .02; // element size at the boundary
 
 // Domain construction
-Point(1) = {0.0,0.0,0.0,lc1};
-Point(2) = {L,0.0,0.0,lc1};
-Point(3) = {L,H,0.0,lc1};
-Point(4) = {0.0,H,0.0,lc1};
+Point(1) = {0.0,0.0,0.0,lc3};
+Point(2) = {L,0.0,0.0,lc3};
+Point(3) = {L,H,0.0,lc3};
+Point(4) = {0.0,H,0.0,lc3};
+
+Point(11) = {eps,eps,0.0,lc1};
+Point(12) = {L-eps,eps,0.0,lc1};
+Point(13) = {L-eps,H-eps,0.0,lc1};
+Point(14) = {eps,H-eps,0.0,lc1};
 
 // Crack tops
 Point(5) = {x5, y5, 0.0, lc2};
@@ -41,14 +48,19 @@ Line(4) = {4,1};
 Circle(5) = {5,7,6};
 Circle(6) = {6,8,5};
 
+Line(11) = {11,12};
+Line(12) = {12,13};
+Line(13) = {13,14};
+Line(14) = {14,11};
+
 Line Loop(11) = {1,2,3,4};
 Line Loop(12) = {5,6};
 Plane Surface(1) = {11,12};
 
-// Include the crack in the mesh
-//Point{5} In Surface{1};
-//Point{6} In Surface{1};
-//Line{5} In Surface{1};
+Line{11} In Surface{1};
+Line{12} In Surface{1};
+Line{13} In Surface{1};
+Line{14} In Surface{1};
 
 Physical Line(1) = {1};
 Physical Line(2) = {2};
@@ -58,8 +70,3 @@ Physical Line(5) = {5};
 Physical Line(6) = {6};
 Physical Surface(7) = {1};
 
-// Split nodes (this is still not working)
-//Plugin(Crack).Dimension = 1 ; 
-//Plugin(Crack).PhysicalGroup = (5) ; 
-//Plugin(Crack).OpenBoundaryPhysicalGroup = (6) ; 
-//Plugin(Crack).Run ;

@@ -54,7 +54,7 @@ addpath(genpath('./tools'))
 % Parameters
 E       = 200000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
-fscalar = 250;    % N.mm-1 : Loading on the plate
+fscalar = 250;    % N.mm-2 : Loading on the plate
 mat = [0, E, nu];
 
 % Boundary conditions
@@ -66,13 +66,13 @@ dirichlet = [ 0,1,0 ; 1,2,0 ];
 neumann   = [3,2,fscalar];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
-%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
 nnodes = size(nodes,1);
 
 % Then, build the stiffness matrix :
 [K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
-
+%[ node2b, b2node ] = mapBound( 1, boundary, nnodes );
 % The right hand side :
 f  = loading(nbloq,nodes,boundary,neumann);
 %f = volumicLoad( nbloq, nodes, elements, 2, fscalar );

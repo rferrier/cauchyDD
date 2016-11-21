@@ -68,9 +68,9 @@ function K = stifmat (Xloc,order,A,format)
     end
     
     for g=1:3,                                   % loop over Gauss points
-      a=a_gauss(g,:);                            % param. coordinates for gauss point
-      DN=[4*a(1)-1 0 -4*a(3)+1 4*a(2)...         % derivative of shape functions...
-          -4*a(2) 4*(a(3)-a(1));                 % w.r.t. a_1,a_2
+      a=a_gauss(g,:);                            % coordinates for gauss point
+      DN=[4*a(1)-1 0 -4*a(3)+1 4*a(2)...         % derivative of shape functions
+          -4*a(2) 4*(a(3)-a(1));                 % w.r.t. a_1, a_2 and a3
           0 4*a(2)-1 -4*a(3)+1 4*a(1) ...
           4*(a(3)-a(2)) -4*a(1)]';
       J=Xloc1'*DN;                               % jacobian matrix
@@ -89,7 +89,9 @@ function K = stifmat (Xloc,order,A,format)
        if format == 0
           K=K+Be'*A*Be*detJ*w_gauss(g);        % contribution to stiffness matrix
        elseif format == 1
-          K=K+A*Be;
+          K=K+A*Be/3;   
+          % Rem : this function returns 1/3 of the sum of sigma at each 
+          % Gauss point (there are 3 Gauss points).
        else
           error('unknown format asked')
        end

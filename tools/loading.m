@@ -8,7 +8,7 @@ function f = loading( ntot, nodes, boundary, neumann )
     order = 1;
  elseif size(boundary,2) == 4
     order = 2;
-    s3 = sqrt(3); % 'cause time is money
+    %s3 = sqrt(3); % 'cause time is money (or not)
  else
     warning('boundary elements have not the expected number of nodes.');
  end
@@ -47,7 +47,7 @@ function f = loading( ntot, nodes, boundary, neumann )
             else  % Size = 5 for now (1 GaussPoint) [~,~,a,b,c], f = a+bx+cy
                   % In ths case, order 2 mesh is not supported
                if order >= 2
-                  warning('order 2 mesh unsupported for this functionnality')
+                  warning('order 2 mesh unsupported for this loading : precision will be inferior.')
                end
                onepto = nodes(node2,:)' + nodes(node1,:)';
                f(map,1) = f(map,1) + leng * (neumann(j,3) +...
