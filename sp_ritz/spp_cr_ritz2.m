@@ -126,7 +126,7 @@ K1r = K1; K2r = K2; K1dr = K1d; K2dr = K2d;
 %K2d(indexa,indexa) = 0;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
+%% Conjugate Residual for the problem : (S10-S20) x = S2-S1
 Itere  = zeros( 2*nnodes, 1 );
 d      = zeros( 2*nnodes, niter+1 );
 Ad     = zeros( 2*nnodes, niter+1 );
