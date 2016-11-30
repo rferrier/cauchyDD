@@ -11,16 +11,16 @@ E          = 210000; % MPa : Young modulus
 nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
-mu         = 0;%1e-5;%5e-3;     % Regularization coef
+mu         = 1e-2;%1e-5;%5e-3;     % Regularization coef
 %mu         = 3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
 niter      = 10;
 
-usefourier = 1;
-usepolys   = 0;
+usefourier = 0;
+usepolys   = 1;
 
-nbase = 1; % Number of Fourier basis functions
-ordp = 1;  % Number of Polynomial basis functions
+nbase = 2; % Number of Fourier basis functions
+ordp = 6;  % Number of Polynomial basis functions
 
 useorder = 1; % Order of the FE computation
 
@@ -35,7 +35,7 @@ neumann2   = [2,1,fscalar ; 7,1,fscalar ; 4,1,-fscalar ; 6,1,-fscalar];
 
 % First, import the mesh
 if useorder == 1
-   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_sp/plate_tot.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_sp/plate_totr2.msh' );
 elseif useorder == 2
    error('T6 unimplemented');
 end
@@ -84,7 +84,7 @@ plotGMSH({ux,'U_x';uy,'U_y';u2,'U_vect';sigma,'stress'}, elements, nodes, 'refer
 
 % Import the data
 if useorder == 1
-   [ nodesd,elementsd,ntoelemd,boundaryd,order] = readmesh( 'meshes/rg_sp/plate_down.msh' );
+   [ nodesd,elementsd,ntoelemd,boundaryd,order] = readmesh( 'meshes/rg_sp/plate_downr2.msh' );
 elseif useorder == 2
    error('T6 unimplemented');
 end
@@ -128,8 +128,11 @@ fref1 = loading(nbloq2d,nodesd,boundaryd,neumann1d); % fref1 refers to the first
 fref2 = loading(nbloq2d,nodesd,boundaryd,neumann2d); % nbloq2d refers to the second problem
 
 % The refercence solution
-fsr1 = Kinter1d*uref1 ; fsr2 = Kinter1d*uref2 ;
+fsr1 = Kinter1d*uref1 - fref1(1:2*nnodesd) ;
+fsr2 = Kinter1d*uref2 - fref2(1:2*nnodesd) ;
 fsr1(~index5d) = 0; fsr2(~index5d) = 0;
+fsr1(index7d) = 0;  fsr2(index7d) = 0;  % Because of the corners
+fsr1(index6d) = 0;  fsr2(index6d) = 0;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ORTHODIR for the first problem : (S1-S2) x = b
@@ -369,8 +372,25 @@ plotGMSH({usol2,'U_vect';sigma2,'stress'}, elementsd, nodesd, 'solution_SP_2');
 
 % Build u1, f1, u2 and f2 on the total domain.
 u1 = u1s; u2 = u2s; f1 = f1s; f2 = f2s;
+
 u1(index5) = usol1(index5d); u2(index5) = usol2(index5d);
 f1(index5) = -fsol1(index5d); f2(index5) = -fsol2(index5d);
+
+% Node 5 and 6 : add exterior loading
+index56 = [9,10,11,12];
+f1(index56) = f1(index56) + f1s(index56); % Because of the corner
+f2(index56) = f2(index56) + f2s(index56); %
+
+% Compute some errors due to the Cauchy solving
+uerror1 = ( u1(index5)-u1s(index5) )'*( u1(index5)-u1s(index5) ) /...
+           ( u1s(index5)'*u1s(index5) );
+uerror2 = ( u2(index5)-u2s(index5) )'*( u2(index5)-u2s(index5) ) /...
+           ( u2s(index5)'*u2s(index5) );
+ferror1 = ( f1(index5)-f1s(index5) )'*( f1(index5)-f1s(index5) ) /...
+           ( f1s(index5)'*f1s(index5) );
+ferror2 = ( f2(index5)-f2s(index5) )'*( f2(index5)-f2s(index5) ) /...
+           ( f2s(index5)'*f2s(index5) );
+
 plotGMSH({u2,'U_vect';f2,'F_vect'}, elements, nodes, 'uref');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -378,7 +398,7 @@ plotGMSH({u2,'U_vect';f2,'F_vect'}, elements, nodes, 'uref');
 %% Now, solve the RG stuff
 % Import the uncracked domain
 if useorder == 1
-   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_sp/plate_upn.msh' );
+   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_sp/plate_upnr.msh' );
 elseif useorder == 2
    error('How did you get so far ?');
 end
@@ -640,7 +660,7 @@ ubase  = Q'*[udepx,udepy]'; ubase = ubase';
 XY     = Q'*[Xx,Yy]'; XY = XY';
 [newX, orderX] = sort(XY(:,1));          % In case order > 1, need to sort
 xy5    = Q'*[ nodes(5,1) ; nodes(5,2) ];
-offset = Q(2,2)/Q(2,1)*Cte2 + xy5(1);   % /!\ Only in case rectangle
+offset = Q(2,2)/Q(2,1)*CteR + xy5(1);   % /!\ Only in case rectangle
 
 left  = offset : (-offset+newX(1))/(size(newX,1)) : newX(1) ;
 right = newX(end) : (offset + L - newX(end))/(size(newX,1)) : offset + L ;
@@ -669,7 +689,7 @@ if usefourier == 1
             x = nodes2(i,1);
             y = nodes2(i,2);
             % Change base (for coordinates)
-            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+CteR;
             Xs(i) = X; Ys(i) = Y;
             
             v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
@@ -798,7 +818,7 @@ if usepolys == 1
       for i=1:nnodes2
          x = nodes2(i,1);
          y = nodes2(i,2);
-         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L; %% /!\ CteR
+         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+CteR)/L; %% /!\ CteR
          
          % Build X^k*Y^j
          GROX = zeros(ordp+2,1);

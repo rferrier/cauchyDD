@@ -1,6 +1,6 @@
 // Geometric parameters
-H   = 20;  //  height of plate
-L   = 5;   //  width of plate
+H = 20;  //  height of plate
+L = 3;  //  width of plate
 eps = L/10; // Localization parameter
 
 // Coords of the tops of the crack
@@ -16,13 +16,11 @@ x9 = xm + Ri; y9 = ym - Ri*(x8-x7)/(y8-y7);
 x10 = xm - Ri; y10 = ym + Ri*(x8-x7)/(y8-y7);
 
 // Discretization parameters
-lc1 = .2; // element size at the border
-lc2 = .2; // element size at the crack tip
+lc1 = .1; // element size at the border
+lc2 = .5; // element size at the crack tip
 lc3 = .5; // element size in the domain
 
 // Domain construction
-Point(1) = {0.0,0.0,0.0,lc1};
-Point(2) = {L,0.0,0.0,lc1};
 Point(3) = {L,H,0.0,lc1};
 Point(4) = {0.0,H,0.0,lc1};
 
@@ -37,34 +35,25 @@ Point(9) = {x9, y9, 0.0, lc2};
 Point(10) = {x10, y10, 0.0, lc2};
 
 // Refining points
-//Point(11) = {eps,eps,0.0,lc3};
-//Point(12) = {L-eps,eps,0.0,lc3};
-//Point(13) = {L-eps,H-eps,0.0,lc3};
-//Point(14) = {eps,H-eps,0.0,lc3};
-//Point(15) = {eps,H/6,0.0,lc3};
-//Point(16) = {L-eps,H/6,0.0,lc3};
+Point(13) = {L-eps,H-eps,0.0,lc3};
+Point(14) = {eps,H-eps,0.0,lc3};
+Point(15) = {eps,H/6+eps,0.0,lc3};
+Point(16) = {L-eps,H/6+eps,0.0,lc3};
 
-Line(1) = {1,2};
-Line(7) = {2,6};
 Line(2) = {6,3};
 Line(3) = {3,4};
 Line(4) = {4,5};
-Line(5) = {6,5};
-Line(6) = {5,1};
+Line(5) = {5,6};
 Circle(8) = {7,9,8};
 Circle(9) = {8,10,7};
 
 // Refining lines
-//Line(11) = {11,12};
-//Line(17) = {12,16};
-//Line(12) = {16,13};
-//Line(13) = {13,14};
-///Line(14) = {14,15};
-//Line(151) = {15,5};
-//Line(152) = {6,16};
-//Line(16) = {15,11};
+Line(12) = {16,13};
+Line(13) = {13,14};
+Line(14) = {14,15};
+Line(15) = {15,16};
 
-Line Loop(11) = {1,7,2,3,4,6};
+Line Loop(11) = {2,3,4,5};
 Line Loop(12) = {8,9};
 Plane Surface(1) = {11,12};
 
@@ -72,22 +61,13 @@ Plane Surface(1) = {11,12};
 Line{5} In Surface{1};
 
 // Include the refining lines
-//Line{11} In Surface{1};
-//Line{12} In Surface{1};
-//Line{13} In Surface{1};
-//Line{14} In Surface{1};
-//Line{151} In Surface{1};
-//Line{152} In Surface{1};
-//Line{16} In Surface{1};
-//Line{17} In Surface{1};
+Line{12} In Surface{1};
+Line{13} In Surface{1};
+Line{14} In Surface{1};
+Line{15} In Surface{1};
 
-Physical Line(1) = {1};
 Physical Line(2) = {2};
 Physical Line(3) = {3};
 Physical Line(4) = {4}; 
-Physical Line(5) = {5};//Physical Line(5) = {151,5,152};
-Physical Line(6) = {6};
-Physical Line(7) = {7};
-Physical Line(8) = {8};
-Physical Line(9) = {9};
+Physical Line(5) = {5};
 Physical Surface(7) = {1};
