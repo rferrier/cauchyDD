@@ -26,7 +26,7 @@ neumann   = [2,1,fscalar;
              4,1,fscalar];
 
 % Import the mesh
-[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
+[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/platee.msh' );
 nnodes = size(nodes,1);
 
 % find the nodes in the corners and suppress the element :
@@ -41,6 +41,8 @@ no4  = findNode(xmin, ymax, nodes, 1e-5);
 
 boundaryp1 = suppressBound( boundary, no2, 2 );
 boundaryp1 = suppressBound( boundaryp1, no3, 2 );
+boundaryp1 = suppressBound( boundaryp1, no1, 4 );
+boundaryp1 = suppressBound( boundaryp1, no4, 4 );
 boundaryp2 = boundaryp1;
 
 [~, b2node2] = mapBound(2, boundaryp1, nnodes);
@@ -149,8 +151,21 @@ Ikjj = inv(Kjj);
 %
 SR = full(Krr - Krj*Ikjj*Krj');
 %
+Korth = Kgj*Ikjj*Krj';
+%
 K1k = Kgj*Ikjj*Krj'*inv(SR)*Krj*Ikjj*Kgj';
 %
+% solution of the normal equation
+%
+ur     = uref([2*b2node4-1;2*b2node4],:);
+fr     = f([2*b2node4-1;2*b2node4],:);
+btilde = SR*ur + fr;
+um     = Korth\btilde;
+hold on;
+plot(um);
+plot( uref([2*b2node2-1;2*b2node2],:), 'Color', 'red' );
+legend('solution','reference')
+figure;
 % [usvdr,svdr] = svd(SR);
 % [usvdjj,svdjj] = svd(full(Kjj));
 % % [usvdrjr,svdrjr] = svd(full(Krj'*SR*Krj));
@@ -194,6 +209,8 @@ K1k = Kgj*Ikjj*Krj'*inv(SR)*Krj*Ikjj*Kgj';
 % hold on;
 % plot(log10(svd(S1-S2)),'Color','red');
 plot(log10(svd(K1k)),'Color','blue');
+figure
+plot(log10(svd(Korth)),'Color','blue');
 figure
 % cond(K1k)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

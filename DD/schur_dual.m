@@ -1,5 +1,5 @@
 % 06/04/2016
-% Méthode de Schur Duale
+% Mï¿½thode de Schur Duale
 
 close all;
 clear all;
@@ -54,7 +54,7 @@ fref = fa - Ka*ua;
 % Compute stress :
 sigma = stress(u,E,nu,nodea,elementa,ordea,1,ntoelea);
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dual Schur algorithm
 % Solve (D10+D20)(W) = -D1-D2 with a CG algo
 
