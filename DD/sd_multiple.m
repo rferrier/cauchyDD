@@ -11,15 +11,16 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading on the plate
 mat = [0, E, nu];
 
-nsub  = 5;
-niter = 20;
+nsub  = 2;
+niter = 10;
 
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
 
 %dirichlet = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0 ];
-dirichlet = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
-%dirichlet = [ 1,1,0 ; 1,2,0 ];
+%dirichlet = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
+dirichlet = [ 1,1,0 ; 1,2,0 ];
+%dirichlet = [ 4,1,0 ; 4,2,0 ];
 neumann   = [ 3,2,fscalar ];
 
 %figure
@@ -56,7 +57,11 @@ for i = 1:nsub-1
                                    cutMesh (nodesc, elementsc, boundaryc, line);
 
    % Get the connectivity between the divided domain and the global domain
-   [ b1to2, b2to1 ] = superNodes( nodesc, nodes, 1e-6 );
+   if i > 1
+      [ b1to2, b2to1 ] = superNodes( nodesc, nodes, 1e-6 );
+   else
+      b1to2 = 1:nnodes;
+   end
                                    
    newelem{i}   = elements1;
    newelem{i+1} = elements2;
@@ -69,10 +74,6 @@ for i = 1:nsub-1
    map{i+1} = map2(oldmap);
 
    % get the local boundary
-   %map1 = map{i}; map2 = map{i+1};
-%   newbound1   = map1(newbound);
-%   newbound2   = map2(newbound);
-%   newbouns{2*i-1} = newbound1; newbouns{2*i} = newbound2;
    newbouns{i} = b1to2(newbound);
    
    % The boundaries
@@ -101,13 +102,21 @@ plotGMSH({u,'U_vect';sigma,'stress'}, elements, nodes(:,[1,2]), 'reference');
 %% Begin the serious stuff
 
 % Stiffness, rigid modes & Co
-K = {}; f = {}; nbloq = {};
+K = {}; f = {}; nbloq = {}; G = {}; R = {};
+Gglob = zeros( 2*nnodes, 3*nsub ); % Gglob will sink
+
+% Connectivity tables between the subdomains and the rigid modes
+sdtorm = zeros(nsub); rmtosd = [];
+
+j = 1; % index for the connectivity tables
 for i = 1:nsub
    nodess    = newnode{i};
    elementss = newelem{i};
    boundarys = boundar{i};
    map1      = map{i};
    %map2      = map{i+1};
+   
+   sdtorm(i) = 0;
    
    if i-1 > 0
       boun1       = map1(newbouns{i-1}); % Local boundaries
@@ -122,36 +131,113 @@ for i = 1:nsub
    [K{i},C,nbloq{i},node2c,c2node] =...
                  Krig2 (nodess,elementss,mat,order,boundarys,dirichlet);
    f{i} = loading(nbloq{i},nodess,boundarys,neumann);
+   R{i} = [];
    
-   % Management of the rigid modes (TODO)
-%   if nbloq{i} == 0 % nbloq == 1 is also problematic, but ...
-%      nnodess = nno{i};
-%      r1 = zeros(2*nnodess,1); r2 = r1; r3p = r1; 
-%      g1 = r1; g2 = r1; g3p = r1;
-%      ind = 2:2:2*nnodess;
-%      r1(ind-1,1) = 1; r2(ind,1) = 1;
-%      
-%
-%      r3p(ind-1,1) = -nodess(ind/2,2);
-%      r3p(ind,1) = nodess(ind/2,1);
-%      g1(boun1) = r1(boun1); g2(boun1) = r2(boun1); g3p(boun1) = r3p(boun1);
-%      % orthonormalize G and ensure G = trace(R)
-%      g3 = g3p - (g3p'*g1)/(g1'*g1)*g1 - (g3p'*g2)/(g2'*g2)*g2;
-%      r3 = r3p - (r3p'*g1)/(g1'*g1)*r1 - (r3p'*g2)/(g2'*g2)*r2;
-%      
-%      ng1 = norm(g1); ng2 = norm(g2); ng3 = norm(g3);
-%      g1 = g1/ng1; g2 = g2/ng2; g3 = g3/ng3;
-%      r1 = r1/ng1; r2 = r2/ng2; r3 = r3/ng3;
-%   
-%      G = [g1,g2,g3];
-%      R = [r1,r2,r3];
-%      K{i} = [ K{i}, R ; R', zeros(size(R,2)) ];
-%      nbloq{i} = size(R,2);
-%   end
+   % Management of the rigid modes (TOFIX \mu-pp)
+   if nbloq{i} == 0 % nbloq < 3 is also problematic, but ... (maybe use null)
+   
+      % Connectivity stuff
+      sdtorm(i) = j;
+      rmtosd(j) = i;
+   
+      nnodess = nno{i};
+      r1 = zeros(2*nnodess,1); r2 = r1; r3 = r1; g1 = r1; g2 = r1; g3 = r1;
+      ind = 2:2:2*nnodess;
+      r1(ind-1,1) = 1; r2(ind,1) = 1;
+      
+
+      r3(ind-1,1) = -nodess(ind/2,2);
+      r3(ind,1) = nodess(ind/2,1);
+      g1(2*boun1-1) = r1(2*boun1-1);
+      g2(2*boun1) = r2(2*boun1);
+      g3([2*boun1-1;2*boun1]) = r3([2*boun1-1;2*boun1]);
+   
+      G{i} = [g1,g2,g3]; Gloc = G{i};
+      R{i} = [r1,r2,r3];
+      
+      nbloq{i} = size(R{i},2);
+      
+      sign = 1;
+      if rem(nsub-i,2) == 0
+         sign = -1;
+      end
+      
+      if i>1 % Lower boundary % 3*i-2:3*i
+         Gglob( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ], 3*j-2:3*j ) = ...
+                     Gglob( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ], 3*j-2:3*j ) + ...
+                     sign*Gloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
+      end
+      if i<nsub
+         Gglob( [ 2*newbouns{i}-1, 2*newbouns{i} ], 3*j-2:3*j ) = ...
+                     Gglob( [ 2*newbouns{i}-1, 2*newbouns{i} ], 3*j-2:3*j ) + ...
+                     sign*Gloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
+      end
+      j = j+1;
+   end
    
 end
+Gglob(:,3*j-2:end) = [];  % reshape Gglob
 
-%% CG algorithm
+% rework the rigid modes
+if j > 1
+   % orthonormalize Gglob (no need to do that)
+%   g1 = Gglob(:,1); g2 = Gglob(:,2); g3p = Gglob(:,3);
+%   g3 = g3p - (g3p'*g1)/(g1'*g1)*g1 - (g3p'*g2)/(g2'*g2)*g2;
+%   
+%   ng1 = norm(g1); ng2 = norm(g2); ng3 = norm(g3);
+%   g1 = g1/ng1; g2 = g2/ng2; g3 = g3/ng3;
+   
+   eD = zeros( size(Gglob,2), 1 );  % 0 of the same size as Gglob
+   
+   % Ensure tr(R{i}) = Gglob
+   for i = 1:nsub
+      if isempty(R{i}) % We do not orthonormalize empty matrices
+         continue;
+      end
+%      Rloc = R{i};
+%      
+%      nodess = newnode{i}; nnodess = nno{i};
+%      [ b1to2, b2to1 ] = superNodes( nodess, nodes, 1e-6 );
+%      g1loc = zeros(2*nno{i},1); g2loc = zeros(2*nno{i},1);
+%      g1locn = zeros(2*nno{i},1); g2locn = zeros(2*nno{i},1); g3locn = zeros(2*nno{i},1);
+%      
+%      globind = [ 2*b1to2-1 ; 2*b1to2 ];
+%      locind = [ 1:2:2*nnodess-1 , 2:2:2*nnodess ];
+%      
+%      g1locn( locind ) = g1( globind );
+%      g2locn( locind ) = g2( globind );
+%      g3locn( locind ) = g3( globind );
+%      Gloc = [g1locn, g2locn,g3locn];  % basically Gglob on nodess
+%      
+%      gloc = G{i}; g1loc = gloc(:,1); g2loc = gloc(:,2); % previous G
+%
+%      % Modify R such that G = tr(R)
+%      r1 = Rloc(:,1); r2 = Rloc(:,2); r3p = Rloc(:,3);
+%      r3 = r3p - (r3p'*g1loc)/(g1'*g1)*r1 - (r3p'*g2loc)/(g2'*g2)*r2;
+%      r1 = r1/ng1; r2 = r2/ng2; r3 = r3/ng3;
+%      R{i} = [r1,r2,r3];
+%      K{i} = [ K{i}, R{i} ; R{i}', zeros(size(R{i},2)) ];
+
+      
+%      sign = -1;
+%      if rem(nsub-i,2) == 0
+%         sign = 1;
+%      end
+%      eD = eD + sign*R{i}'*f{i};
+      j = sdtorm(i);   % Recover the rigid mode no
+      eD(3*j-2:3*j) = eD(3*j-2:3*j) + R{i}'*f{i};
+      K{i} = [ K{i}, G{i} ; G{i}', zeros(size(R{i},2)) ];
+      f{i} = [ f{i} ; zeros( size(R{i},2), 1 ) ];
+
+   end
+
+   %Gglob = [g1,g2,g3];
+   P = eye(2*nnodes) - Gglob*inv(Gglob'*Gglob)*Gglob';  % The projector
+  
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% ( constraint - ) CG algorithm
 Lambda = zeros(2*nnodes,1);       % Iterate (on the global mesh for convenience)
 Res    = zeros(2*nnodes,niter+1);
 Zed    = zeros(2*nnodes,niter+1);
@@ -164,41 +250,64 @@ b = zeros( 2*nnodes, 1 );
 for i = 1:nsub
    ui = K{i}\f{i};
    u = zeros( 2*nnodes, 1 );
+   
+   sign = -1;
+   if rem(nsub-i,2) == 0
+      sign = 1;
+   end
+   
    if i>1 % Lower boundary
-      u(newbouns{i-1}) = ui(bounsloc{2*i-1});
+      u( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ]  ) =...
+                  sign * ui( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] );
    end
    if i<nsub
-      u(newbouns{i}) = ui(bounsloc{2*i});
+      u( [ 2*newbouns{i}-1, 2*newbouns{i} ] ) =...
+                  sign * ui( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] );
    end
    b = b+u;
+end
+
+% initialize
+if norm(Gglob) ~= 0
+   Lambda = -Gglob*inv(Gglob'*Gglob)*eD;
 end
 
 % Compute Ax0
 Axz = zeros( 2*nnodes, 1 );
 for i = 1:nsub
-   floc = zeros( 2*size(newnode{i},1) + nbloq{i}, 1 );
+   floc = zeros( 2*nno{i} + nbloq{i}, 1 );
    if i>1 % Lower boundary
-      floc(bounsloc{2*i-1}) = Lambda(newbouns{i-1});
+      floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
+                  Lambda( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ] );
    end
    if i<nsub
-      floc(bounsloc{2*i}) = Lambda(newbouns{i});
+      floc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
+                  Lambda( [ 2*newbouns{i}-1, 2*newbouns{i} ] );
    end
    
    ui = K{i}\floc;
    u = zeros( 2*nnodes, 1 );
    if i>1 % Lower boundary
-      u(newbouns{i-1}) = ui(bounsloc{2*i-1});
+      u( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ]  ) =...
+                  ui( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] );
    end
    if i<nsub
-      u(newbouns{i}) = ui(bounsloc{2*i});
+      u( [ 2*newbouns{i}-1, 2*newbouns{i} ] ) =...
+                  ui( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] );
    end
    Axz = Axz+u;
 end
 
-Res(:,1) = b-Axz;
-resid(1) = norm( Res(:,1) );
+Res(:,1) = b - Axz;
+if norm(Gglob) ~= 0
+   Zed(:,1) = P'*Res(:,1);
+else
+   Zed(:,1) = Res(:,1);
+end
 
-d(:,1) = Res(:,1);
+resid(1) = norm( Zed(:,1) );
+
+d(:,1) = Zed(:,1);
 
 %% Loop over the iterations
 for iter = 1:niter
@@ -207,36 +316,52 @@ for iter = 1:niter
    Ad(:,iter) = zeros( 2*nnodes, 1 );
    for i = 1:nsub
       floc = zeros( 2*size(newnode{i},1) + nbloq{i}, 1 );
+      % Rem : normally, there should be a sign stuff on Lambda AND u, but by the
+      % law of  - * - = +, I put no sign at all.
       if i>1 % Lower boundary
-         floc(bounsloc{2*i-1}) = d(newbouns{i-1},iter);
+         floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
+                     d( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ], iter );
       end
       if i<nsub
-         floc(bounsloc{2*i}) = d(newbouns{i},iter);
+         floc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
+                     d( [2*newbouns{i}-1, 2*newbouns{i} ], iter );
       end
       
       ui = K{i}\floc;
       u = zeros( 2*nnodes, 1 );
       if i>1 % Lower boundary
-         u(newbouns{i-1}) = ui(bounsloc{2*i-1});
+         u( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ]  ) =...
+                     ui( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] );
       end
       if i<nsub
-         u(newbouns{i}) = ui(bounsloc{2*i});
+         u( [ 2*newbouns{i}-1, 2*newbouns{i} ] ) =...
+                     ui( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] );
       end
       Ad(:,iter) = Ad(:,iter) + u;
+   end
+   
+   if norm(Gglob) ~= 0
+      Ad(:,iter) = P'*Ad(:,iter);
    end
 
    den = (d(:,iter)'*Ad(:,iter));
    d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
-   num = Res(:,iter)'*d(:,iter);
+   num = Zed(:,iter)'*d(:,iter);
    Lambda        = Lambda + d(:,iter)*num;
    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
    
-   resid(iter+1) = norm(Res(:,iter+1));
+   if norm(Gglob) ~= 0
+      Zed(:,iter+1) = P'*Res(:,iter+1);
+   else
+      Zed(:,iter+1) = Res(:,iter+1);
+   end
+   
+   resid(iter+1) = norm(Zed(:,iter+1));
    
    % Orthogonalization
-   d(:,iter+1) = Res(:,iter+1);
+   d(:,iter+1) = Zed(:,iter+1);
    for jter=1:iter
-       betaij = ( Res(:,iter+1)'*Ad(:,jter) );
+       betaij = ( Zed(:,iter+1)'*Ad(:,jter) );
        d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
    end
    
@@ -248,19 +373,53 @@ plot(log10(resid));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the final solution and assemble it
 usol = zeros( 2*nnodes, 1 );
+
+if norm(Gglob) ~= 0
+  alphaD = inv(Gglob'*Gglob)*Gglob'*Res(:,niter+1);
+end
+
 for i = 1:nsub
+   nodess    = newnode{i};
+%   elementss = newelem{i};
+   nnodess   = nno{i};
+   
+   sign = 1;
+   if rem(nsub-i,2) == 0
+      sign = -1;
+   end
+
    floc = zeros( 2*size(newnode{i},1) + nbloq{i}, 1 );
    if i>1 % Lower boundary
-      floc(bounsloc{2*i-1}) = Lambda(newbouns{i-1});
+      floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
+                  sign * Lambda( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ] );
    end
    if i<nsub
-      floc(bounsloc{2*i}) = Lambda(newbouns{i});
+      floc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
+                  sign * Lambda( [ 2*newbouns{i}-1, 2*newbouns{i} ] );
    end
    
-   ui = K{i}\floc;
+   ui = K{i}\(floc+f{i});
+   if ~isempty(R{i}) % Rigid modes
+      j = sdtorm(i);
+      ui = ui + [ R{i}*alphaD(3*j-2:3*j) ; zeros(nbloq{i},1) ];
+   end
+   
    u = zeros( 2*nnodes, 1 );
-   %u(map{i}) = ui;
+   [ b1to2, b2to1 ] = superNodes( nodess, nodes, 1e-6 ); % Yeah, I'm a pig
+   u( [2*b1to2-1 ; 2*b1to2] ) = ui( [1:2:2*nnodess-1, 2:2:2*nnodess] );
+   
+   % Special treatment for the interface nodes
+   if i>1 % Lower boundary
+      u( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ]  ) =...
+                  .5 * ui( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] );
+   end
+   if i<nsub
+      u( [ 2*newbouns{i}-1, 2*newbouns{i} ] ) =...
+                  .5 * ui( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] );
+   end
+   
    usol = usol + u;
 end
 
-plotGMSH({usol,'U_vect'}, elements, nodes(:,[1,2]), 'solution');
+uti = reshape(usol,2,[])';  ux = uti(:,1);  uy = uti(:,2);
+plotGMSH({ux,'U_x';uy,'U_y';usol,'U_vect'}, elements, nodes(:,[1,2]), 'solution');
