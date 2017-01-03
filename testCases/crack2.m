@@ -15,7 +15,7 @@ br      = 0.;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD rigid modes
 % 6=SPD with 4=0
-methods = [2];
+methods = [6];
 
 % Boundary conditions
 % first index  : index of the boundary

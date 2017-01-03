@@ -12,17 +12,24 @@ addpath(genpath('./sp_ritz'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
-precond = 0;      % 1 : Use a dual precond
+niter   = 15;
+precond = 1;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
-ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
-br      = 0.01;      % noise
+ratio   = 5e-200; % Maximal ratio (for eigenfilter)
+br      = 0.1;   % noise
 brt     = 0;      % "translation" noise
-epsilon = 1e-1;   % Convergence criterion for ritz value
+epsilon = 1e-20;  % Convergence criterion for ritz value
+ntrunc  = 7;      % In case the algo finishes at niter
+inhomog = 0;      % inhomogeneous medium
 
-%noises = load('./noises/noise1.mat'); % Particular noise vector
-%noise  = noises.bruit1;
-noise = randn(2*nnodes,1);
+if inhomog == 2  % load previously stored matrix
+   mat = [0, E, nu]; % dummy material
+   Kinter = load('./noises/stocrig1.mat'); Kinter = Kinter.Kinter;
+elseif inhomog == 1  % /!\ IN THE INHOMOGENEOUS CASE, ALL THE SIGMAS ARE WRONG
+   mat = [2, E, nu, .1, 1];
+else
+   mat = [0, E, nu];
+end
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -60,8 +67,12 @@ boundaryp2 = boundaryp1;
 indexa = [2*b2node2-1; 2*b2node2];
 
 % Then, build the stiffness matrix :
-[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
-Kinter = K(1:2*nnodes, 1:2*nnodes);
+[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+if inhomog == 2
+   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+else
+   Kinter = K(1:2*nnodes, 1:2*nnodes);
+end
 M      = mass_mat(nodes, elements);
 [node2b4, b2node4] = mapBound(4, boundaryp1, nnodes);
 [node2b3, b2node3] = mapBound(3, boundaryp1, nnodes);
@@ -92,15 +103,20 @@ dirichlet1 = [4,1,0;4,2,0;
               2,1,0;2,2,0;
               1,1,0;1,2,0];
 
-[K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundaryp1,dirichlet1);
-
+[K1,C1,nbloq1,node2c1,c2node1] = Krig2 (nodes,elements,mat,order,boundaryp1,dirichlet1);
+if inhomog >= 1  % Because of the random stuff
+   K1(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 % Second problem
 dirichlet2 = [1,1,0;1,2,0;
               2,1,0;2,2,0;
               3,1,0;3,2,0];
 neumann2   = [4,1,fscalar,0,-fscalar];
 neumann0   = [];
-[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
+[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes,elements,mat,order,boundaryp2,dirichlet2);
+if inhomog >= 1
+   K2(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
@@ -111,12 +127,17 @@ regulari = zeros(niter+1,1);
 dirichlet1d = [4,1,0;4,2,0;
                3,1,0;3,2,0;
                1,1,0;1,2,0];
-[K1d,C1d,nbloq1d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1d);
-
+[K1d,C1d,nbloq1d] = Krig2 (nodes,elements,mat,order,boundary,dirichlet1d);
+if inhomog >= 1
+   K1d(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 % Second problem
 dirichlet2d = [1,1,0;1,2,0;
                3,1,0;3,2,0];
-[K2d,C2d,nbloq2d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2d);
+[K2d,C2d,nbloq2d] = Krig2 (nodes,elements,mat,order,boundary,dirichlet2d);
+if inhomog >= 1
+   K2d(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 
 %% Anti-cancellation trick
 K1r = K1; K2r = K2; K1dr = K1d; K2dr = K2d;
@@ -133,7 +154,6 @@ Ad     = zeros( 2*nnodes, niter+1 );
 Res    = zeros( 2*nnodes, niter+1 );
 Zed    = zeros( 2*nnodes, niter+1 );
 AZed   = zeros( 2*nnodes, niter+1 );
-ntrunc = 0;  % In case the algo finishes at niter
 
 %% Perform A x0 :
 % Solve 1
@@ -324,7 +344,7 @@ for iter = 1:niter
 %    end
 end
 
-% Debug : compute He
+%% Debug : compute He
 %AV = zeros( 2*nnodes, niter );
 %for i=1:iter+1
 %    rhs1 = V(:,i);
@@ -344,19 +364,66 @@ end
 %He = V'*AV;
 %Heb = AV'*AV;
 
+% First, do A'b (=Ab) : x is the solution of A'Ax = A'b
+
+% Solve 1
+rhs1 = b;
+f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+uin1 = K1\f1;
+lagr1 = uin1(2*nnodes+1:end,1);
+lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+% Solve 2
+rhs2 = b;
+f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+uin2 = K2\f2;
+lagr2 = uin2(2*nnodes+1:end,1);
+lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+%
+Ab = lamb1-lamb2;
+
 % Compute the solution
 chi = Y'*b;%inv(Theta1)*Y'*b;
+%chi = inv(Theta1)*Y'*Ab;
+%chi = inv(Theta1)*Y'*Y*Y'*b;%inv(Theta1)*Y'*b;
 if ntrunc > 0
    chi(ntrunc:end) = 0;
 end
 ItereR = Y*chi;
 
-%hold on;
-%plot(log10(theta),'Color','blue')
-%plot(log10(abs(Y'*b)),'Color','red')
-%plot(log10(abs(chi)),'Color','black')
-%legend('Ritz Values','RHS values','solution coefficients')
-%figure;
+regS = zeros(niter,1);
+resS = zeros(niter,1);
+%% Build the L-curve regul, ntrunc
+for i = 1:iter+1
+%   chiS   = inv(Theta1)*Y'*Ab; chiS(i:end) = 0;
+   chiS   = Y'*b; chiS(i:end) = 0;
+   ItereS = Y*chiS;
+   
+   % Solve 1
+   rhs1 = ItereS;
+   f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+   uin1 = K1\f1;
+   lagr1 = uin1(2*nnodes+1:end,1);
+   lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+   % Solve 2
+   rhs2 = ItereS;
+   f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+   uin2 = K2\f2;
+   lagr2 = uin2(2*nnodes+1:end,1);
+   lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+   % Regularization term
+   AI = lamb1-lamb2;
+   
+   ResS = AI-b;
+   resS(i) = sqrt(norm(ResS));   
+   regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
+end
+
+hold on;
+plot(log10(theta),'Color','blue')
+plot(log10(abs(Y'*b)),'Color','red')
+plot(log10(abs(chi)),'Color','black')
+legend('Ritz Values','RHS values','solution coefficients')
+figure;
 %
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')
@@ -380,7 +447,8 @@ figure;
 regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
 %errD = zeros(niter,1);
 for i = 1:iter+1
-   chiD   = inv(Theta1)*Y'*b; chiD(i:end) = 0;
+%   chiD   = inv(Theta1)*Y'*Ab; chiD(i:end) = 0;
+   chiD   = Y'*b; chiD(i:end) = 0;
    ItereD = Y*chiD;
    resD(i) = sqrt( sum( bt(i:end).^2) );  
    regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 2) );
@@ -388,12 +456,14 @@ for i = 1:iter+1
 end
 % RL-curve
 loglog(resD(2:iter),regD(2:iter),'-+');
-legend('L-curve')
+legend('RL-curve')
 figure
 
 % L-curve :
-loglog(residual(2:end),regulari(2:end),'-o');
-legend('RL-curve')
+hold on;
+loglog(residual(2:end),regulari(2:end),'-*','Color','red');
+loglog(resS(2:iter),regS(2:iter),'-+');
+legend('L-curve', 'RL-curve')
 
 %%%%%
 %% Final problem : compute u
@@ -402,7 +472,10 @@ dirichlet = [4,1,0;4,2,0;
              1,1,0;1,2,0;
              2,1,0;2,2,0];
 neumann   = [];
-[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+if inhomog >= 1
+   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 fdir2 = dirichletRhs(Itere, 2, C, boundary);
 fdir4 = dirichletRhs(urefb, 4, C, boundary);
 usoli = K \ (fdir4 + fdir2);
@@ -416,7 +489,10 @@ dirichlet = [4,1,0;4,2,0;
              1,1,0;1,2,0;
              2,1,0;2,2,0];
 neumann   = [];
-[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+if inhomog >= 1
+   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 fdir2 = dirichletRhs(ItereR, 2, C, boundary);
 fdir4 = dirichletRhs(urefb, 4, C, boundary);
 usoli = K \ (fdir4 + fdir2);

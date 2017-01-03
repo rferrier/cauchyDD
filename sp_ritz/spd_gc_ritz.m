@@ -14,9 +14,10 @@ niter   = 15;
 precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
-br      = .0;      % noise
+br      = .1;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
+ntrunc  = 5;      % In case the algo finishes at niter
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -129,7 +130,6 @@ Zed   = zeros( 2*nnodes, niter+1 );
 alpha = zeros( niter+1, 1 );
 beta  = zeros( niter+1, 1 );
 alpha2 = zeros( niter+1, 1 );
-ntrunc = 0;  % In case the algo finishes at niter
 H12   = H1demi(size(Res,1), nodes, boundary, 2 );
 Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
 
@@ -252,9 +252,11 @@ for iter = 1:niter
     end
     
     % Needed values for the Ritz stuff
-    alpha(iter) = Res(indexa,iter)'*Res(indexa,iter) / den;
-    beta(iter)  = Zed(indexa,iter+1)'*Res(indexa,iter+1) /... 
-                                (Zed(indexa,iter)'*Res(indexa,iter));
+    alpha(iter) = num/sqrt(den);
+    beta(iter)  = - Zed(indexa,iter+1)'*Ad(indexa,iter)/sqrt(den);
+%    alpha(iter) = Res(indexa,iter)'*Res(indexa,iter) / den;
+%    beta(iter)  = Zed(indexa,iter+1)'*Res(indexa,iter+1) /... 
+%                                (Zed(indexa,iter)'*Res(indexa,iter));
     
     % First Reorthogonalize the residual (as we use it next), in sense of M
     for jter=1:iter
@@ -266,11 +268,10 @@ for iter = 1:niter
     %% Orthogonalization
     d(:,iter+1) = Zed(:,iter+1);
     
-    for jter=iter:iter % No need to reorthogonalize (see above)
+    for jter=iter:iter % No need to reorthogonalize (see above). do it anyway
         betaij = ( Zed(indexa,iter+1)'*Ad(indexa,jter) );%/...
             %( d(indexa,jter)'*Ad(indexa,jter) );
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
-
     end
     
     %% Ritz algo : find the Ritz elements
@@ -345,7 +346,6 @@ resS = zeros(niter,1);
 for i = 1:iter+1
    chiS   = inv(Theta1)*Y'*b; chiS(i:end) = 0;
    ItereS = Y*chiS;
-   
    
    % Solve 1
    f1 = [ItereS; zeros(nbloq1d,1)];

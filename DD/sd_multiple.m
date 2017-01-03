@@ -11,8 +11,9 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading on the plate
 mat = [0, E, nu];
 
-nsub  = 2;
-niter = 10;
+nsub    = 2;
+niter   = 10;
+precond = 0;
 
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
@@ -20,6 +21,7 @@ nnodes = size(nodes,1);
 %dirichlet = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0 ];
 %dirichlet = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
 dirichlet = [ 1,1,0 ; 1,2,0 ];
+%dirichlet = [ 3,1,0 ; 3,2,0 ];
 %dirichlet = [ 4,1,0 ; 4,2,0 ];
 neumann   = [ 3,2,fscalar ];
 
@@ -35,10 +37,10 @@ H1 = min(nodes(:,2)); H2 = max(nodes(:,2));
 
 newelem  = {};
 newnode  = {};
-newbouns = {};
+newbouns = {}; % global numerotation of the internal boundaries
 bounsloc = {}; % local numerotation of the internal boundaries
 map      = {};
-boundar  = {};
+boundar  = {}; % restriction of the external boundaries to each subdomain
 
 newelem{1} = elements ;
 newnode{1} = nodes ;
@@ -78,6 +80,9 @@ for i = 1:nsub-1
    
    % The boundaries
    boundar{i} = boundary1; boundar{i+1} = boundary2;
+   
+   % store b1to2 (always useful)
+   b1to2s{i} = b1to2;
 end
 
 figure
@@ -103,6 +108,7 @@ plotGMSH({u,'U_vect';sigma,'stress'}, elements, nodes(:,[1,2]), 'reference');
 
 % Stiffness, rigid modes & Co
 K = {}; f = {}; nbloq = {}; G = {}; R = {};
+Kp = {}; nbloqp = {}; Ct = {}; % trace operator on the boundary
 Gglob = zeros( 2*nnodes, 3*nsub ); % Gglob will sink
 
 % Connectivity tables between the subdomains and the rigid modes
@@ -118,13 +124,16 @@ for i = 1:nsub
    
    sdtorm(i) = 0;
    
+   addboun = [];
    if i-1 > 0
       boun1       = map1(newbouns{i-1}); % Local boundaries
       bounsloc{2*i-1} = boun1;
+      addboun = [addboun ; boun1];
    end
    if i < nsub
       boun2       = map1(newbouns{i});
       bounsloc{2*i} = boun2;
+      addboun = [addboun ; boun2];
    end
    
    nno{i} = size(nodess,1);
@@ -133,27 +142,42 @@ for i = 1:nsub
    f{i} = loading(nbloq{i},nodess,boundarys,neumann);
    R{i} = [];
    
-   % Management of the rigid modes (TOFIX \mu-pp)
-   if nbloq{i} == 0 % nbloq < 3 is also problematic, but ... (maybe use null)
+   % Primal problem : 
+   [Kpt,C,nbloqp{i},node2c,c2node] =...
+                 Krig2 (nodess,elementss,mat,order,boundarys,dirichlet);
+   Kpinter = Kpt(1:2*nno{i}, 1:2*nno{i});
+   nbloqp{i} = nbloqp{i} + 2*size(addboun,1);
    
-      % Connectivity stuff
+   % Lagrange multipliers for addboun
+   C1c = zeros( 2*nno{i}, 2*size(addboun) ); % intermediate matrix
+   for no=1:size(addboun,1)
+      % TODO : avoid 2 dirichlet on the same dof
+      C1c(2*addboun(no)-1, 2*no-1) = 1; C1c(2*addboun(no), 2*no) = 1;
+   end
+   Ct{i} = [ C, C1c ];
+   Kp{i} = [Kpinter, Ct{i} ; Ct{i}', zeros(size(Ct{i},2))];
+   
+   % Management of the rigid modes (TOFIX \mu-pp)
+   if nbloq{i} == 0 % nbloq < 3 is also problematic, but ...
+   
+      % Connectivity stuff (subdomains VS rigid modes)
       sdtorm(i) = j;
       rmtosd(j) = i;
    
       nnodess = nno{i};
-      r1 = zeros(2*nnodess,1); r2 = r1; r3 = r1; g1 = r1; g2 = r1; g3 = r1;
-      ind = 2:2:2*nnodess;
-      r1(ind-1,1) = 1; r2(ind,1) = 1;
-      
-
-      r3(ind-1,1) = -nodess(ind/2,2);
-      r3(ind,1) = nodess(ind/2,1);
-      g1(2*boun1-1) = r1(2*boun1-1);
-      g2(2*boun1) = r2(2*boun1);
-      g3([2*boun1-1;2*boun1]) = r3([2*boun1-1;2*boun1]);
-   
-      G{i} = [g1,g2,g3]; Gloc = G{i};
-      R{i} = [r1,r2,r3];
+%      r1 = zeros(2*nnodess,1); r2 = r1; r3 = r1; g1 = r1; g2 = r1; g3 = r1;
+%      ind = 2:2:2*nnodess;
+%      r1(ind-1,1) = 1; r2(ind,1) = 1;
+%      
+%      r3(ind-1,1) = -nodess(ind/2,2);
+%      r3(ind,1) = nodess(ind/2,1);
+%%      g1(2*boun1-1) = r1(2*boun1-1);
+%%      g2(2*boun1) = r2(2*boun1);
+%%      g3([2*boun1-1;2*boun1]) = r3([2*boun1-1;2*boun1]);
+%%   
+%%      G{i} = [g1,g2,g3]; Gloc = G{i};
+%      R{i} = [r1,r2,r3]; Rloc = R{i};
+      R{i} = null(K{i}); Rloc = R{i};
       
       nbloq{i} = size(R{i},2);
       
@@ -161,17 +185,22 @@ for i = 1:nsub
       if rem(nsub-i,2) == 0
          sign = -1;
       end
-      
-      if i>1 % Lower boundary % 3*i-2:3*i
+      Gloc= zeros( 2*nnodess, 3 ); % local rigid modes
+      if i>1 % Lower boundary
          Gglob( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ], 3*j-2:3*j ) = ...
-                     Gglob( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ], 3*j-2:3*j ) + ...
-                     sign*Gloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
+                %Gglob( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ], 3*j-2:3*j ) + ...
+                sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
+         Gloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : ) = ...
+                     sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
       end
       if i<nsub
          Gglob( [ 2*newbouns{i}-1, 2*newbouns{i} ], 3*j-2:3*j ) = ...
-                     Gglob( [ 2*newbouns{i}-1, 2*newbouns{i} ], 3*j-2:3*j ) + ...
-                     sign*Gloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
+                %Gglob( [ 2*newbouns{i}-1, 2*newbouns{i} ], 3*j-2:3*j ) + ...
+                sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
+         Gloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : ) = ...
+                     sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
       end
+      G{i} = Gloc;
       j = j+1;
    end
    
@@ -226,8 +255,8 @@ if j > 1
 %      eD = eD + sign*R{i}'*f{i};
       j = sdtorm(i);   % Recover the rigid mode no
       eD(3*j-2:3*j) = eD(3*j-2:3*j) + R{i}'*f{i};
-      K{i} = [ K{i}, G{i} ; G{i}', zeros(size(R{i},2)) ];
-      f{i} = [ f{i} ; zeros( size(R{i},2), 1 ) ];
+      K{i} = [ K{i}, G{i} ; G{i}', zeros(size(G{i},2)) ];
+      f{i} = [ f{i} ; zeros( size(G{i},2), 1 ) ];
 
    end
 
@@ -298,18 +327,63 @@ for i = 1:nsub
    Axz = Axz+u;
 end
 
-Res(:,1) = b - Axz;
+%Res(:,1) = b - Axz;
+
 if norm(Gglob) ~= 0
-   Zed(:,1) = P'*Res(:,1);
+   Res(:,1) = P'*b - Axz;
+else
+   Res(:,1) = b - Axz;
+end
+
+if precond == 1
+   Zed(:,1) = zeros( 2*nnodes, 1 );
+   for i = 1:nsub
+
+      sign = -1;
+      if rem(nsub-i,2) == 0
+         sign = 1;
+      end
+   
+      uloc = zeros( 2*nno{i}, 1 );
+      if i>1 % Lower boundary
+         uloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
+                     Res( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ] , 1 );
+      end
+      if i<nsub
+         uloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
+                     Res( [ 2*newbouns{i}-1, 2*newbouns{i} ] , 1 );
+      end
+      udir = [ zeros(2*nno{i},1) ; Ct{i}'*uloc ];
+      ui = Kp{i}\udir;
+      frea = -Ct{i}*ui( 2*nno{i}+1:end );  % Reaction forces on all the bound
+      freac = zeros( 2*nnodes, 1 );      % Reaction only on the added boundaries
+      if i>1 % Lower boundary
+         freac( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ]  ) =...
+                     frea( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] );
+      end
+      if i<nsub
+         freac( [ 2*newbouns{i}-1, 2*newbouns{i} ] ) =...
+                     frea( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] );
+      end
+      Zed(:,1) = Zed(:,1) + freac;
+   end
+   
 else
    Zed(:,1) = Res(:,1);
 end
 
-resid(1) = norm( Zed(:,1) );
+if norm(Gglob) ~= 0
+   Zed(:,1) = P*Zed(:,1);
+else
+   Zed(:,1) = Zed(:,1);
+end
+
+resid(1) = norm( Res(:,1) );
 
 d(:,1) = Zed(:,1);
 
 %% Loop over the iterations
+iter = 0;  % in case there is no iteration
 for iter = 1:niter
 
    % Compute Ad
@@ -346,17 +420,53 @@ for iter = 1:niter
 
    den = (d(:,iter)'*Ad(:,iter));
    d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
-   num = Zed(:,iter)'*d(:,iter);
+   num = Res(:,iter)'*d(:,iter);
    Lambda        = Lambda + d(:,iter)*num;
    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
    
-   if norm(Gglob) ~= 0
-      Zed(:,iter+1) = P'*Res(:,iter+1);
+   if precond == 1
+      Zed(:,iter+1) = zeros( 2*nnodes, 1 );
+      for i = 1:nsub
+   
+         sign = -1;
+         if rem(nsub-i,2) == 0
+            sign = 1;
+         end
+      
+         uloc = zeros( 2*nno{i}, 1 );
+         if i>1 % Lower boundary
+            uloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
+                        Res( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ] , iter+1 );
+         end
+         if i<nsub
+            uloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
+                        Res( [ 2*newbouns{i}-1, 2*newbouns{i} ] , iter+1 );
+         end
+         udir = [ zeros(2*nno{i},1) ; Ct{i}'*uloc ];
+         ui = Kp{i}\udir;
+         frea = -Ct{i}*ui( 2*nno{i}+1:end );  % Reaction forces on all the bound
+         freac = zeros( 2*nnodes, 1 );      % Reaction only on the added boundaries
+         if i>1 % Lower boundary
+            freac( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ]  ) =...
+                        frea( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] );
+         end
+         if i<nsub
+            freac( [ 2*newbouns{i}-1, 2*newbouns{i} ] ) =...
+                        frea( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] );
+         end
+         Zed(:,iter+1) = Zed(:,iter+1) + freac;
+      end
    else
       Zed(:,iter+1) = Res(:,iter+1);
    end
    
-   resid(iter+1) = norm(Zed(:,iter+1));
+   if norm(Gglob) ~= 0
+      Zed(:,iter+1) = P*Zed(:,iter+1);
+      resid(iter+1) = norm( P*Res(:,iter+1) );
+   else
+      Zed(:,iter+1) = Zed(:,iter+1);
+      resid(iter+1) = norm(Res(:,iter+1));
+   end
    
    % Orthogonalization
    d(:,iter+1) = Zed(:,iter+1);
@@ -367,8 +477,8 @@ for iter = 1:niter
    
 end
 
-figure;
-plot(log10(resid));
+figure; % plot the residual
+plot(log10(resid/resid(1)));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the final solution and assemble it
@@ -393,11 +503,11 @@ for i = 1:nsub
       floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
                   sign * Lambda( [ 2*newbouns{i-1}-1, 2*newbouns{i-1} ] );
    end
-   if i<nsub
+   if i<nsub % upper boundary
       floc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
                   sign * Lambda( [ 2*newbouns{i}-1, 2*newbouns{i} ] );
    end
-   
+
    ui = K{i}\(floc+f{i});
    if ~isempty(R{i}) % Rigid modes
       j = sdtorm(i);

@@ -11,12 +11,23 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 15;
-precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
-ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
-br      = .0;      % noise
+ratio   = 5e-200; % Maximal ratio (for eigenfilter)
+br      = .1;    % noise
 brt     = 0;      % "translation" noise
-epsilon = 1e-1;   % Convergence criterion for ritz value
+epsilon = 1e-200; % Convergence criterion for ritz value
+ntrunc  = 5;      % In case the algo finishes at niter
+inhomog = 0;      % inhomogeneous medium
+
+if inhomog == 2  % load previously stored matrix
+   mat = [2, E, nu, .1, 1];
+   Kinter = load('./noises/stocrig1.mat'); Kinter = Kinter.Kinter;
+elseif inhomog == 1  % /!\ IN THE INHOMOGENEOUS CASE, ALL THE SIGMAS ARE WRONG
+   mat = [2, E, nu, .1, 1];
+else
+   mat = [0, E, nu];
+end
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -54,8 +65,12 @@ boundaryp2 = boundaryp1;
 indexa = [2*b2node2-1; 2*b2node2];
 
 % Then, build the stiffness matrix :
-[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
-Kinter = K(1:2*nnodes, 1:2*nnodes);
+[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+if inhomog == 2
+   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+else
+   Kinter = K(1:2*nnodes, 1:2*nnodes);
+end
 M      = mass_mat(nodes, elements);
 [node2b4, b2node4] = mapBound(4, boundaryp1, nnodes);
 [node2b3, b2node3] = mapBound(3, boundaryp1, nnodes);
@@ -86,7 +101,10 @@ dirichlet1 = [4,1,0;4,2,0;
               2,1,0;2,2,0;
               1,1,0;1,2,0];
 
-[K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundaryp1,dirichlet1);
+[K1,C1,nbloq1,node2c1,c2node1] = Krig2 (nodes,elements,mat,order,boundaryp1,dirichlet1);
+if inhomog >= 1  % Because of the random stuff
+   K1(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 
 % Second problem
 dirichlet2 = [1,1,0;1,2,0;
@@ -94,7 +112,10 @@ dirichlet2 = [1,1,0;1,2,0;
               3,1,0;3,2,0];
 neumann2   = [4,1,fscalar,0,-fscalar];
 neumann0   = [];
-[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
+[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes,elements,mat,order,boundaryp2,dirichlet2);
+if inhomog >= 1
+   K2(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
@@ -105,12 +126,18 @@ regulari = zeros(niter+1,1);
 dirichlet1d = [4,1,0;4,2,0;
                3,1,0;3,2,0;
                1,1,0;1,2,0];
-[K1d,C1d,nbloq1d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1d);
+[K1d,C1d,nbloq1d] = Krig2 (nodes,elements,mat,order,boundary,dirichlet1d);
+if inhomog >= 1
+   K1d(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 
 % Second problem
 dirichlet2d = [1,1,0;1,2,0;
                3,1,0;3,2,0];
-[K2d,C2d,nbloq2d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2d);
+[K2d,C2d,nbloq2d] = Krig2 (nodes,elements,mat,order,boundary,dirichlet2d);
+if inhomog >= 1
+   K2d(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 
 %% Anti-cancellation trick
 K1r = K1; K2r = K2; K1dr = K1d; K2dr = K2d;
@@ -129,7 +156,6 @@ Zed   = zeros( 2*nnodes, niter+1 );
 alpha = zeros( niter+1, 1 );
 beta  = zeros( niter+1, 1 );
 alpha2 = zeros( niter+1, 1 );
-ntrunc = 0;  % In case the algo finishes at niter
 H12   = H1demi(size(Res,1), nodes, boundary, 2 );
 Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
 
@@ -422,7 +448,10 @@ dirichlet = [4,1,0;4,2,0;
              1,1,0;1,2,0;
              2,1,0;2,2,0];
 neumann   = [];
-[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+if inhomog >= 1
+   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 fdir2 = dirichletRhs(Itere, 2, C, boundary);
 fdir4 = dirichletRhs(urefb, 4, C, boundary);
 usoli = K \ (fdir4 + fdir2);
@@ -436,7 +465,10 @@ dirichlet = [4,1,0;4,2,0;
              1,1,0;1,2,0;
              2,1,0;2,2,0];
 neumann   = [];
-[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+if inhomog >= 1
+   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+end
 fdir2 = dirichletRhs(ItereR, 2, C, boundary);
 fdir4 = dirichletRhs(urefb, 4, C, boundary);
 usoli = K \ (fdir4 + fdir2);

@@ -49,6 +49,19 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
     if mo == 1   % TODO : difference between plan constraints and deformations.
        warning('Using plane deformation, not plane constraints as required')
     end
+ elseif mat(1) == 2
+    % Random inhomogeneous medium
+    E = mat(2); nu = mat(3); minE = mat(4); maxE = mat(5);
+    if mo == 0
+       S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
+       Sm1 = inv(S);
+    else
+       kappa = E/(3*(1-2*nu));
+       mu = E/(2*(1+nu));
+       Sm1 = [4*mu/3+kappa, kappa-2*mu/3, 0;...
+              kappa-2*mu/3, 4*mu/3+kappa, 0;...
+              0, 0, mu];
+    end
  else
     error('The required material behaviour is not implemented')
  end
@@ -65,7 +78,13 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
          map(1,[2*j-1,2*j]) = [2*elem(i,j)-1, 2*elem(i,j)];
          Xloc([2*j-1,2*j],1) = [Xloc1(j,1);Xloc1(j,2)];
      end
-     Ke = stifmat(Xloc,order,Sm1,0);
+     
+     if mat(1) == 2 % Random stuff
+        multip = rand()*(maxE-minE) + minE;
+        Ke = stifmat(Xloc,order,multip*Sm1,0);
+     else
+        Ke = stifmat(Xloc,order,Sm1,0);
+     end
      
      % Build K
      Kin(map,map) = Kin(map,map) + Ke;
