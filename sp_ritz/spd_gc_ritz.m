@@ -1,5 +1,5 @@
 % 03/10/2016
-% Algo Steklov-Poincaré primal avec Gradient Conjugué
+% Algo Steklov-Poincaré dual avec Gradient Conjugué
 
 close all;
 clear all;

@@ -11,7 +11,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading on the plate
 mat = [0, E, nu];
 
-nsub    = 2;
+nsub    = 5;
 niter   = 10;
 precond = 0;
 
@@ -47,6 +47,7 @@ newnode{1} = nodes ;
 boundar{1} = boundary ;
 map{1}     = 1:nnodes ;
 
+%% First, split the domain
 for i = 1:nsub-1
    elementsc = newelem{i};
    nodesc    = newnode{i};
@@ -109,7 +110,7 @@ plotGMSH({u,'U_vect';sigma,'stress'}, elements, nodes(:,[1,2]), 'reference');
 % Stiffness, rigid modes & Co
 K = {}; f = {}; nbloq = {}; G = {}; R = {};
 Kp = {}; nbloqp = {}; Ct = {}; % trace operator on the boundary
-Gglob = zeros( 2*nnodes, 3*nsub ); % Gglob will sink
+Gglob = zeros( 2*nnodes, 3*nsub ); % Gglob's size will decrease
 
 % Connectivity tables between the subdomains and the rigid modes
 sdtorm = zeros(nsub); rmtosd = [];
@@ -148,11 +149,22 @@ for i = 1:nsub
    Kpinter = Kpt(1:2*nno{i}, 1:2*nno{i});
    nbloqp{i} = nbloqp{i} + 2*size(addboun,1);
    
+   % See witch dof has already Dirichlet conditions
+   testC = C*ones(size(C,2),1);
+   
    % Lagrange multipliers for addboun
-   C1c = zeros( 2*nno{i}, 2*size(addboun) ); % intermediate matrix
+   %C1c = zeros( 2*nno{i}, 2*size(addboun) ); % intermediate matrix
+   C1c = zeros( 2*nno{i}, 0 ); % intermediate matrix
+   index = 0;
    for no=1:size(addboun,1)
-      % TODO : avoid 2 dirichlet on the same dof
-      C1c(2*addboun(no)-1, 2*no-1) = 1; C1c(2*addboun(no), 2*no) = 1;
+      if testC(2*addboun(no)-1) == 0
+         index = index+1;
+         C1c(2*addboun(no)-1, index) = 1;
+      end
+      if testC(2*addboun(no)) == 0 
+         index = index+1;
+         C1c(2*addboun(no), index) = 1;
+      end
    end
    Ct{i} = [ C, C1c ];
    Kp{i} = [Kpinter, Ct{i} ; Ct{i}', zeros(size(Ct{i},2))];
@@ -255,8 +267,8 @@ if j > 1
 %      eD = eD + sign*R{i}'*f{i};
       j = sdtorm(i);   % Recover the rigid mode no
       eD(3*j-2:3*j) = eD(3*j-2:3*j) + R{i}'*f{i};
-      K{i} = [ K{i}, G{i} ; G{i}', zeros(size(G{i},2)) ];
-      f{i} = [ f{i} ; zeros( size(G{i},2), 1 ) ];
+      K{i} = [ K{i}, R{i} ; R{i}', zeros(size(R{i},2)) ];
+      f{i} = [ f{i} ; zeros( size(R{i},2), 1 ) ];
 
    end
 
@@ -463,6 +475,7 @@ for iter = 1:niter
    if norm(Gglob) ~= 0
       Zed(:,iter+1) = P*Zed(:,iter+1);
       resid(iter+1) = norm( P*Res(:,iter+1) );
+%      resid(iter+1) = norm( Zed(:,iter+1) );
    else
       Zed(:,iter+1) = Zed(:,iter+1);
       resid(iter+1) = norm(Res(:,iter+1));
