@@ -427,10 +427,11 @@ figure;
 %figure;
 %L-curve :
 hold on;
-loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
+%loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
 %figure
 loglog(resS(2:iter+1),regS(2:iter+1),'-+');
-legend('L-curve','RL-curve')
+%legend('L-curve','RL-curve')
+legend('RL-curve')
 figure
 %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
 %findCorner (resS(2:iter+1), regS(2:iter+1), 3)

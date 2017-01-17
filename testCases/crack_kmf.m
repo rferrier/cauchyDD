@@ -14,7 +14,7 @@ br      = 0.0;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6 = Evanescent regul, 7 = CG + Ritz filter
-methods = [2];
+methods = [5];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -664,7 +664,7 @@ end
 if find(methods==5)
     niter   = 8;
     mu      = 0.0/E;      % Regularization parameter
-    precond = 1;      % use a primal precond ?
+    precond = 0;      % use a primal precond ?
     
     % Init
     Itere    = zeros( 2*nnodes_up, 1 );
@@ -835,6 +835,10 @@ if find(methods==5)
     usoli = K \ ( assembleDirichlet( [fdir5,fdir4+fdir6] ) + f1 );
     usol = usoli(1:2*nnodes_up,1);
 
+    % Output
+    figure
+    plot(usol(index));
+    
     total_error = norm(usol-uref)/norm(uref);
     % Compute stress :
     sigma = stress(usol,E,nu,nodes_up,elements_up,order,1,ntoelem_up);

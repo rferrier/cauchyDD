@@ -628,7 +628,9 @@ if find(methods==4)
     
     % Output
     figure
-    plot(Itere(index));
+    hold on;
+    plot(Itere(index),'Color','red');
+    plot(uref(index));
     
     %% Final problem
     dirichlet = [9,1,0;9,2,0;
@@ -1020,6 +1022,12 @@ if find(methods==6)
     usoli = K \ ( assembleDirichlet( [fdir5,fdir4+fdir6] ) + f1 );
     usol = usoli(1:2*nnodes_up,1);
 
+    % Output
+    figure
+    hold on
+    plot(usol(index),'Color','red');
+    plot(uref(index));
+    
     total_error = norm(usol-uref)/norm(uref);
     % Compute stress :
     sigma = stress(usol,E,nu,nodes_up,elements_up,order,1,ntoelem_up);

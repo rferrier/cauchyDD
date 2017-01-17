@@ -580,8 +580,7 @@ if usepolys == 1
          vxy = Q*vloc; vpa(2*i-1) = vxy(1); vpa(2*i) = vxy(2);
       end
       fpa = Kinter2*vpa;
-      %Rhs(k+1) = (fr1'*vpa - fpa'*ur1);
-      Rhs(k+1) = (fr1(indexbound2)'*vpa(indexbound2) - fpa(indexbound2)'*ur1(indexbound2));
+      Rhs(k+1) = (fr1'*vpa - fpa'*ur1);
    end
    
    L1 = offset; L2 = offset+L;

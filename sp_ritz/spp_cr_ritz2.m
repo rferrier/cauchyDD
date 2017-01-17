@@ -464,6 +464,7 @@ hold on;
 loglog(residual(2:end),regulari(2:end),'-*','Color','red');
 loglog(resS(2:iter),regS(2:iter),'-+');
 legend('L-curve', 'RL-curve')
+%legend('L-curve')
 
 %%%%%
 %% Final problem : compute u

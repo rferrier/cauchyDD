@@ -14,7 +14,11 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 
 nbase     = 2; % Number of Fourier basis functions
+ordp      = 3; % Order of polynom
 loadfield = 1; % If 0 : recompute the reference problem and re-pass mesh
+
+usefourier = 1;
+usepolys   = 1;
 
 if loadfield == 0
    % Boundary conditions
@@ -305,102 +309,360 @@ Pt = [4;3;1]; QPt = Q'*Pt; CteR = QPt(3);
 b = 7; bt = 10;
 a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
 %
-Rp       = zeros(nbase+1,1);
-Rm       = zeros(nbase+1,1);
-lambdax  = zeros(nbase+1,1);
-lambday  = zeros(nbase+1,1);
-fournpp  = zeros(nbase+1,nbase+1);
-fournpm  = zeros(nbase+1,nbase+1);
-fournmp  = zeros(nbase+1,nbase+1);
-fournmm  = zeros(nbase+1,nbase+1);
-akan     = zeros(nbase,nbase);
-bkan     = zeros(nbase,nbase);
-ckan     = zeros(nbase,nbase);
-dkan     = zeros(nbase,nbase);
-
-for kpx=2:nbase+1
-   for kpy=2:nbase+1
-      kx = kpx-1; ky = kpy-1;
-      vp = zeros(3*nnodes2,1);
-      lambdax(kpx) = 2*kx*pi/Lx; lambday(kpy) = 2*ky*pi/Ly;
-      lambda = sqrt(lambdax(kpx)^2+lambday(kpy)^2);
-      
-      for sx = [1,-1]
-         lambdaxe = sx*lambdax(kpx);
-         for sy = [1,-1]
-            lambdaye = sy*lambday(kpy);
-            for i=1:nnodes2
-               x = nodes2(i,1);
-               y = nodes2(i,2);
-               z = nodes2(i,3);
-               % Change base (for coordiantes)
-               ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)-Cte;
-               Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fourier sum
+if usefourier == 1
+   Rp       = zeros(nbase+1,1);
+   Rm       = zeros(nbase+1,1);
+   lambdax  = zeros(nbase+1,1);
+   lambday  = zeros(nbase+1,1);
+   fournpp  = zeros(nbase+1,nbase+1);
+   fournpm  = zeros(nbase+1,nbase+1);
+   fournmp  = zeros(nbase+1,nbase+1);
+   fournmm  = zeros(nbase+1,nbase+1);
+   akan     = zeros(nbase,nbase);
+   bkan     = zeros(nbase,nbase);
+   ckan     = zeros(nbase,nbase);
+   dkan     = zeros(nbase,nbase);
+   
+   for kpx=2:nbase+1
+      for kpy=2:nbase+1
+         kx = kpx-1; ky = kpy-1;
+         vp = zeros(3*nnodes2,1);
+         lambdax(kpx) = 2*kx*pi/Lx; lambday(kpy) = 2*ky*pi/Ly;
+         lambda = sqrt(lambdax(kpx)^2+lambday(kpy)^2);
+         
+         for sx = [1,-1]
+            lambdaxe = sx*lambdax(kpx);
+            for sy = [1,-1]
+               lambdaye = sy*lambday(kpy);
+               for i=1:nnodes2
+                  x = nodes2(i,1);
+                  y = nodes2(i,2);
+                  z = nodes2(i,3);
+                  % Change base (for coordiantes)
+                  ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)-Cte;
+                  Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
+                  
+                  v1 = -I*lambdaxe*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
+                                     ( exp(lambda*Z)+exp(-lambda*Z) );
+                  v2 = -I*lambdaye*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
+                                     ( exp(lambda*Z)+exp(-lambda*Z) );
+                  v3 = lambda*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
+                                     ( exp(lambda*Z)-exp(-lambda*Z) );
+                  vloc = [ v1 ; v2 ; v3 ];
+                  % Change base (for vector), in the other direction
+                  vxy = Q*vloc; vp(3*i-2) = vxy(1); vp(3*i-1) = vxy(2); vp(3*i) = vxy(3);
+               end
+               fp = Kinter2*vp;
+         
+               Rp = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
                
-               v1 = -I*lambdaxe*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
-                                  ( exp(lambda*Z)+exp(-lambda*Z) );
-               v2 = -I*lambdaye*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
-                                  ( exp(lambda*Z)+exp(-lambda*Z) );
-               v3 = lambda*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
-                                  ( exp(lambda*Z)-exp(-lambda*Z) );
-               vloc = [ v1 ; v2 ; v3 ];
-               % Change base (for vector), in the other direction
-               vxy = Q*vloc; vp(3*i-2) = vxy(1); vp(3*i-1) = vxy(2); vp(3*i) = vxy(3);
+               % Fourier coefficients
+               if sx==1 && sy==1
+                  fournpp(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+               elseif sx==1 && sy==-1
+                  fournpm(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+               elseif sx==-1 && sy==1
+                  fournmp(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+               elseif sx==-1 && sy==-1
+                  fournmm(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+               end
             end
-            fp = Kinter2*vp;
-      
-            Rp = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+         end
+         % u = acoscos+bcossin+csincos+dsinsin
+         akan(kx,ky)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
+                              fournmp(kpx,kpy) + fournmm(kpx,kpy));
+         bkan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
+                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
+         ckan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
+                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
+         dkan(kx,ky)   = real(-fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
+                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
+      end
+   end
+   
+   %% DEBUG :
+   %ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
+   plotGMSH({ Xs,'x' ; Ys,'y' ; Zs,'z' ; real(vp),'U_vect'}, elements2, nodes2, 'test field');
+   
+   % The constant term
+   fournpp(1,1) = -(R11+R21+R31)/(Lx*Ly);
+   
+   % plot the identified normal gap
+   nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
+   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   solu = fournpp(1,1);
+   for kpx=2:nbase+1
+      for kpy=2:nbase+1
+         solu = solu + akan(kpx-1,kpy-1)*cos(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
+                     + bkan(kpx-1,kpy-1)*cos(lambdax(kpx)*X')*sin(lambday(kpy)*Y)...
+                     + ckan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
+                     + dkan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*sin(lambday(kpy)*Y);
+      end
+   end
+   
+   % Center of the Circle
+   Cc = [4;3;1]; Cc = Q'*Cc;
+   
+   figure;
+   hold on;
+   surf(X,Y,solu);
+   shading interp;
+   colorbar();
+   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Polynomial interpolation
+if usepolys == 1
+
+   % First, determine the coefficients
+   lam = nu*E/((1+nu)*(1-2*nu)) ;
+   mu = E/(2*(1+nu)) ;
+   
+   coef = cell(ordp+1); % coefficients of the polynoms
+   
+   for k = 0:ordp
+      for l = 0:ordp
+         sze = floor((k+3)/2)*floor((l+2)/2) + floor((k+2)/2)*floor((l+3)/2)...
+               + floor((k+2)/2)*floor((l+2)/2); % Number of unknowns
+         Rhsco = zeros(sze,1);
+         Lhsca = zeros( sze, floor((k+3)/2)*floor((l+2)/2) );
+         Lhscb = zeros( sze, floor((k+2)/2)*floor((l+3)/2) );
+         Lhscc = zeros( sze, floor((k+2)/2)*floor((l+2)/2) );
+         
+         neq = 1;  % index of the no of the equation
+         % div sigma.x
+         for i=1:floor((k-1)/2)
+            for j=1:floor(l/2)
+               inda = (j+1) + (floor(l/2)+1)*i; % index of aij in coef
+               indb = (j+1) + (floor((l+1)/2)+1)*i; % index of bij in coef
+               indc = (j+1) + (floor(l/2)+1)*i; % index of cij in coef
+               
+               Lhsca( neq, inda ) = (lam+2*mu)*(k+1-2*i)*(k-2*i);
+               Lhscb( neq, indb ) = (lam+mu)*(l+1-2*j)*(k-2*i);
+               Lhscc( neq, indc ) = (lam+mu)*(2*i+2*j+1)*(k-2*i);
+               Lhsca( neq, inda-1+floor(l/2)+1 ) = ... % a_{i+1,j-1}
+                                    mu*(l-2*j+2)*(l-2*j+1);
+               Lhsca( neq, inda+floor(l/2)+1 ) = ... % a_{i+1,j}
+                                    mu*(2*i+2*j+2)*(2*i+2*j+1);
+                                    
+               neq = neq+1;
+            end
+         end
+         for j=0:floor( (l-2)/2 )
+            Lhsca( neq, j+1 ) = mu*(l-2*j)*(l-2*j-1);
+            Lhsca( neq, j+2 ) = mu*(2*j+2)*(2*j+1);
+            neq =neq+1;
+         end
+         for i=0:floor((k-1)/2)
+            Lhsca( neq, 1 + (floor(l/2)+1)*i ) = (lam+2*mu)*(k+1-2*i)*(k-2*i);
+            Lhscb( neq, 1 + (floor((l+1)/2)+1)*i ) = (lam+mu)*(l+1)*(k-2*i);
+            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = (lam+mu)*(k-2*i)*(2*i+1);
+            Lhsca( neq, 1 + (floor(l/2)+1)*(i+1) ) = mu*(2*i+2)*(2*i+1);
+            neq = neq+1;
+         end
+         % div sigma.y
+         for i=1:floor(k/2)
+            for j=1:floor((l-1)/2)
+               inda = (j+1) + (floor(l/2)+1)*i; % index of aij in coef
+               indb = (j+1) + (floor((l+1)/2)+1)*i; % index of bij in coef
+               indc = (j+1) + (floor(l/2)+1)*i; % index of cij in coef
+               
+               Lhsca( neq, inda ) = (lam+mu)*(k+1-2*i)*(l-2*j);
+               Lhscb( neq, indb ) = (lam+2*mu)*(l+1-2*j)*(l-2*j);
+               Lhscc( neq, indc ) = (lam+mu)*(2*i+2*j+1)*(l-2*j);
+               Lhscb( neq, indb+1-floor((l+1)/2)-1 ) = ... % b_{i-1,j+1}
+                                    mu*(k-2*i+2)*(k-2*i+1);
+               Lhscb( neq, indb+1 ) = ... % b_{i,j+1}
+                                    mu*(2*i+2*j+2)*(2*i+2*j+1);
+                                    
+               neq = neq+1;
+            end
+         end
+         for i=0:floor( (k-2)/2 )
+            Lhscb( neq, (floor((l+1)/2)+1)*i+1 ) = mu*(k-2*i)*(k-2*i-1); % and not *(i+1)
+            Lhscb( neq, (floor((l+1)/2)+1)*(i+1)+1 ) = mu*(2*i+2)*(2*i+1);
+            neq =neq+1;
+         end
+         for j=0:floor((l-1)/2)
+            Lhsca( neq, j+1 ) = (lam+mu)*(l-2*j)*(k+1);
+            Lhscb( neq, j+1 ) = (lam+2*mu)*(l+1-2*j)*(l-2*j);
+            Lhscc( neq, j+1 ) = (lam+mu)*(l-2*j)*(2*j+1);
+            Lhscb( neq, j+2 ) = mu*(2*j+2)*(2*j+1);
+            neq = neq+1;
+         end
+         % div sigma.z
+         for i=1:floor(k/2)
+            for j=1:floor(l/2)
+               inda = (j+1) + (floor(l/2)+1)*i; % index of aij in coef
+               indb = (j+1) + (floor((l+1)/2)+1)*i; % index of bij in coef
+               indc = (j+1) + (floor(l/2)+1)*i; % index of cij in coef
+               
+               Lhsca( neq, inda ) = (lam+mu)*(k+1-2*i)*(2*i+2*j);
+               Lhscb( neq, indb ) = (lam+mu)*(l+1-2*j)*(2*i+2*j);
+               Lhscc( neq, indc ) = (lam+2*mu)*(2*i+2*j+1)*(2*i+2*j);
+               Lhscc( neq, indc-floor(l/2)-1 ) = ... % c_{i-1,j}
+                                    mu*(k-2*i+2)*(k-2*i+1);
+               Lhscc( neq, indc-1 ) = ... % c_{i,j-1}
+                                    mu*(l-2*j+2)*(l-2*j+1);
+                                    
+               neq = neq+1;
+            end
+         end
+         for j=1:floor(l/2)
+            Lhsca( neq, j+1 ) = (lam+mu)*(2*j)*(k+1);
+            Lhscb( neq, j+1 ) = (lam+mu)*(l+1-2*j)*(2*j);
+            Lhscc( neq, j+1 ) = (lam+2*mu)*(2*j)*(2*j+1);
+            Lhscc( neq, j ) = mu*(l-2*j+2)*(l-2*j+1);
+            neq = neq+1;
+         end
+         for i=1:floor(k/2)
+            Lhsca( neq, 1 + (floor(l/2)+1)*i ) = (lam+mu)*(2*i)*(k+1-2*i);
+            Lhscb( neq, 1 + (floor((l+1)/2)+1)*i ) = (lam+mu)*(l+1)*(2*i);
+            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = (lam+2*mu)*(2*i)*(2*i+1);%c0i
+            Lhscc( neq, 1 + (floor(l/2)+1)*(i-1) ) = mu*(k-2*i+2)*(k-2*i+1);%c0i-1
+            neq = neq+1;
+         end
+         % arbitrary equations
+%         for i=0:floor(k/2) % ci0 = 0
+%            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = 1;
+%            neq = neq+1;
+%         end
+         for j=1:floor(l/2) % c0j = 0 start from 1 because c00 not imposed
+            Lhscc( neq, j+1 ) = 1;
+            neq = neq+1;
+         end
+         Lhsca( neq, 1) = 1; Lhscb( neq, 1) = -1; % a00 = b00
+         neq = neq+1;
+%         Lhsca( neq, end) = 1; Lhscb( neq, end) = -1; % akl = bkl
+%         neq = neq+1;
+         % Purpose equation
+         Lhsca( neq, 1) = lam*(k+1);
+         Lhscb( neq, 1) = lam*(l+1);
+         Lhscc( neq, 1) = (lam+2*mu);
+         Rhsco( neq ) = 1;
+         
+         Lhsco = [ Lhsca , Lhscb , Lhscc ];
+         
+         % Solve the linear problem to find the coefficients
+%         coef{ k+1, l+1 } = Lhsco\Rhsco;
+         
+         % Ker stuff
+         U = null(Lhsco);
+         Lhsto = [ Lhsco ; U' ]; Rhsto = [ Rhsco ; zeros(size(U,2), 1) ];
+         Solpro = Lhsto\Rhsto;
+         coef{ k+1, l+1 } = Solpro(1:sze);
+         
+      end
+   end
+   
+   % compute the RG
+   Rhs = zeros((ordp+1)^2,1);
+   vpa = zeros(3*nnodes2, 1);
+   
+   for k = 0:ordp
+      for l = 0:ordp
+         sze = floor((k+3)/2)*floor((l+2)/2) + floor((k+2)/2)*floor((l+3)/2)...
+               + floor((k+2)/2)*floor((l+2)/2); % Number of unknowns
+               
+         coefabc = coef{k+1, l+1 }; % extract data
+         coefa   = coefabc( 1:floor((k+3)/2)*floor((l+2)/2) );
+         coefb   = coefabc( floor((k+3)/2)*floor((l+2)/2) + 1 : ...
+                floor((k+3)/2)*floor((l+2)/2) + floor((k+2)/2)*floor((l+3)/2) );
+         coefc   = coefabc( floor((k+3)/2)*floor((l+2)/2) +...
+                           floor((k+2)/2)*floor((l+3)/2) + 1 : end );
+               
+         for no = 1:nnodes2
+         
+            x = nodes2(no,1);
+            y = nodes2(no,2);
+            z = nodes2(no,3);
+            % Change base (for coordiantes)
+            ixigrec = Q'*[x;y;z]; X = (ixigrec(1))/Lx; Y = ixigrec(2)/Lx;
+            Z = (ixigrec(3)-Cte)/Lx;
+            Xs(no) = X; Ys(no) = Y; Zs(no) = Z;
+   
+            % Build the xyz vector
+            GROXa = zeros( floor((k+3)/2)*floor((l+2)/2), 1 );
+            GROXb = zeros( floor((k+2)/2)*floor((l+3)/2), 1 );
+            GROXc = zeros( floor((k+2)/2)*floor((l+2)/2), 1 );
             
-            % Fourier coefficients
-            if sx==1 && sy==1
-               fournpp(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
-            elseif sx==1 && sy==-1
-               fournpm(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
-            elseif sx==-1 && sy==1
-               fournmp(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
-            elseif sx==-1 && sy==-1
-               fournmm(kpx,kpy) = -(1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+            % That's not optimized, but it's clearer
+            for i = 0:floor((k+1)/2)
+               for j = 0:floor(l/2)
+                  GROXa( 1+j+i*(floor(l/2)+1) ) =...
+                                        X^(k+1-2*i)*Y^(l-2*j)*Z^(2*i+2*j);
+               end
+            end
+            for i = 0:floor(k/2)
+               for j = 0:floor((l+1)/2)
+                  GROXb( 1+j+i*(floor((l+1)/2)+1) ) =...
+                                        X^(k-2*i)*Y^(l+1-2*j)*Z^(2*i+2*j);
+               end
+            end
+            for i = 0:floor(k/2)
+               for j = 0:floor(l/2)
+                  GROXc( 1+j+i*(floor(l/2)+1) ) =...
+                                        X^(k-2*i)*Y^(l-2*j)*Z^(2*i+2*j+1);
+               end
+            end
+            
+            % Build the test field
+            v1 = coefa'*GROXa;
+            v2 = coefb'*GROXb;
+            v3 = coefc'*GROXc;
+            vloc = [ v1 ; v2 ; v3 ];
+            % Change base (for vector), in the other direction
+            vxy = Q*vloc; vpa(3*no-2) = vxy(1); vpa(3*no-1) = vxy(2); vpa(3*no) = vxy(3);
+         end
+         fp = Kinter2*vpa;
+         Rhs(1+l+(ordp+1)*k) = (fr1(indexbound2)'*vpa(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+      end
+   end
+   
+   %% Build the Rhs : /!\ must have the same odd numerotation as previously
+   %L1x = offset; L2x = offset+L;
+   L1x = min(Xs); L2x = max(Xs);
+   L1y = min(Ys); L2y = max(Ys);
+   for i=0:ordp
+      for j=0:ordp
+         for k=0:ordp
+            for l=0:ordp
+               ordx = i+k+1;
+               ordy = j+l+1;
+               Lhs(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
+                    (L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+                % TODO : regularization
+%               if i>1 && j>1
+%                  Lhs(i+1,j+1) = Lhs(i+1,j+1) + mu*i*j/(i+j-1)*...
+%                                                (L2^(i+j-1) - L1^(i+j-1));
+%               end
             end
          end
       end
-      % u = acoscos+bcossin+csincos+dsinsin
-      akan(kx,ky)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
-                           fournmp(kpx,kpy) + fournmm(kpx,kpy));
-      bkan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
-                           fournmp(kpx,kpy) - fournmm(kpx,kpy));
-      ckan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
-                           fournmp(kpx,kpy) - fournmm(kpx,kpy));
-      dkan(kx,ky)   = real(-fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
-                            fournmp(kpx,kpy) - fournmm(kpx,kpy));
    end
-end
-
-%% DEBUG :
-%ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
-plotGMSH({ Xs,'x' ; Ys,'y' ; Zs,'z' ; real(vp),'U_vect'}, elements2, nodes2, 'test field');
-
-% The constant term
-fournpp(1,1) = -(R11+R21+R31)/(Lx*Ly);
-
-% plot the identified normal gap
-nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
-solu = fournpp(1,1);
-for kpx=2:nbase+1
-   for kpy=2:nbase+1
-      solu = solu + akan(kpx-1,kpy-1)*cos(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
-                  + bkan(kpx-1,kpy-1)*cos(lambdax(kpx)*X')*sin(lambday(kpy)*Y)...
-                  + ckan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
-                  + dkan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*sin(lambday(kpy)*Y);
+   
+   McCoef = Lhs\Rhs;
+   
+   % plot the identified normal gap (in the homotetically transformed basis)       /!\ TODO : use a honest basis
+   nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
+   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   solu = zeros(101,101);
+   for k=0:ordp
+      for l=0:ordp
+         solu = solu + McCoef(1+l+(ordp+1)*k) .* X'.^k * Y.^l;
+      end
    end
+   
+   % Center of the Circle
+   Cc = [4;3;1]; Cc = Q'*Cc;
+   
+   figure;
+   hold on;
+   surf(X,Y,solu);
+   shading interp;
+   colorbar();
+   drawCircle ( Cc(1)/Lx, Cc(2)/Lx, 2/Lx, 'Color', 'black', 'LineWidth', 3 );
 end
-
-% Center of the Circle
-Cc = [4;3;1]; Cc = Q'*Cc;
-
-figure;
-hold on;
-surf(X,Y,solu);
-shading interp;
-colorbar();
-drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );

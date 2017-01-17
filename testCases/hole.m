@@ -13,10 +13,10 @@ niter   = 25;
 precond = 0;      %
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300; % Maximal ratio (for eigenfilter)
-br      = 0.01;      % noise
+br      = 0.1;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
-ntrunc  = 16;      % In case the algo finishes at niter
+ntrunc  = 10;      % In case the algo finishes at niter
  
 % Boundary conditions
 % first index  : index of the boundary
@@ -395,6 +395,7 @@ plot(Itere(2*b2node5),'Color','red')
 plot(ItereR(2*b2node5),'Color','blue')
 plot(fref(2*b2node5),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
+%legend('filtred solution', 'reference')
 
 %hold on
 %plot(log10(error(2:end)),'Color','blue')
@@ -464,6 +465,7 @@ hold on;
 plot(usol(2*b2node5),'Color','red')
 plot(usolR(2*b2node5),'Color','blue')
 plot(uref(2*b2node5),'Color','green')
+%legend('filtred solution','reference')
 legend('brutal solution','filtred solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
