@@ -70,8 +70,8 @@ function K = stifmat (Xloc,order,A,format)
     for g=1:3,                                   % loop over Gauss points
       a=a_gauss(g,:);                            % coordinates for gauss point
       DN=[4*a(1)-1 0 -4*a(3)+1 4*a(2)...         % derivative of shape functions
-          -4*a(2) 4*(a(3)-a(1));                 % w.r.t. a_1, a_2 and a3
-          0 4*a(2)-1 -4*a(3)+1 4*a(1) ...
+          -4*a(2) 4*(a(3)-a(1));                 % w.r.t. a_1 and a_2 
+          0 4*a(2)-1 -4*a(3)+1 4*a(1) ...        % (a3=1-a1-a2)
           4*(a(3)-a(2)) -4*a(1)]';
       J=Xloc1'*DN;                               % jacobian matrix
       detJ=J(1,1)*J(2,2)-J(1,2)*J(2,1);          % jacobian
@@ -87,7 +87,7 @@ function K = stifmat (Xloc,order,A,format)
           GN(5,2) GN(5,1) GN(6,2) GN(6,1)];
       
        if format == 0
-          K=K+Be'*A*Be*detJ*w_gauss(g);        % contribution to stiffness matrix
+          K=K+Be'*A*Be*abs(detJ)*w_gauss(g);        % contribution to stiffness matrix
        elseif format == 1
           K=K+A*Be/3;   
           % Rem : this function returns 1/3 of the sum of sigma at each 

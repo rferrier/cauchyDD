@@ -12,15 +12,18 @@ E       = 210000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
+regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 3; % Order of polynom
-loadfield = 1; % If 0 : recompute the reference problem and re-pass mesh
+ordp      = 5; % Order of polynom
+loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
+               % If 2 : meshes are conformal
 
-usefourier = 1;
-usepolys   = 1;
+usefourier = 0;
+usepolys   = 0;
 
-if loadfield == 0
+if loadfield ~= 1
+   tic
    % Boundary conditions
    % first index  : index of the boundary
    % second index : 1=x, 2=y
@@ -31,7 +34,7 @@ if loadfield == 0
    neumann2   = [4,1,fscalar ; 6,1,-fscalar];
    
    % First, import the mesh
-   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3d/plate_c_107.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710t10.msh' );
    nnodes = size(nodes,1);
    
    % mapBounds
@@ -70,10 +73,11 @@ if loadfield == 0
    
    % Output :
    plotGMSH3D({ux,'U_x';uy,'U_y';uz,'U_z';u1,'U_vect';sigma,'stress'}, elements, nodes, 'reference');
+   disp([ 'Direct problem solved ', num2str(toc) ]);
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3d/plate107.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710t10.msh' );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D (nodes2,elements2,mat,order2,boundary2,[]);
 Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
@@ -98,17 +102,22 @@ if loadfield == 0
    UFr = passMesh3D (nodes, elements, nodes2, elements2, [u1,u2,f1,f2], boundary2);
    ur1 = UFr(:,1); ur2 = UFr(:,2); fr1 = UFr(:,3); fr2 = UFr(:,4);
    plotGMSH3D({ur1,'u1';ur2,'u2'}, elements2, nodes2, 'us');
-else
+elseif loadfield == 1
    %load the field
    UFR = load('fields/UFr107.mat'); UFr = UFR.UFr;
    ur1 = UFr(:,1); ur2 = UFr(:,2); fr1 = UFr(:,3); fr2 = UFr(:,4);
    plotGMSH3D({ur1,'u1';ur2,'u2'}, elements2, nodes2, 'us');
+else  % loadfield == 2 : conformal mesh /!\
+   ur1 = zeros( 3*nnodes2, 1 );   ur2 = zeros( 3*nnodes2, 1 );
+   fr1 = zeros( 3*nnodes2, 1 );   fr2 = zeros( 3*nnodes2, 1 );
+   ur1(indexbound2) = u1(indexbound);   ur2(indexbound2) = u2(indexbound);
+   fr1(indexbound2) = f1(indexbound);   fr2(indexbound2) = f2(indexbound);
 end
 
 %fr1p = Kinter2*ur1; fr2p = Kinter2*ur2;  % This is wrong inside the domain,
 % but should be right at its boundary provided the crack doesn't touch the boundary
 % Well no, actually, ti is wrong everywhere.
-
+tic
 neumann1   = [2,3,fscalar ; 1,3,-fscalar];
 neumann2   = [4,1,fscalar ; 6,1,-fscalar];
 fr1 = loading3D(nbloq2,nodes2,boundary2,neumann1);
@@ -285,6 +294,8 @@ Rv2 = (fr2(indexbound2)'*vv(indexbound2) - fv(indexbound2)'*ur2(indexbound2));
 Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
 
+Cte = Cte2;    %%% /!\ UGLY HACK BECAUSE Cte = -Cte2 TODEBUG
+
 % Reference : we know that the point P belongs to the plane.
 Pt = [4;3;1]; QPt = Q'*Pt; CteR = QPt(3);
 
@@ -306,12 +317,16 @@ Pt = [4;3;1]; QPt = Q'*Pt; CteR = QPt(3);
 %% And now, the crack itself
 
 % Compute L ( (not so) provisionnal formula assuming that we have a particular case)
-b = 7; bt = 10;
+b = max(nodes2(:,2)) - min(nodes2(:,2)) ;
+bt = max(nodes2(:,1)) - min(nodes2(:,1));
 a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
+
+disp([ 'Plane found ', num2str(toc) ]);
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Fourier sum
 if usefourier == 1
+   tic
    Rp       = zeros(nbase+1,1);
    Rm       = zeros(nbase+1,1);
    lambdax  = zeros(nbase+1,1);
@@ -373,12 +388,17 @@ if usefourier == 1
          % u = acoscos+bcossin+csincos+dsinsin
          akan(kx,ky)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
                               fournmp(kpx,kpy) + fournmm(kpx,kpy));
-         bkan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
+         bkan(kx,ky)   = -imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-         ckan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
+         ckan(kx,ky)   = -imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-         dkan(kx,ky)   = real(-fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
-                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
+                              
+%         bkan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
+%                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
+%         ckan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
+%                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
+         dkan(kx,ky)   = -real(fournpp(kpx,kpy) - fournpm(kpx,kpy) -...
+                               fournmp(kpx,kpy) + fournmm(kpx,kpy));
       end
    end
    
@@ -411,12 +431,13 @@ if usefourier == 1
    shading interp;
    colorbar();
    drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+   disp([ 'Fourier method ', num2str(toc) ]);
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Polynomial interpolation
 if usepolys == 1
-
+   tic
    % First, determine the coefficients
    lam = nu*E/((1+nu)*(1-2*nu)) ;
    mu = E/(2*(1+nu)) ;
@@ -557,7 +578,7 @@ if usepolys == 1
          
       end
    end
-   
+
    % compute the RG
    Rhs = zeros((ordp+1)^2,1);
    vpa = zeros(3*nnodes2, 1);
@@ -567,7 +588,7 @@ if usepolys == 1
          sze = floor((k+3)/2)*floor((l+2)/2) + floor((k+2)/2)*floor((l+3)/2)...
                + floor((k+2)/2)*floor((l+2)/2); % Number of unknowns
                
-         coefabc = coef{k+1, l+1 }; % extract data
+         coefabc = coef{ k+1, l+1 }; % extract data
          coefa   = coefabc( 1:floor((k+3)/2)*floor((l+2)/2) );
          coefb   = coefabc( floor((k+3)/2)*floor((l+2)/2) + 1 : ...
                 floor((k+3)/2)*floor((l+2)/2) + floor((k+2)/2)*floor((l+3)/2) );
@@ -621,9 +642,8 @@ if usepolys == 1
          Rhs(1+l+(ordp+1)*k) = (fr1(indexbound2)'*vpa(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
       end
    end
-   
+
    %% Build the Rhs : /!\ must have the same odd numerotation as previously
-   %L1x = offset; L2x = offset+L;
    L1x = min(Xs); L2x = max(Xs);
    L1y = min(Ys); L2y = max(Ys);
    for i=0:ordp
@@ -634,25 +654,60 @@ if usepolys == 1
                ordy = j+l+1;
                Lhs(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
                     (L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
-                % TODO : regularization
-%               if i>1 && j>1
-%                  Lhs(i+1,j+1) = Lhs(i+1,j+1) + mu*i*j/(i+j-1)*...
-%                                                (L2^(i+j-1) - L1^(i+j-1));
-%               end
             end
          end
       end
    end
    
-   McCoef = Lhs\Rhs;
+   % Regularisation (separated in order to do L-curves)
+   for i=1:ordp
+      for j=1:ordp
+         for k=1:ordp
+            for l=1:ordp
+               ordx = i+k+1;
+               ordy = j+l+1;
+               Lhsr(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
+                    i*k* (L2x^(ordx-1) - L1x^(ordx-1))/(ordx-1) *...
+                                        (L2y^ordy - L1y^ordy)/ordy + ...
+                    j*l* (L2x^ordx - L1x^ordx)/ordx *...
+                                        (L2y^(ordy-1) - L1y^(ordy-1))/(ordy-1);
+            end
+         end
+      end
+   end
    
-   % plot the identified normal gap (in the homotetically transformed basis)       /!\ TODO : use a honest basis
+   for i=1:ordp
+      for k=1:ordp
+         j = 0; l = 0;
+         ordx = i+k+1;
+         ordy = j+l+1;
+         Lhsr(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
+              i*k* (L2x^(ordx-1) - L1x^(ordx-1))/(ordx-1) *...
+                                  (L2y^ordy - L1y^ordy)/ordy ;
+      end
+   end
+   
+   for j=1:ordp
+      for l=1:ordp
+         i = 0; k = 0;
+         ordx = i+k+1;
+         ordy = j+l+1;
+         Lhsr(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
+              j*l* (L2x^ordx - L1x^ordx)/ordx *...
+                                  (L2y^(ordy-1) - L1y^(ordy-1))/(ordy-1);
+      end
+   end
+   
+   McCoef = -(Lhs+regmu*Lhsr)\Rhs;  % - in order to have positive gap on the crack (sign is arbitrary)
+   
+   Xs = Xs*Lx; Ys = Ys*Lx; % use the standard basis
+   % plot the identified normal gap
    nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
    X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
    solu = zeros(101,101);
    for k=0:ordp
       for l=0:ordp
-         solu = solu + McCoef(1+l+(ordp+1)*k) .* X'.^k * Y.^l;
+         solu = solu + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
       end
    end
    
@@ -664,5 +719,6 @@ if usepolys == 1
    surf(X,Y,solu);
    shading interp;
    colorbar();
-   drawCircle ( Cc(1)/Lx, Cc(2)/Lx, 2/Lx, 'Color', 'black', 'LineWidth', 3 );
+   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+   disp([ 'Polynomial method ', num2str(toc) ]);
 end

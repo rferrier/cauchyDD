@@ -36,25 +36,24 @@ function [K,C,ntot,node2c,c2node] = Krig3D (nodes, elem, mat, order,...
  end
  
  Kin = sparse(3*size(nodes,1), 3*size(nodes,1)); % 'cause I love when things go fast
- 
+
  for i=1:size(elem,1)
      Xloc1 = nodes(elem(i,:),:);    % Extract and adapt coords
      nnodes = size(Xloc1,1);
      Xloc = zeros(3*nnodes,1);
+     
+     map = zeros(1,3*nnodes);
      for j=1:nnodes
+         map(1,[3*j-2,3*j-1,3*j]) = [3*elem(i,j)-2, 3*elem(i,j)-1, 3*elem(i,j)];
          Xloc([3*j-2,3*j-1,3*j],1) = [Xloc1(j,1);Xloc1(j,2);Xloc1(j,3)];
      end
-     
+
      Ke = stifmat3D(Xloc,order,Sm1,0);
-     
+
      % Build K
-     map = [3*elem(i,1)-2, 3*elem(i,1)-1, 3*elem(i,1),...
-            3*elem(i,2)-2, 3*elem(i,2)-1, 3*elem(i,2),...
-            3*elem(i,3)-2, 3*elem(i,3)-1, 3*elem(i,3),...
-            3*elem(i,4)-2, 3*elem(i,4)-1, 3*elem(i,4)];
      Kin(map,map) = Kin(map,map) + Ke;
  end
- 
+
 %  % Boundary conditions with Lagrange multiplicators
 %  d_lines = [];
 %  for i = 1:size(bc,1)

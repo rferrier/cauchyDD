@@ -59,4 +59,3 @@ function f = loading( ntot, nodes, boundary, neumann )
  end
  
 end
-

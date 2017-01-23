@@ -34,16 +34,17 @@ function sigma = stress3D( u,mat,nodes,elem,order,gorp,ntoelem )
     nnodes = size(Xloc1,1);
     Xloc = zeros(3*nnodes,1);
     for j=1:nnodes
+        mapu(1,[3*j-2,3*j-1,3*j]) = [3*elem(i,j)-2, 3*elem(i,j)-1, 3*elem(i,j)];
         Xloc([3*j-2,3*j-1,3*j],1) = [Xloc1(j,1);Xloc1(j,2);Xloc1(j,3)];
     end
     
     % Build Ke
     Ke = stifmat3D(Xloc,order,Sm1,1);
     % Extract ue
-    mapu = [3*elem(i,1)-2,3*elem(i,1)-1,3*elem(i,1),...
-            3*elem(i,2)-2,3*elem(i,2)-1,3*elem(i,2),...
-            3*elem(i,3)-2,3*elem(i,3)-1,3*elem(i,3),...
-            3*elem(i,4)-2,3*elem(i,4)-1,3*elem(i,4),];
+%    mapu = [3*elem(i,1)-2,3*elem(i,1)-1,3*elem(i,1),...
+%            3*elem(i,2)-2,3*elem(i,2)-1,3*elem(i,2),...
+%            3*elem(i,3)-2,3*elem(i,3)-1,3*elem(i,3),...
+%            3*elem(i,4)-2,3*elem(i,4)-1,3*elem(i,4),];
     ue = u(mapu,1);
     
     % Build sigma
@@ -51,24 +52,18 @@ function sigma = stress3D( u,mat,nodes,elem,order,gorp,ntoelem )
     if gorp == 0
         sigmae  = sigmae1;
         maps = [6*i-5,6*i-4,6*i-3,6*i-2,6*i-1,6*i];
-    else
-        sigmae = [sigmae1/ntoelem(elem(i,1),1);
-                  sigmae1/ntoelem(elem(i,2),1);
-                  sigmae1/ntoelem(elem(i,3),1);
-                  sigmae1/ntoelem(elem(i,4),1)]; % pass to Gauss points
-              
-        maps = [6*elem(i,1)-5,6*elem(i,1)-4,6*elem(i,1)-3,...
-                            6*elem(i,1)-2,6*elem(i,1)-1,6*elem(i,1),...
-                6*elem(i,2)-5,6*elem(i,2)-4,6*elem(i,2)-3,...
-                            6*elem(i,2)-2,6*elem(i,2)-1,6*elem(i,2),...
-                6*elem(i,3)-5,6*elem(i,3)-4,6*elem(i,3)-3,...
-                             6*elem(i,3)-2,6*elem(i,3)-1,6*elem(i,3),...
-                6*elem(i,4)-5,6*elem(i,4)-4,6*elem(i,4)-3,...
-                             6*elem(i,4)-2,6*elem(i,4)-1,6*elem(i,4),];
+    else                             
+        ns = size(sigmae1,1); ne = size(elem,2);
+        sigmae = zeros(ns*ne,1); maps = zeros(1,ns*ne);
+        for j=1:ne
+           sigmae( [1+ns*(j-1):ns*j],1 ) =...
+                                sigmae1/ntoelem(elem(i,j),1); % Pass to nodes
+           maps(1, [1+ns*(j-1):ns*j]) =...
+                              [ 6*elem(i,j)-5,6*elem(i,j)-4,6*elem(i,j)-3, ...
+                                6*elem(i,j)-2,6*elem(i,j)-1,6*elem(i,j) ];
+        end
     end
     
     sigma(maps,1) = sigma(maps,1) + sigmae;
  end
- 
 end
-
