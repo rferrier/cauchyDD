@@ -5,7 +5,7 @@ close all;
 clear all;
 
 addpath(genpath('./tools'))
-addpath(genpath('/usr/share/octave/packages/geometry-2.1.0')) % Geometry pkg
+%addpath(genpath('/usr/share/octave/packages/geometry-2.1.0')) % Geometry pkg
 
 % Parameters
 E       = 210000; % MPa : Young modulus
@@ -15,7 +15,7 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 5; % Order of polynom
+ordp      = 4; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal
 
@@ -34,7 +34,7 @@ if loadfield ~= 1
    neumann2   = [4,1,fscalar ; 6,1,-fscalar];
    
    % First, import the mesh
-   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710t10.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_7106t10.msh' );
    nnodes = size(nodes,1);
    
    % mapBounds
@@ -77,7 +77,7 @@ if loadfield ~= 1
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710t10.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate7106t10.msh' );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D (nodes2,elements2,mat,order2,boundary2,[]);
 Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
@@ -251,7 +251,7 @@ for i=1:nnodes2
    y = nodes2(i,2);
    z = nodes2(i,3);
    % Change base (for coordiantes)
-   ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)-K;
+   ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)+K;
    Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
 
    vloct = [ -X^2/(2*E) - nu*Y^2/(2*E) + (2+nu)*Z^2/(2*E) ;...
@@ -265,7 +265,7 @@ for i=1:nnodes2
    vxyv = Q*vlocv; vv(3*i-2) = vxyv(1); vv(3*i-1) = vxyv(2); vv(3*i) = vxyv(3);
 end
 
-% Norm of [[ut]] (case 1)
+% Norm of [[ut]] (case 1 and 2)
 normT  = sqrt( abs( 2*(R11^2+R21^2+R31^2+2*(R41^2+R51^2+R61^2)) ...
                     - 2*(R11+R21+R31)^2 ) );
 normT2 = sqrt( abs( 2*(R12^2+R22^2+R32^2+2*(R42^2+R52^2+R62^2)) ...
@@ -293,8 +293,6 @@ Rv2 = (fr2(indexbound2)'*vv(indexbound2) - fv(indexbound2)'*ur2(indexbound2));
 
 Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
-
-Cte = Cte2;    %%% /!\ UGLY HACK BECAUSE Cte = -Cte2 TODEBUG
 
 % Reference : we know that the point P belongs to the plane.
 Pt = [4;3;1]; QPt = Q'*Pt; CteR = QPt(3);
@@ -388,11 +386,10 @@ if usefourier == 1
          % u = acoscos+bcossin+csincos+dsinsin
          akan(kx,ky)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
                               fournmp(kpx,kpy) + fournmm(kpx,kpy));
-         bkan(kx,ky)   = -imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
+         bkan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-         ckan(kx,ky)   = -imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
+         ckan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-                              
 %         bkan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
 %                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
 %         ckan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
@@ -421,17 +418,21 @@ if usefourier == 1
                      + dkan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*sin(lambday(kpy)*Y);
       end
    end
-   
+   solu = solu';  % Very imporant and no hack : comes from the function surf
    % Center of the Circle
-   Cc = [4;3;1]; Cc = Q'*Cc;
+   Cc = [4;3;1]; Cc = Q'*Cc; Rad = 2; zed = max(max(solu));
    
    figure;
    hold on;
    surf(X,Y,solu);
    shading interp;
    colorbar();
-   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+%   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+                                  'Color', 'black',  'LineWidth', 3 );
    disp([ 'Fourier method ', num2str(toc) ]);
+   axis('equal');
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -548,17 +549,24 @@ if usepolys == 1
          end
          % arbitrary equations
 %         for i=0:floor(k/2) % ci0 = 0
-%            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = 1;
+%            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = E;
 %            neq = neq+1;
 %         end
-         for j=1:floor(l/2) % c0j = 0 start from 1 because c00 not imposed
+%         for j=0:floor(l/2) % c0j = 0
+%            Lhscc( neq, j+1 ) = E;   % I use E instead of 1 for the condition
+%            neq = neq+1;
+%         end
+%         Lhscc(neq, end) = E; neq = neq+1; % ckl = 0 (greatest term in z)
+%         Lhsca( neq, 1) = E; Lhscb( neq, 1) = -E; % a00 = b00
+%         neq = neq+1;
+%         Lhsca( neq, end) = E; Lhscb( neq, end) = -E; % akl = bkl
+%         neq = neq+1;
+         for j=1:floor(l/2) % c0j = 0
             Lhscc( neq, j+1 ) = 1;
             neq = neq+1;
          end
          Lhsca( neq, 1) = 1; Lhscb( neq, 1) = -1; % a00 = b00
          neq = neq+1;
-%         Lhsca( neq, end) = 1; Lhscb( neq, end) = -1; % akl = bkl
-%         neq = neq+1;
          % Purpose equation
          Lhsca( neq, 1) = lam*(k+1);
          Lhscb( neq, 1) = lam*(l+1);
@@ -566,6 +574,9 @@ if usepolys == 1
          Rhsco( neq ) = 1;
          
          Lhsco = [ Lhsca , Lhscb , Lhscc ];
+         
+         % It's cleaner to remove the 0=0 equations at the end ( or not )
+         % Rhsco(neq+1:end) = [];
          
          % Solve the linear problem to find the coefficients
 %         coef{ k+1, l+1 } = Lhsco\Rhsco;
@@ -604,7 +615,7 @@ if usepolys == 1
             ixigrec = Q'*[x;y;z]; X = (ixigrec(1))/Lx; Y = ixigrec(2)/Lx;
             Z = (ixigrec(3)-Cte)/Lx;
             Xs(no) = X; Ys(no) = Y; Zs(no) = Z;
-   
+
             % Build the xyz vector
             GROXa = zeros( floor((k+3)/2)*floor((l+2)/2), 1 );
             GROXb = zeros( floor((k+2)/2)*floor((l+3)/2), 1 );
@@ -653,7 +664,7 @@ if usepolys == 1
                ordx = i+k+1;
                ordy = j+l+1;
                Lhs(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
-                    (L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+                    (L2x^ordx - L1x^ordx)/ordx * (L2y^(ordy) - L1y^(ordy))/ordy;
             end
          end
       end
@@ -700,7 +711,7 @@ if usepolys == 1
    
    McCoef = -(Lhs+regmu*Lhsr)\Rhs;  % - in order to have positive gap on the crack (sign is arbitrary)
    
-   Xs = Xs*Lx; Ys = Ys*Lx; % use the standard basis
+   Xs = Xs*Lx; Ys = Ys*Lx; % use the standard basis (no homotetical dilatation)
    % plot the identified normal gap
    nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
    X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
@@ -710,15 +721,33 @@ if usepolys == 1
          solu = solu + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
       end
    end
-   
+   solu = solu'; % prepare for plot
    % Center of the Circle
-   Cc = [4;3;1]; Cc = Q'*Cc;
+   Cc = [4;3;1]; Cc = Q'*Cc; Rad = 2; zed = max(max(solu));
    
    figure;
    hold on;
-   surf(X,Y,solu);
+%   surf(X(4:end-3),Y(4:end-3),solu(4:end-3,4:end-3));
+   surf(X,Y,solu/Lx);   % The /Lx is arnaking very much
    shading interp;
    colorbar();
-   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+                                  'Color', 'black',  'LineWidth', 3 );
+%   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+   axis('equal');
+   
+   % "Zoom"
+   figure;
+   hold on;
+   surf(X(7:end-6),Y(7:end-6),solu(7:end-6,7:end-6)/Lx); % Again
+   shading interp;
+   colorbar();
+   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+                                  'Color', 'black',  'LineWidth', 3 );
+%   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
+   axis('equal');
+
    disp([ 'Polynomial method ', num2str(toc) ]);
 end

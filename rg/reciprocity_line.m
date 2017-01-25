@@ -667,7 +667,7 @@ if usepolys == 1
       resid  = zeros( size(listmu) );
       regno  = zeros( size(listmu) );
       rhsk   = zeros(nbase+1,1);
-      index = 1;
+      index  = 1;
       for lnmu1 = listmu
          Regop  = Lhs-Lhs;
          mu1 = 10^lnmu1;
