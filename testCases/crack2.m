@@ -108,7 +108,7 @@ end
 %% KMF algo : 200 iterations
 if find(methods==1)
 
-    niter = 10;
+    niter = 200;
     relax = 0;  % Computation of the best relaxtion parameter
     
     % init :
@@ -294,10 +294,12 @@ if find(methods==2)
     figure
     loglog(residual,regulari);
     % Automatic stop (regularization tools) :
-    [stopHere,~,~] = l_corner(residual,regulari,1:1:niter+1);
+    [stopHere,~,~] = findCorner(residual,regulari,3);
     % Output
-    figure
-    plot(Itere(index,stopHere));
+    figure;
+    hold on;
+    plot(Itere(index,niter+1),'Color','red');
+    plot(uref(index));
     
     % Compute stress :
     sigma = stress(Itere(:,stopHere),E,nu,nodes_up,elements_up,order,1,ntoelem_up);
@@ -471,7 +473,7 @@ end
 if find(methods==4)
     niter   = 20;
     mu      = 0.;      % Regularization parameter
-    precond = 0;      % use a dual precond ?
+    precond = 2;      % use a dual precond ?
     
     % Init
     Itere    = zeros( 2*nnodes_up, 1 );
@@ -531,6 +533,13 @@ if find(methods==4)
         u2 = keepField( u2i, 9, boundaryp );
         %
         Zed(:,1) = u1/2-u2/2;
+    elseif precond == 2 % KMF
+        % Solve 1
+        f1 = [Res(:,1)/2; zeros(nbloq1d,1)];
+        uin1 = K1d\f1;
+        u1i = uin1(1:2*nnodes_up,1);
+        u1 = keepField( u1i, 9, boundaryp );
+        Zed(:,1) = u1;
     else
         Zed(:,1) = Res(:,1);
     end
@@ -579,6 +588,13 @@ if find(methods==4)
             u2 = keepField( u2i, 9, boundaryp );
             %
             Zed(:,iter+1) = u1/2-u2/2;
+        elseif precond == 2
+            % Solve 1
+            f1 = [Res(:,iter+1)/2; zeros(nbloq1d,1)];
+            uin1 = K1d\f1;
+            u1i = uin1(1:2*nnodes_up,1);
+            u1 = keepField( u1i, 9, boundaryp );
+            Zed(:,iter+1) = u1;
         else
             Zed(:,iter+1) = Res(:,iter+1);
         end
@@ -623,8 +639,8 @@ if find(methods==4)
     plot(log10(residual),'Color','red')
     legend('error (log)','residual (log)')
     % L-curve
-    figure
-    loglog(residual,regulari);
+%    figure
+%    loglog(residual,regulari);
     
     % Output
     figure
@@ -921,7 +937,7 @@ if find(methods==6)
     error(1)    = norm( Itere(indexxy) - fref(indexxy )) / norm(fref(indexxy));
     regulari(1) = sqrt(Itere'*( regul(Itere, nodes_up, boundary_up, 9)));
 
-    %% Perform Q1 = A P1 :
+    %% Perform q = A p :
     % Solve 1
     f1 = [p(:,1); zeros(nbloq1d,1)];
     uin1 = K1d\f1;
@@ -1003,8 +1019,8 @@ if find(methods==6)
     plot(log10(residual),'Color','red')
     legend('error (log)','residual (log)')
     % L-curve
-    figure
-    loglog(residual,regulari);
+%    figure
+%    loglog(residual,regulari);
     
     % Output
     figure

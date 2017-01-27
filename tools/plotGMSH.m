@@ -37,7 +37,7 @@ for i=1:size(fields,1)
             fprintf(fmid,'%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n','$NodeData','1',['"',legend,'"'],'1','0.0','3',num2str(j-1),'9');
             fprintf(fmid,'%d\n',nnodes);
             for n=1:nnodes
-                fprintf(fmid,'%d %E %E %E %E %E %E %E %E %E\n',n,field(3*n-2,j),field(3*n-1,j),field(3*n,j),0,0,0,0,0,0);   
+                fprintf(fmid,'%d %E %E %E %E %E %E %E %E %E\n',n,field(3*n-2,j),field(3*n,j),0,field(3*n,j),field(3*n-1,j),0,0,0,0);   
             end
             fprintf(fmid,'%s\n','$EndNodeData');
 
