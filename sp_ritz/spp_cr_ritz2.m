@@ -459,12 +459,14 @@ loglog(resD(2:iter),regD(2:iter),'-+');
 legend('RL-curve')
 figure
 
-% L-curve :
 hold on;
-loglog(residual(2:end),regulari(2:end),'-*','Color','red');
-loglog(resS(2:iter),regS(2:iter),'-+');
-legend('L-curve', 'RL-curve')
+set(gca, 'fontsize', 20);
+loglog(residual(2:end),regulari(2:end),'-*','Color','red','linewidth',3);
+loglog(resS(2:iter),regS(2:iter),'-+','linewidth',3);
+legend('L-curve','RL-curve')
 %legend('L-curve')
+xlabel('residual')
+ylabel('H1 norm')
 
 %%%%%
 %% Final problem : compute u

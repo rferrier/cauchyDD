@@ -17,7 +17,7 @@ ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = .1;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
-ntrunc  = 5;      % In case the algo finishes at niter
+ntrunc  = 4;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
@@ -210,8 +210,8 @@ end
 
 d(:,1) = Zed(:,1);
 
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 ritzval  = 0; % Last ritz value that converged
@@ -248,8 +248,8 @@ for iter = 1:niter
     Itere         = Itere + d(:,iter)*num;%/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     if precond == 1
@@ -377,8 +377,9 @@ for i = 1:iter+1
    AI = lamb1-lamb2;
    
    ResS = AI-b;
-   resS(i) = sqrt(norm(ResS));   
+   resS(i) = norm(ResS);   
    regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
+   errS(i) = norm(ItereS(indexa)-uref(indexa))/norm(uref(indexa));
 end
 
 % Residual in the diagonal base :
@@ -399,42 +400,59 @@ for i = 1:iter+1
    regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 2) );
 end
 
+%[indm,a1,b1,a2,b2] = findPicard(log10(abs(chiD)), 1); % Find the best iterate according to Picard criterion
+%t = 1:size(chiD,1);
+%chi1 = a1*t+b1; chi2 = a2*t+b2;
+[indm2,pol] = findPicard2(log10(abs(chiD)), 2);
+n = size(pol,1);
+t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
+for j=1:n
+   tt(j,:) = t.^(n-j);
+end
+px = pol'*tt;
+
 hold on;
 plot(log10(theta),'Color','blue')
 plot(log10(abs(Y'*b)),'Color','red')
-plot(log10(abs(chi)),'Color','black')
-legend('Ritz Values','RHS values','solution coefficients')
+plot(log10(abs(chiD)),'Color','black')
+%plot(chi1,'Color','yellow')
+%plot(chi2,'Color','green')
+plot(t,px,'Color','cyan')
+legend('Ritz Values','RHS values','solution coefficients', ...
+       'polynomial interpolation')
 figure;
 %
-hold on;
-plot(Itere(2*b2node2-1),'Color','red')
-plot(ItereR(2*b2node2-1),'Color','blue')
-plot(uref(2*b2node2-1),'Color','green')
-legend('brutal solution','filtred solution', 'reference')
-figure;
-
-hold on;
-plot(Itere(2*b2node2),'Color','red')
-plot(ItereR(2*b2node2),'Color','blue')
-plot(uref(2*b2node2),'Color','green')
-legend('brutal solution','filtred solution', 'reference')
-figure;
-
-%hold on
-%plot(log10(error(2:end)),'Color','blue')
-%plot(log10(residual(2:end)),'Color','red')
-%legend('error (log)','residual (log)')
+%hold on;
+%plot(Itere(2*b2node2-1),'Color','red')
+%plot(ItereR(2*b2node2-1),'Color','blue')
+%plot(uref(2*b2node2-1),'Color','green')
+%legend('brutal solution','filtred solution', 'reference')
 %figure;
+%
+%hold on;
+%plot(Itere(2*b2node2),'Color','red')
+%plot(ItereR(2*b2node2),'Color','blue')
+%plot(uref(2*b2node2),'Color','green')
+%legend('brutal solution','filtred solution', 'reference')
+%figure;
+
+hold on
+plot(error(2:end),'Color','blue')
+plot(errS(2:end),'Color','green')
+plot(residual(2:end),'Color','red')
+legend('error','Ritz error','residual')
+figure;
 %L-curve :
 hold on;
-%loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
-%figure
-loglog(resS(2:iter+1),regS(2:iter+1),'-+');
-%legend('L-curve','RL-curve')
-legend('RL-curve')
-figure
-%findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
-%findCorner (resS(2:iter+1), regS(2:iter+1), 3)
+set(gca, 'fontsize', 20);
+loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
+loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
+legend('L-curve','RL-curve')
+%legend('RL-curve')
+xlabel('residual')
+ylabel('H1 norm')
+%findCorner (residual(2:iter+1), regulari(2:iter+1), 2)
+%findCorner (resS(2:iter+1), regS(2:iter+1), 2)
 
 %%hold on;
 %%loglog(resS(2:iter+1),regS(2:iter+1),'Color','red','-*');
@@ -477,11 +495,11 @@ usoli = K \ (fdir4 + fdir2);
 usolR = usoli(1:2*nnodes,1);
 fsolR = Kinter*usolR;
 
-hold on;
-plot(fsol(2*b2node2-1),'Color','red')
-plot(fsolR(2*b2node2-1),'Color','blue')
-plot(f(2*b2node2-1),'Color','green')
-legend('brutal solution','filtred solution','reference')
+%hold on;
+%plot(fsol(2*b2node2-1),'Color','red')
+%plot(fsolR(2*b2node2-1),'Color','blue')
+%plot(f(2*b2node2-1),'Color','green')
+%legend('brutal solution','filtred solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

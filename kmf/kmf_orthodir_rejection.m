@@ -1,5 +1,5 @@
 %12/05/2016
-%Algo KMF avec Orthodir et réjection des bruits
+%Algo KMF avec Orthodir et rï¿½jection des bruits
 
 close all;
 clear all;

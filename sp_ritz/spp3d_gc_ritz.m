@@ -11,17 +11,17 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 50;
-precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = 0.;    % noise
+br      = 0.05;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 20;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD
-methods = [2];
+methods = [1];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
@@ -48,9 +48,9 @@ neumann   = [7,3,-fscalar];
 [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/plate3d_charge2.msh' );
 nnodes = size(nodes,1);
 
-%noises = load('./noises/noise3d.mat'); % Particular noise vector
-%noise  = noises.noise;
-noise = randn(3*nnodes,1);
+noises = load('./noises/noise3d0.mat'); % Particular noise vector
+noise  = noises.noise;
+%noise = randn(3*nnodes,1);
 
 % suppress the aretes:
 boundaryp1 = suppressBound( boundary, 'extreme', 2, nodes,1e-5 );
@@ -415,12 +415,22 @@ if find(methods==1)
       regD(i) = sqrt(ItereD(indexa)'*Kreg*ItereD(indexa));%norm(ItereD);
    end
    
-   %figure;
-   %hold on;
-   %plot(log10(theta),'Color','blue')
-   %plot(log10(abs(Y'*b)),'Color','red')
-   %plot(log10(abs(chi)),'Color','black')
-   %legend('Ritz Values','RHS values','solution coefficients')
+   [indm2,pol] = findPicard2(log10(abs(chiD)), 10);
+   n = size(pol,1);
+   t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
+   for j=1:n
+      tt(j,:) = t.^(n-j);
+   end
+   px = pol'*tt;
+   
+   figure;
+   hold on;
+   plot(log10(theta),'Color','blue')
+   plot(log10(abs(Y'*b)),'Color','red')
+   plot(log10(abs(chiD)),'Color','black')
+   plot(t,px,'Color','cyan')
+   legend('Ritz Values','RHS values','solution coefficients', ...
+          'polynomial interpolation')
    %
 %   errorI = (Itere(3:3:end)-uref(3:3:end))/norm(uref(3:3:end));
 %   nerrorI = norm(Itere(indexa)-uref(indexa))/norm(uref(indexa));
@@ -436,15 +446,27 @@ if find(methods==1)
 %               'FaceVertexCData',errorR,'FaceColor','interp');
 %   colorbar;
    %
-   figure;
-   ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',Itere(3:3:end),'FaceColor','interp');
-   colorbar;
-   %
+%   figure;
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',Itere(3:3:end),'FaceColor','interp');
+%   colorbar;
+%   %
    figure;
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
                'FaceVertexCData',ItereR(3:3:end),'FaceColor','interp');
    colorbar;
+   
+   % Plot the stuff on a line x = 4
+%   Yma = max(nodes(:,2)); step = Yma/100; Ymi = min(nodes(:,2)); Zma = max(nodes(:,3));
+%   nodeploty = Ymi:step:Yma; nodeplotx = 4*ones(1,101); nodeplotz = Zma*ones(1,101);
+%   nodeplot = [nodeplotx;nodeploty;nodeplotz]';
+%   uplo = passMesh3D(nodes, elements, nodeplot, [], [Itere,ItereR,uref]);
+%   figure;
+%   hold on;
+%   plot(nodeploty, uplo(3:3:end,1),'Color','red');
+%   plot(nodeploty, uplo(3:3:end,2),'Color','blue');
+%   plot(nodeploty, uplo(3:3:end,3),'Color','green');
+%   legend('brutal solution','filtred solution', 'reference')
    %
    %hold on;
    %plot(Itere(2*b2node2-1),'Color','red')
@@ -463,10 +485,11 @@ if find(methods==1)
    figure;
    hold on
    %plot(log10(error(2:end)),'Color','blue')
-   plot(error(2:end),'Color','blue')
-   plot(residual(2:end),'Color','red')
+%   plot(error(2:end),'Color','blue')
+%   plot(residual(2:end),'Color','red')
    plot(errS(2:end),'Color','green')
-   legend('error','residual','Ritz error')
+%   legend('error','residual','Ritz error')
+   legend('Ritz error')
    
    %L-curve :
    figure;
@@ -789,12 +812,23 @@ if methods == 2
       regD(i) = norm(ItereD);
    end
    
-   %figure;
-   %hold on;
-   %plot(log10(theta),'Color','blue')
-   %plot(log10(abs(Y'*b)),'Color','red')
-   %plot(log10(abs(chi)),'Color','black')
-   %legend('Ritz Values','RHS values','solution coefficients')
+   % Find the best Ritz value
+   [indm2,pol] = findPicard2(log10(abs(chiD)), 10);
+   n = size(pol,1);
+   t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
+   for j=1:n
+      tt(j,:) = t.^(n-j);
+   end
+   px = pol'*tt;
+   
+   figure;
+   hold on;
+   plot(log10(theta),'Color','blue')
+   plot(log10(abs(Y'*b)),'Color','red')
+   plot(log10(abs(chiD)),'Color','black')
+   plot(t,px,'Color','cyan')
+   legend('Ritz Values','RHS values','solution coefficients', ...
+          'polynomial interpolation')
    %
 %   errorI = (Itere(3:3:end)-uref(3:3:end))/norm(uref(3:3:end));
 %   nerrorI = norm(Itere(indexa)-uref(indexa))/norm(uref(indexa));
@@ -810,15 +844,15 @@ if methods == 2
 %               'FaceVertexCData',errorR,'FaceColor','interp');
 %   colorbar;
    %
-   figure;
-   ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',Itere(3:3:end),'FaceColor','interp');
-   colorbar;
-   %
-   figure;
-   ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',ItereR(3:3:end),'FaceColor','interp');
-   colorbar;
+%   figure;
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',Itere(3:3:end),'FaceColor','interp');
+%   colorbar;
+%   %
+%   figure;
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',ItereR(3:3:end),'FaceColor','interp');
+%   colorbar;
    %
    %hold on;
    %plot(Itere(2*b2node2-1),'Color','red')
@@ -837,10 +871,11 @@ if methods == 2
    figure;
    hold on
    %plot(log10(error(2:end)),'Color','blue')
-   plot(error(2:end),'Color','blue')
-   plot(residual(2:end),'Color','red')
+%   plot(error(2:end),'Color','blue')
+%   plot(residual(2:end),'Color','red')
    plot(errS(2:end),'Color','green')
-   legend('error','residual','Ritz error')
+%   legend('error','residual','Ritz error')
+   legend('Ritz error')
 %   legend('error','residual')
    
    %L-curve :
