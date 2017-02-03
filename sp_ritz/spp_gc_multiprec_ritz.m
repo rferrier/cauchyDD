@@ -12,9 +12,10 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 8;
-br      = 0.5;     % noise
-epsilon = 1e-1;   % Convergence criterion for ritz value
-ratio   = 1e-5;   % Max ratio between eigenvalues
+br      = 0.;     % noise
+epsilon = 1e-100;   % Convergence criterion for ritz value
+ratio   = 1e-500;   % Max ratio between eigenvalues
+ntrunc  = 5;
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -29,6 +30,10 @@ neumann   = [2,1,fscalar,0,fscalar;
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
+
+noises = load('./noises/noise1.mat'); % Particular noise vector
+noise  = noises.bruit1;
+%noise = randn(2*nnodes,1);
 
 % find the nodes in the corners and suppress the element :
 xmax = max(nodes(:,1));
@@ -65,7 +70,7 @@ uin = K\f;
 uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
 
-urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
+urefb = ( 1 + br*noise ) .* uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
@@ -117,15 +122,19 @@ d1    = zeros( 2*nnodes, niter+1 );
 d2    = zeros( 2*nnodes, niter+1 );
 Ad1   = zeros( 2*nnodes, niter+1 );
 Ad2   = zeros( 2*nnodes, niter+1 );
+d1o   = zeros( 2*nnodes, niter+1 );
+d2o   = zeros( 2*nnodes, niter+1 );
+Ad1o  = zeros( 2*nnodes, niter+1 );
+Ad2o  = zeros( 2*nnodes, niter+1 );
 Res   = zeros( 2*nnodes, niter+1 );
 Zed1  = zeros( 2*nnodes, niter+1 );
 Zed2  = zeros( 2*nnodes, niter+1 );
 alpha = zeros( 2, niter+1 );
+alpha2= zeros( 2, niter+1 );
 beta  = cell(niter+1,1);
 
 ritzval  = 0;
 oldtheta = 0;
-ntrunc   = 0;
 getmeout = 0;
 
 %% Perform A x0 :
@@ -177,8 +186,8 @@ Zed2(:,1) = u2;
 d1(:,1) = Zed1(:,1);
 d2(:,1) = Zed2(:,1);
 
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 %%
@@ -219,14 +228,25 @@ for iter = 1:niter
     %%
     Delta           = ([Ad1(indexa,iter),Ad2(indexa,iter)]'*...
                                              [d1(indexa,iter),d2(indexa,iter)]);
-    gamma           = ([Zed1(indexa,iter),Zed2(indexa,iter)]'*Res(indexa,iter));
-    alpha(:,iter) = Delta\gamma;
+%    sqDel           = Delta^(1/2);
+%    dtot            = sqDel\[d1(:,iter) , d2(:,iter)]';
+%    Adtot           = sqDel\[Ad1(:,iter) , Ad2(:,iter)]';
+%    d1o(:,iter) = d1(:,iter);  d2o(:,iter) = d2(:,iter);  % Store old ones
+%    Ad1o(:,iter) = Ad1o(:,iter);  Ad2o(:,iter) = Ad2o(:,iter);
+%    d1(:,iter) = dtot(1,:)';  d2(:,iter) = dtot(2,:)';
+%    Ad1(:,iter) = Adtot(1,:)';  Ad2(:,iter) = Adtot(2,:)';
+
+%    gamma           = ([Zed1(indexa,iter),Zed2(indexa,iter)]'*Res(indexa,iter));
+    gamma           = ([d1(indexa,iter),d2(indexa,iter)]'*Res(indexa,iter));
+    alpha(:,iter)   = Delta\gamma;
 
     Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha(:,iter);
     Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha(:,iter);
+%    Itere         = Itere + [d1(:,iter),d2(:,iter)]*gamma;
+%    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*gamma;
     
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     %% Precond
@@ -244,6 +264,11 @@ for iter = 1:niter
     Zed1(:,iter+1) = u1;
     Zed2(:,iter+1) = u2;
     
+    % Needed values for Ritz stuff
+%    alpha(:,iter)   = sqDel\gamma;% sqDel\gamma
+%    beta(iter)      = sqDel \ ( [Ad1(indexa,iter),Ad2(indexa,iter)]'* ...
+%                                  [Zed1(indexa,iter+1),Zed2(indexa,iter+1)] );
+    
     % First Reorthogonalize the residual
     for jter=1:iter-1
         betac = Zed1(indexa,iter+1)'*Res(indexa,jter) /...
@@ -258,12 +283,13 @@ for iter = 1:niter
     d1(:,iter+1) = Zed1(:,iter+1);
     d2(:,iter+1) = Zed2(:,iter+1);
     
-    for jter=1:iter
-        phiij      = ( [Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,iter+1),d2(indexa,iter+1)] );
+    for jter=iter:iter
+%        phiij      = ( [Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,iter+1),d2(indexa,iter+1)] );
+        phiij      = ( [Ad1(indexa,jter),Ad2(indexa,jter)]'*[Zed1(indexa,iter+1),Zed2(indexa,iter+1)] );
        % matpr = inv([Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,jter),d2(indexa,jter)])
         betaij     = ([Ad1(indexa,jter),Ad2(indexa,jter)]'*[d1(indexa,jter),d2(indexa,jter)]) \ phiij;
         beta(iter) = betaij;
-        Prov = [d1(:,iter+1),d2(:,iter+1)] - [d1(:,jter),d2(:,jter)] * betaij;
+        Prov = [d1(:,iter+1),d2(:,iter+1)] - [d1(:,jter),d2(:,jter)] * betaij;%phiij;%* betaij;%phiij;
         
         d1(:,iter+1) = Prov(:,1);
         d2(:,iter+1) = Prov(:,2);
@@ -414,28 +440,30 @@ ItereR = Y*chi;
 %
 %He = V'*AV;
 
+figure;
 hold on;
-plot(log10(theta),'Color','blue')
+plot(log10(abs(theta)),'Color','blue')  % Rem : I need abs on this one...
 plot(log10(abs(Y'*b)),'Color','red')
 plot(log10(abs(chi)),'Color','black')
 legend('Ritz Values','RHS values','solution coefficients')
-figure;
 
+figure;
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')
 plot(ItereR(2*b2node2-1),'Color','blue')
 plot(uref(2*b2node2-1),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
-%figure;
 
-%hold on
-%plot(log10(error),'Color','blue')
-%plot(log10(residual),'Color','red')
-%legend('error (log)','residual (log)')
-%figure;
+figure;
+hold on
+plot(log10(error),'Color','blue')
+plot(log10(residual),'Color','red')
+legend('error (log)','residual (log)')
+
 % L-curve :
-%loglog(residual,regulari);
 %figure
+%loglog(residual,regulari);
+
 %%%%
 %% Final problem : compute u
 % DN problem

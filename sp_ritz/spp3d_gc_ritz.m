@@ -11,7 +11,7 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 50;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = 0.05;    % noise
@@ -21,7 +21,7 @@ ntrunc  = 20;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD
-methods = [1];
+methods = [2];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
@@ -415,7 +415,7 @@ if find(methods==1)
       regD(i) = sqrt(ItereD(indexa)'*Kreg*ItereD(indexa));%norm(ItereD);
    end
    
-   [indm2,pol] = findPicard2(log10(abs(chiD)), 10);
+   [indm2,pol] = findPicard2(log10(abs(chiD)), 10, 1);
    n = size(pol,1);
    t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
    for j=1:n
@@ -813,7 +813,7 @@ if methods == 2
    end
    
    % Find the best Ritz value
-   [indm2,pol] = findPicard2(log10(abs(chiD)), 10);
+   [indm2,pol] = findPicard2(log10(abs(chiD)), 10, 1);
    n = size(pol,1);
    t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
    for j=1:n

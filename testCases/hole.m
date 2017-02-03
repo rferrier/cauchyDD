@@ -13,7 +13,7 @@ niter    = 30;
 precond  = 0;      %
 mu       = 0.;     % Regularization parameter
 ratio    = 1e-300; % Maximal ratio (for eigenfilter)
-br       = 0.;      % noise
+br       = 0.01;      % noise
 brt      = 0;      % "translation" noise
 epsilon  = 1e-1;   % Convergence criterion for ritz value
 ntrunc   = 10;      % In case the algo finishes at niter
@@ -206,7 +206,7 @@ if find(methods==1)
    d(:,1) = Zed(:,1);
    
    residual(1) = norm(Res( indexxy,1));
-   error(1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
+   error(1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
    regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 5) );
    
    ritzval  = 0; % Last ritz value that converged
@@ -242,7 +242,7 @@ if find(methods==1)
        Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
        
        residual(iter+1) = norm(Res(indexxy,iter+1));
-       error(iter+1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
+       error(iter+1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
        regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 5) );
        
        if precond == 1
@@ -370,6 +370,7 @@ if find(methods==1)
       ResS = AI-b;
       resS(i) = norm(ResS);   
       regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 5) );
+      errS(i) = norm(ItereS(indexxy)-fref(indexxy)) / norm(fref(indexxy));
    end
    
    traD = 1 - sum(theta(1:ntrunc-1))/sum(theta);
@@ -381,12 +382,22 @@ if find(methods==1)
       regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 5) );
    end
    
+   [indm2,pol] = findPicard2(log10(abs(chiD)), 5, 1);
+   n = size(pol,1);
+   t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
+   for j=1:n
+   tt(j,:) = t.^(n-j);
+   end
+   px = pol'*tt;
+   
    figure;
    hold on;
    plot(log10(theta),'Color','blue')
    plot(log10(abs(Y'*b)),'Color','red')
-   plot(log10(abs(chi)),'Color','black')
-   legend('Ritz Values','RHS values','solution coefficients')
+   plot(log10(abs(chiD)),'Color','black')
+   plot(t,px,'Color','cyan')
+   legend('Ritz Values','RHS values','solution coefficients', ...
+          'polynomial approxiamtion')
    %
    %figure;
    %hold on;
@@ -405,10 +416,12 @@ if find(methods==1)
    legend('SPD solution', 'reference')
    xlabel('angle'); ylabel('F');
    
-   %hold on
-   %plot(log10(error(2:end)),'Color','blue')
-   %plot(log10(residual(2:end)),'Color','red')
-   %legend('error (log)','residual (log)')
+   figure;
+   hold on
+   plot(error(2:end),'Color','blue')
+   plot(residual(2:end),'Color','red')
+   plot(errS(2:end),'Color','green')
+   legend('error','residual','Ritz error')
    %L-curve :
    figure;
    set(gca, 'fontsize', 20);

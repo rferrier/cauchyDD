@@ -14,10 +14,10 @@ niter   = 15;
 precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = .1;    % noise
+br      = .0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
-ntrunc  = 4;      % In case the algo finishes at niter
+ntrunc  = 0;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
@@ -277,7 +277,7 @@ for iter = 1:niter
         betac = Zed(indexa,iter+1)'*Res(indexa,jter) / (Zed(indexa,jter)'*Res(indexa,jter));
         Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
     end
-    
+
     %% Orthogonalization
     d(:,iter+1) = Zed(:,iter+1);
     
@@ -285,7 +285,6 @@ for iter = 1:niter
         betaij = ( Zed(indexa,iter+1)'*Ad(indexa,jter) );%/...
             %( d(indexa,jter)'*Ad(indexa,jter) );
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
-
     end
     
     %% Ritz algo : find the Ritz elements
@@ -403,7 +402,7 @@ end
 %[indm,a1,b1,a2,b2] = findPicard(log10(abs(chiD)), 1); % Find the best iterate according to Picard criterion
 %t = 1:size(chiD,1);
 %chi1 = a1*t+b1; chi2 = a2*t+b2;
-[indm2,pol] = findPicard2(log10(abs(chiD)), 2);
+[indm2,pol] = findPicard2(log10(abs(chiD)), 3, 1);
 n = size(pol,1);
 t = 1:.05:niter; tt = zeros(n,20*(niter-1)+1);
 for j=1:n
@@ -419,15 +418,15 @@ plot(log10(abs(chiD)),'Color','black')
 %plot(chi2,'Color','green')
 plot(t,px,'Color','cyan')
 legend('Ritz Values','RHS values','solution coefficients', ...
-       'polynomial interpolation')
+       'polynomial approxiamtion')
 figure;
 %
-%hold on;
-%plot(Itere(2*b2node2-1),'Color','red')
-%plot(ItereR(2*b2node2-1),'Color','blue')
-%plot(uref(2*b2node2-1),'Color','green')
-%legend('brutal solution','filtred solution', 'reference')
-%figure;
+hold on;
+plot(Itere(2*b2node2-1),'Color','red')
+plot(ItereR(2*b2node2-1),'Color','blue')
+plot(uref(2*b2node2-1),'Color','green')
+legend('brutal solution','filtred solution', 'reference')
+figure;
 %
 %hold on;
 %plot(Itere(2*b2node2),'Color','red')

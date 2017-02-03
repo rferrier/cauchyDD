@@ -10,8 +10,8 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 1;
-precond = 0;      % 1 : Use a dual precond, 2 : use regul precond
+niter   = 10;
+precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
 mu      = 0.;    % Regularization parameter
 br      = 0.;     % noise
 
@@ -279,8 +279,8 @@ end
 
 d(:,1) = Zed(:,1);
 
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 %%
@@ -310,8 +310,8 @@ for iter = 1:niter
     Itere         = Itere + d(:,iter)*num;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
     
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     if precond == 1

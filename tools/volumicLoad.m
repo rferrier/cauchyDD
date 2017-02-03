@@ -81,4 +81,3 @@ function f = volumicLoad( ntot, nodes, elems, axis, fscalar )
      end
  end
 end
-

@@ -662,7 +662,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dual SP with Orthodir (niter = 8)
 if find(methods==5)
-    niter   = 8;
+    niter   = 5;
     mu      = 0.0/E;      % Regularization parameter
     precond = 0;      % use a primal precond ?
     
@@ -676,6 +676,9 @@ if find(methods==5)
     error    = zeros(niter+1,1);
     residual = zeros(niter+1,1);
     regulari = zeros(niter+1,1);
+    
+%    fadd = zeros(2*nnodes_up,1); fadd(2:2:end) = -5000;
+%    Itere = keepField( fadd, 9, boundary_up ); % Initialize Itere
     
     %% Perform A x0 :
     % Solve 1

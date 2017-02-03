@@ -14,15 +14,14 @@ function [indm,p] = findPicard2 (x, varargin)
      d = cell2mat(varargin(1));
  end
  
+ maxi = 0;   % detect only the max
+ if numel(varargin)>1
+     maxi = cell2mat(varargin(2));
+ end
+ 
  t    = 1:npo;     % Dummy axis
  n  = floor(npo/d)+1;  % degree of polynoms
  indm = 0;
- 
- % build the derivation matrix
- Md = zeros(n+1);
- for i=2:n+1
-    Md(i,i-1) = n-i+2;
- end
  
  p = polyfit(t,x',n)';
  
@@ -31,10 +30,25 @@ function [indm,p] = findPicard2 (x, varargin)
     tt(j,:) = t.^(n+1-j);
  end
 
- p1 = Md*p;  % Derivative
- 
  px = p'*tt;  % interpolation
- px1 = p1'*tt; % interpolation of the derivative
+
+ if maxi == 1  % suppress the inferior values
+    inferior = find( x<px' );
+    tprim = t; tprim(inferior) = [];
+    xprim = x; xprim(inferior) = [];
+    n  = floor(size(xprim,1)/d)+1;  % reactualize degree of polynoms
+    p = polyfit(tprim,xprim',n)';
+    px = p'*tt(1:n+1,:);  % interpolation
+ end
+ 
+ % build the derivation matrix
+ Md = zeros(n+1);
+ for i=2:n+1
+    Md(i,i-1) = n-i+2;
+ end
+ 
+ p1 = Md*p;  % Derivative
+ px1 = p1'*tt(1:n+1,:); % interpolation of the derivative
 
  posit = find( px1>0 ); % Find the first point with px1>0
  if size(posit>0)
