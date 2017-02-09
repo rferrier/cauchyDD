@@ -5,7 +5,6 @@ close all;
 clear all;
 
 addpath(genpath('./tools'))
-%addpath(genpath('/usr/share/octave/packages/geometry-2.1.0')) % Geometry pkg
 
 % Parameters
 E       = 210000; % MPa : Young modulus
@@ -21,6 +20,7 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
 
 usefourier = 0;
 usepolys   = 1;
+plotref    = 0;
 
 if loadfield ~= 1
    tic
@@ -114,9 +114,6 @@ else  % loadfield == 2 : conformal mesh /!\
    fr1(indexbound2) = f1(indexbound);   fr2(indexbound2) = f2(indexbound);
 end
 
-%fr1p = Kinter2*ur1; fr2p = Kinter2*ur2;  % This is wrong inside the domain,
-% but should be right at its boundary provided the crack doesn't touch the boundary
-% Well no, actually, ti is wrong everywhere.
 tic
 neumann1   = [2,3,fscalar ; 1,3,-fscalar];
 neumann2   = [4,1,fscalar ; 6,1,-fscalar];
@@ -155,11 +152,6 @@ for i=1:nnodes2
    v6(3*i-1) = (1+nu)/(2*E)*z;
    v6(3*i)   = (1+nu)/(2*E)*y;
 end
-% Debug : check sigma
-%sigma1 = stress3D(v1,mat,nodes2,elements2,order,1,ntoelem2);
-%sigma2 = stress3D(v2,mat,nodes2,elements2,order,1,ntoelem2);
-%sigma3 = stress3D(v3,mat,nodes2,elements2,order,1,ntoelem2);
-%plotGMSH3D({sigma1,'sigma1';sigma2,'sigma2';sigma3,'sigma3'}, elements2, nodes2, 'sigmas');
 %
 f1 = Kinter2*v1;
 f2 = Kinter2*v2;
@@ -251,7 +243,7 @@ for i=1:nnodes2
    y = nodes2(i,2);
    z = nodes2(i,3);
    % Change base (for coordiantes)
-   ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)+K;
+   ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)-K;
    Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
 
    vloct = [ -X^2/(2*E) - nu*Y^2/(2*E) + (2+nu)*Z^2/(2*E) ;...
@@ -271,18 +263,6 @@ normT  = sqrt( abs( 2*(R11^2+R21^2+R31^2+2*(R41^2+R51^2+R61^2)) ...
 normT2 = sqrt( abs( 2*(R12^2+R22^2+R32^2+2*(R42^2+R52^2+R62^2)) ...
                     - 2*(R12+R22+R32)^2 ) );
 
-%% Debug : check sigma /!\ it's not straingtforward because diagonalization /!\
-%sigmat = stress3D(vt,mat,nodes2,elements2,order2,1,ntoelem2);
-%sigmav = stress3D(vv,mat,nodes2,elements2,order2,1,ntoelem2);
-%scalN = sparse(2*nnodes2, 3*nnodes2);
-%scalN( 1:2:2*nnodes2-1 , 1:3:3*nnodes2-2 ) = normal(1);
-%scalN( 1:2:2*nnodes2-1 , 3:3:3*nnodes2 ) = normal(2);
-%scalN( 2:2:2*nnodes2 , 2:3:3*nnodes2-1 ) = normal(2);
-%scalN( 2:2:2*nnodes2 , 3:3:3*nnodes2 ) = normal(1);
-%sigNt = scalN*sigmat;
-%plotGMSH({sigmat(1:3:3*nnodes2-2),'sigmat';...
-%                               Xs,'X';Ys,'Y'}, elements2, nodes2, 'sigmas');
-
 ft = Kinter2*vt;
 fv = Kinter2*vv;
 
@@ -295,7 +275,7 @@ Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
 
 % Reference : we know that the point P belongs to the plane.
-Pt = [4;3;1]; QPt = Q'*Pt; CteR = QPt(3);
+Pt = [4;3;1]; QPt = Q'*Pt; CteR = -QPt(3);
 
 %% Plot the crack, and its estimated plane
 %figure
@@ -354,7 +334,7 @@ if usefourier == 1
                   y = nodes2(i,2);
                   z = nodes2(i,3);
                   % Change base (for coordiantes)
-                  ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)-Cte;
+                  ixigrec = Q'*[x;y;z]; X = ixigrec(1); Y = ixigrec(2); Z = ixigrec(3)+Cte; %%%%%%%%%%!!!!!!!! + or - ?
                   Xs(i) = X; Ys(i) = Y; Zs(i) = Z;
                   
                   v1 = -I*lambdaxe*exp(-I*lambdaxe*X-I*lambdaye*Y)* ...
@@ -390,10 +370,6 @@ if usefourier == 1
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
          ckan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-%         bkan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
-%                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
-%         ckan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
-%                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
          dkan(kx,ky)   = -real(fournpp(kpx,kpy) - fournpm(kpx,kpy) -...
                                fournmp(kpx,kpy) + fournmm(kpx,kpy));
       end
@@ -561,28 +537,29 @@ if usepolys == 1
 %         neq = neq+1;
 %         Lhsca( neq, end) = E; Lhscb( neq, end) = -E; % akl = bkl
 %         neq = neq+1;
+
          for j=1:floor(l/2) % c0j = 0
-            Lhscc( neq, j+1 ) = 1;
+            Lhscc( neq, j+1 ) = E;
             neq = neq+1;
          end
-         Lhsca( neq, 1) = 1; Lhscb( neq, 1) = -1; % a00 = b00
+         Lhsca( neq, 1) = E; Lhscb( neq, 1) = -E; % a00 = b00
          neq = neq+1;
          % Purpose equation
          Lhsca( neq, 1) = lam*(k+1);
          Lhscb( neq, 1) = lam*(l+1);
          Lhscc( neq, 1) = (lam+2*mu);
-         Rhsco( neq ) = 1;
+         Rhsco( neq ) = Lx; % Because of the homotecy
          
          Lhsco = [ Lhsca , Lhscb , Lhscc ];
          
          % It's cleaner to remove the 0=0 equations at the end
-%         Lhsco(neq+1:end,:) = []; Rhsco(neq+1:end,:) = [];
+         Lhsco(neq+1:end,:) = []; Rhsco(neq+1:end,:) = [];
          
          % Solve the linear problem to find the coefficients
 %         coef{ k+1, l+1 } = Lhsco\Rhsco;
          
          % Ker stuff
-         U = null(Lhsco);
+         U = E*null(Lhsco);  % E* in order to have a better condition number
          Lhsto = [ Lhsco ; U' ]; Rhsto = [ Rhsco ; zeros(size(U,2), 1) ];
          Solpro = Lhsto\Rhsto;
          coef{ k+1, l+1 } = Solpro(1:sze);
@@ -613,7 +590,7 @@ if usepolys == 1
             z = nodes2(no,3);
             % Change base (for coordiantes)
             ixigrec = Q'*[x;y;z]; X = (ixigrec(1))/Lx; Y = ixigrec(2)/Lx;
-            Z = (ixigrec(3)-Cte)/Lx;
+            Z = (ixigrec(3)+Cte)/Lx;
             Xs(no) = X; Ys(no) = Y; Zs(no) = Z;
 
             % Build the xyz vector
@@ -654,7 +631,7 @@ if usepolys == 1
       end
    end
 
-   %% Build the Rhs : /!\ must have the same odd numerotation as previously
+   %% Build the Lhs : /!\ you must have the same odd numerotation as previously
    L1x = min(Xs); L2x = max(Xs);
    L1y = min(Ys); L2y = max(Ys);
    for i=0:ordp
@@ -664,13 +641,14 @@ if usepolys == 1
                ordx = i+k+1;
                ordy = j+l+1;
                Lhs(j+1+(ordp+1)*i,l+1+(ordp+1)*k) = ...
-                    (L2x^ordx - L1x^ordx)/ordx * (L2y^(ordy) - L1y^(ordy))/ordy;
+                    Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+                    % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
             end
          end
       end
    end
    
-   % Regularisation (separated in order to do L-curves)
+   %% Regularisation (separated in order to do L-curves)
    for i=1:ordp
       for j=1:ordp
          for k=1:ordp
@@ -708,27 +686,28 @@ if usepolys == 1
                                   (L2y^(ordy-1) - L1y^(ordy-1))/(ordy-1);
       end
    end
+   %% End of regularization terms
    
    McCoef = -(Lhs+regmu*Lhsr)\Rhs;  % - in order to have positive gap on the crack (sign is arbitrary)
    
-   Xs = Xs*Lx; Ys = Ys*Lx; % use the standard basis (no homotetical dilatation)
+   Xs = Xs*Lx; Ys = Ys*Lx; % use the standard basis (reverse homotetical dilatation)
    % plot the identified normal gap
    nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
    X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
-   solu = zeros(101,101);
+   solup = zeros(101,101);
    for k=0:ordp
       for l=0:ordp
-         solu = solu + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
+         solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
       end
    end
-   solu = solu'; % prepare for plot
+   solup = solup'; % prepare for plot
    % Center of the Circle
-   Cc = [4;3;1]; Cc = Q'*Cc; Rad = 2; zed = max(max(solu));
+   Cc = [4;3;1]; Cc = Q'*Cc; Rad = 2; zed = max(max(solup));
    
    figure;
    hold on;
 %   surf(X(4:end-3),Y(4:end-3),solu(4:end-3,4:end-3));
-   surf(X,Y,solu/Lx);   % The /Lx is arnaking very much
+   surf(X,Y,solup);   % The /Lx is arnaking very much
    shading interp;
    colorbar();
    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
@@ -740,7 +719,7 @@ if usepolys == 1
    % "Zoom"
    figure;
    hold on;
-   surf(X(7:end-6),Y(7:end-6),solu(7:end-6,7:end-6)/Lx); % Again
+   surf(X(7:end-6),Y(7:end-6),solup(7:end-6,7:end-6)); % Again
    shading interp;
    colorbar();
    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
@@ -748,6 +727,52 @@ if usepolys == 1
                                   'Color', 'black',  'LineWidth', 3 );
 %   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
    axis('equal');
-
+   
    disp([ 'Polynomial method ', num2str(toc) ]);
+end
+
+% Plot on the line X = 4
+figure;
+hold on;
+nys = (max(Ys)-min(Ys))/100;
+Y = min(Ys):nys:max(Ys); X = 4;
+
+if usefourier == 1
+   solu = fournpp(1,1);
+   for kpx=2:nbase+1
+      for kpy=2:nbase+1
+         solu = solu + akan(kpx-1,kpy-1)*cos(lambdax(kpx)*X)*cos(lambday(kpy)*Y)...
+                     + bkan(kpx-1,kpy-1)*cos(lambdax(kpx)*X)*sin(lambday(kpy)*Y)...
+                     + ckan(kpx-1,kpy-1)*sin(lambdax(kpx)*X)*cos(lambday(kpy)*Y)...
+                     + dkan(kpx-1,kpy-1)*sin(lambdax(kpx)*X)*sin(lambday(kpy)*Y);
+      end
+   end
+   
+   plot( Y, solu, 'Color', 'blue' );
+end
+
+if usepolys == 1
+   solup = 0;
+   for k=0:ordp
+      for l=0:ordp
+         solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
+      end
+   end
+   
+   plot( Y, solup, 'Color', 'black' );
+end
+
+% And the reference
+if plotref == 1
+   X = X*ones(size(Y));
+   Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
+   XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
+   XYZ2 = Q*[X;Y;Z2];
+   Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
+   Uxyz = Uxyz'(:); % Re-stick the components together
+   
+   uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
+   uplo = uplo(304:end)-uplo(1:303);%  % Compute the gap
+   plot( Y, uplo(3:3:end,1), 'Color', 'red' );
+   %legend
 end

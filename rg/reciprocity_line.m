@@ -21,7 +21,7 @@ usepolys   = 1;
 nbase = 2; % Number of Fourier basis functions
 ordp = 5;  % Number of Polynomial basis functions
 
-useorder = 2; % Order of the FE computation
+useorder = 1; % Order of the FE computation
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -35,7 +35,7 @@ neumann2   = [2,1,fscalar ; 4,1,-fscalar];
 
 % First, import the mesh
 if useorder == 1
-   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate_c.msh' );
 elseif useorder == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_ct6.msh' );
 end
@@ -92,7 +92,7 @@ plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'refer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
 if useorder == 1
-   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_n.msh' );
+   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/plate_n.msh' );
 elseif useorder == 2
    [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nt6.msh' );
 end
@@ -509,7 +509,7 @@ end
 if usepolys == 1
    % First, build the polynomial test functions.
    coef = zeros(ordp+2, ordp+1);
-   coef( 1:2, 1 ) = [-(1-nu^2)/(nu*E) ; 0];
+   coef( 1:2, 1 ) = L*[-(1-nu^2)/(nu*E) ; 0]; % L* because of the homotecy
    
    for k = 1:ordp
       Rhsco = zeros(k+1,1);
@@ -536,19 +536,17 @@ if usepolys == 1
          Lhsco(2*i,2*i+2) = 2*i*(2*i+1)*E/(1-nu^2) ; %b_i
       end
    
-      C = [ eye(2) , zeros(2,k)];
-      Lhsco = [ Lhsco ; C ]; % find an unique solution
-      Rhsco = [ Rhsco ; azero ; 0 ];
+      C = [ eye(2) , zeros(2,k)]; %impose a0 = a0 and b0 = 0 ...
+      Lhsco = [ Lhsco ; C ]; % ... in order to find an unique solution
+      Rhsco = L*[ Rhsco ; azero ; 0 ];% Alternatively, you can remove ..
+        % the L* on Rhsco and Lhs (it's because of the variable change )
       
       Lhsco(size(Lhsco,1)-2,:) = [];  % 'cause square matrix is life
       Rhsco(size(Rhsco,1)-2,:) = [];
       
       coef( 1:k+2, k+1 ) = Lhsco\Rhsco;
-   %   Rhsco = [ Rhsco ; azero ; 0 ]  %impose a0 = a0 and b0 = 0 with Lagrange
-   %   C = [ eye(2) , zeros(2,k-1)];
-   %   Lhsco = [ Lhsco , C' ; C , zeros(2,2) ]
    end
-   
+
    % Place zeros in coef
    coefa = coef;
    coefb = coef;
@@ -580,15 +578,15 @@ if usepolys == 1
          vxy = Q*vloc; vpa(2*i-1) = vxy(1); vpa(2*i) = vxy(2);
       end
       fpa = Kinter2*vpa;
-      Rhs(k+1) = (fr1'*vpa - fpa'*ur1);
+      Rhs(k+1) = (fr1'*vpa - fpa'*ur1); 
    end
    
-   L1 = offset; L2 = offset+L;
+%   L1 = offset; L2 = offset+L;
    L1 = 0; L2 = 1;
    for i=0:ordp
       for j=0:ordp
          ord = i+j+1;
-         Lhs(i+1,j+1) = (L2^ord - L1^ord)/ord;
+         Lhs(i+1,j+1) = L*(L2^ord - L1^ord)/ord;
          if i>1 && j>1
             Lhs(i+1,j+1) = Lhs(i+1,j+1) + mu*i*j/(i+j-1)*...
                                           (L2^(i+j-1) - L1^(i+j-1));

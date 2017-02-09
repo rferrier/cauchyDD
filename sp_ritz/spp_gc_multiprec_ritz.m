@@ -15,7 +15,7 @@ niter   = 8;
 br      = 0.;     % noise
 epsilon = 1e-100;   % Convergence criterion for ritz value
 ratio   = 1e-500;   % Max ratio between eigenvalues
-ntrunc  = 5;
+ntrunc  = 0;
 
 % Boundary conditions
 % first index  : index of the boundary

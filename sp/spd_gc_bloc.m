@@ -224,7 +224,7 @@ for iter = 1:niter
     if precond == 1
        % Solve 1 (Dd)
        f11 = dirichletRhs2( Res(:,2*iter+1), 2, c2node1, boundaryp1, nnodes );
-       f12 = dirichletRhs2( Res(:,2*iter), 2, c2node1, boundaryp1, nnodes );
+       f12 = dirichletRhs2( Res(:,2*iter+2), 2, c2node1, boundaryp1, nnodes );
        uin1 = K1\[f11,f12];
        lagr1 = uin1(2*nnodes+1:end,:);
        lamb11 = lagr2forces( lagr1(:,1), C1, 2, boundaryp1 );
