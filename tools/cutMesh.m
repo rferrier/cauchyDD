@@ -65,6 +65,7 @@ function [nodes1, elements1, boundary1, map1...
  elements1 = map1(elements1);
  elements2 = map2(elements2);
  
+ tosuppr1 = []; tosuppr2 = [];
  % Suppress floating boundary elements
  for i=1:size(boundary,1)
     if ~isempty( find( killed1 == boundary(i,2) ) ) ||...

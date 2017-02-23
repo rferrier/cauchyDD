@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.01;      % noise
+br      = 0.;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [10];
+methods = [9];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -639,7 +639,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Primal SP with Orthodir (niter = 10)
 if find(methods==4)
-    niter   = 5;
+    niter   = 10;
     mu      = 0;      % Regularization parameter
     precond = 0;      % use a dual precond ?
     
@@ -659,12 +659,13 @@ if find(methods==4)
     f1 = dirichletRhs2( Itere, 3, c2node1, boundaryp, nnodes );
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+%    lamb1 = lagr2forces( lagr1, C1, 3, boundaryp ); % Old slower version
+    lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
     % Solve 2
     f2 = dirichletRhs2( Itere, 3, c2node2, boundaryp, nnodes );
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+    lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
     % Regularization term
     Nu = regul(Itere, nodes, boundaryp, 3);
     %
@@ -709,15 +710,16 @@ if find(methods==4)
 
     %% Perform Q1 = A P1 :
     % Solve 1
-    f1 = dirichletRhs(p(:,1), 3, C1, boundaryp);
+%    f1 = dirichletRhs(p(:,1), 3, C1, boundaryp); Older slower version
+    f1 = dirichletRhs2( p(:,1), 3, c2node1, boundaryp, nnodes );
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+    lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
     % Solve 2
-    f2 = dirichletRhs(p(:,1), 3, C2, boundaryp);
+    f2 = dirichletRhs2( p(:,1), 3, c2node2, boundaryp, nnodes );
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+    lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
     % Regularization term
     Nu = regul(p(:,1), nodes, boundaryp, 3);
     %
@@ -757,16 +759,16 @@ if find(methods==4)
         %% Perform Ari = A*Res
         % Solve 1
         rhs1 = Zed(:,iter+1);
-        f1 = dirichletRhs(rhs1, 3, C1, boundaryp);
+        f1 = dirichletRhs2( rhs1, 3, c2node1, boundaryp, nnodes );
         uin1 = K1\f1;
         lagr1 = uin1(2*nnodes+1:end,1);
-        lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+        lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
         % Solve 2
         rhs2 = Zed(:,iter+1);
-        f2 = dirichletRhs(rhs2, 3, C2, boundaryp);
+        f2 = dirichletRhs2( rhs2, 3, c2node2, boundaryp, nnodes );
         uin2 = K2\f2;
         lagr2 = uin2(2*nnodes+1:end,1);
-        lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+        lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
         % Regularization term
         Nu = regul(Zed(:,iter+1), nodes, boundaryp, 3);
         %
@@ -878,17 +880,17 @@ if find(methods==5)
     %% Preconditionning
     if precond == 1
         % Solve 1
-        f1 = dirichletRhs(Res(:,1)/2, 3, C1, boundaryp);
+        f1 = dirichletRhs2( Res(:,1)/2, 3, c2node1, boundaryp, nnodes );
         uin1 = K1\f1;
         lagr1 = uin1(2*nnodes+1:end,1);
-        lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+        lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
         % Solve 2
-        f2 = dirichletRhs(Res(:,1)/2, 3, C2, boundaryp);
+        f2 = dirichletRhs2( Res(:,1)/2, 3, c2node2, boundaryp, nnodes );
         uin2 = K2\f2;
         lagr2 = uin2(2*nnodes+1:end,1);
-        lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+        lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
         %
-        Zed(:,1) = lamb1/2-lamb2/2;        
+        Zed(:,1) = -lamb2/2;%lamb1/2-lamb2/2;        
     else
         Zed(:,1) = Res(:,1);
     end
@@ -926,17 +928,17 @@ if find(methods==5)
 
         if precond == 1
             % Solve 1
-            f1 = dirichletRhs(Res(:,iter+1)/2, 3, C1, boundaryp);
+            f1 = dirichletRhs2( Res(:,iter+1)/2, 3, c2node1, boundaryp, nnodes );
             uin1 = K1\f1;
             lagr1 = uin1(2*nnodes+1:end,1);
-            lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+            lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
             % Solve 2
-            f2 = dirichletRhs(Res(:,iter+1)/2, 3, C2, boundaryp);
+            f2 = dirichletRhs2( Res(:,iter+1)/2, 3, c2node2, boundaryp, nnodes );
             uin2 = K2\f2;
             lagr2 = uin2(2*nnodes+1:end,1);
-            lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+            lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
             %
-            Zed(:,iter+1) = lamb1/2-lamb2/2; 
+            Zed(:,iter+1) = -lamb2/2;%lamb1/2-lamb2/2; 
         else
             Zed(:,iter+1) = Res(:,iter+1);
         end
@@ -1587,7 +1589,7 @@ end
 %%
 if find(methods==9)
    niter   = 10;
-   precond = 0;      % 1 : Use a dual precond
+   precond = 1;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
    
@@ -1607,12 +1609,12 @@ if find(methods==9)
    f1 = dirichletRhs2( Itere, 3, c2node1, boundaryp, nnodes );
    uin1 = K1\f1;
    lagr1 = uin1(2*nnodes+1:end,1);
-   lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+   lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
    % Solve 2
    f2 = dirichletRhs2( Itere, 3, c2node2, boundaryp, nnodes );
    uin2 = K2\f2;
    lagr2 = uin2(2*nnodes+1:end,1);
-   lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+   lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
    %
    Axz = lamb1-lamb2;
    %% Compute Rhs :
@@ -1673,16 +1675,16 @@ if find(methods==9)
        
        % Solve 1
        rhs1 = d(:,iter);
-       f1 = dirichletRhs(rhs1, 3, C1, boundaryp);
+       f1 = dirichletRhs2( rhs1, 3, c2node1, boundaryp, nnodes );
        uin1 = K1\f1;
        lagr1 = uin1(2*nnodes+1:end,1);
-       lamb1 = lagr2forces( lagr1, C1, 3, boundaryp );
+       lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
        % Solve 2
        rhs2 = d(:,iter);
-       f2 = dirichletRhs(rhs2, 3, C2, boundaryp);
+       f2 = dirichletRhs2( rhs2, 3, c2node2, boundaryp, nnodes );
        uin2 = K2\f2;
        lagr2 = uin2(2*nnodes+1:end,1);
-       lamb2 = lagr2forces( lagr2, C2, 3, boundaryp );
+       lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
        %
        Ad(:,iter) = lamb1-lamb2;
        
@@ -1709,11 +1711,11 @@ if find(methods==9)
        end
        
        % Needed values for the Ritz stuff
-       %alpha(iter) = num/sqrt(den);
-       alpha(iter) = Res(indexxy,iter)'*Res(indexxy,iter) / den;
-       %beta(iter)  = - Zed(indexxy,iter+1)'*Ad(indexxy,iter)/sqrt(den);
-       beta(iter)  = Zed(indexxy,iter+1)'*Res(indexxy,iter+1) /... 
-                                   (Zed(indexxy,iter)'*Res(indexxy,iter));
+       alpha(iter) = num/sqrt(den);
+       %alpha(iter) = Res(indexxy,iter)'*Res(indexxy,iter) / den;
+       beta(iter)  = - Zed(indexxy,iter+1)'*Ad(indexxy,iter)/sqrt(den);
+       %beta(iter)  = Zed(indexxy,iter+1)'*Res(indexxy,iter+1) /... 
+        %                           (Zed(indexxy,iter)'*Res(indexxy,iter));
        
        % First Reorthogonalize the residual (as we use it next), in sense of M
        for jter=1:iter
@@ -1810,6 +1812,40 @@ if find(methods==9)
        end
    end
    
+   % Compute the solution
+   chi = inv(Theta1)*Y'*b;
+   if ntrunc > 0
+      chi(ntrunc:end) = 0;
+   end
+   ItereR = Y*chi;
+   
+   regS = zeros(niter,1);
+   resS = zeros(niter,1);
+   %% Build the L-curve regul, ntrunc
+   for i = 1:iter+1
+      chiS   = inv(Theta1)*Y'*b; chiS(i:end) = 0;
+      ItereS = Y*chiS;
+      % Solve 1
+      rhs1 = ItereS;
+      f1 = dirichletRhs2( rhs1, 3, c2node1, boundaryp, nnodes );
+      uin1 = K1\f1;
+      lagr1 = uin1(2*nnodes+1:end,1);
+      lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
+      % Solve 2
+      rhs2 = ItereS;
+      f2 = dirichletRhs2( rhs2, 3, c2node2, boundaryp, nnodes );
+      uin2 = K2\f2;
+      lagr2 = uin2(2*nnodes+1:end,1);
+      lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
+      %
+      AI = lamb1-lamb2;
+      
+      ResS = AI-b;
+      resS(i) = norm(ResS);   
+      regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 3) );
+      errS(i) = norm(ItereS(indexxy)-uref(indexxy))/norm(uref(indexxy));
+   end
+   
 %   figure
 %   hold on
 %   set(gca, 'fontsize', 15);
@@ -1832,20 +1868,16 @@ if find(methods==9)
       regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 3) );
    end
    % RL-curve
-   figure
-   loglog(resD(2:iter),regD(2:iter),'-+');
+%   figure
+%   loglog(resD(2:iter),regD(2:iter),'-+');
 %   % L-curve
    figure
-   loglog(residual/residual(1),regulari,'-+');
+   hold on;
+   loglog(resS(2:iter+1),regS(2:iter+1),'-*','Color','red');
+   loglog(residual(2:iter+1),regulari(2:iter+1),'-+');
+   legend('RL-curve','L-curve')
 %   ntrunc = findCorner (resD(2:iter), regD(2:iter), 3)
 %   findCorner (residual(2:iter)', regulari(2:iter)', 3);
-   
-   % Compute the solution
-   chi = inv(Theta1)*Y'*b;
-   if ntrunc > 0
-      chi(ntrunc:end) = 0;
-   end
-   ItereR = Y*chi;
    
 %   figure
 %   hold on
@@ -1866,25 +1898,26 @@ if find(methods==9)
    
 %   usoli = K \ fdir3 ;
 %   usol = usoli(1:2*nnodes,1);
+   efeR = Kinter*usolR;
 
    % Compute stress :
    sigma = stress(usolR,E,nu,nodes,elements,order,1,ntoelem,1);
    plotGMSH({usolR,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
    
    % Plot displacement on the interface :
-   efeR = Kinter*usolR;
-   figure
-   hold on
-   set(gca, 'fontsize', 15);
-   plot(thetax,usolR(index,1));
-   plot(thetax,usolR(index-1,1), 'Color', 'red');
-   xlabel('angle(rad)')
-   figure
-   hold on
-   set(gca, 'fontsize', 15);
-   plot(thetax,efeR(index,1));
-   plot(thetax,efeR(index-1,1), 'Color', 'red');
-   xlabel('angle(rad)')
+%   efeR = Kinter*usolR;
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(thetax,usolR(index,1));
+%   plot(thetax,usolR(index-1,1), 'Color', 'red');
+%   xlabel('angle(rad)')
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 15);
+%   plot(thetax,efeR(index,1));
+%   plot(thetax,efeR(index-1,1), 'Color', 'red');
+%   xlabel('angle(rad)')
    
 %   efe = Kinter*usol;
 %   figure
@@ -2080,6 +2113,33 @@ if find(methods==10)
       chi(ntrunc:end) = 0;
    end
    ItereR = Y*chi;
+   
+%   regS = zeros(niter,1);
+%   resS = zeros(niter,1);
+%   %% Build the L-curve regul, ntrunc
+%   for i = 1:iter+1
+%      chiS   = inv(Theta1)*Y'*b; chiS(i:end) = 0;
+%      ItereS = Y*chiS;
+%      
+%      rhs1 = ItereS;
+%      f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+%      uin1 = K1\f1;
+%      lagr1 = uin1(2*nnodes+1:end,1);
+%      lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+%      % Solve 2
+%      rhs2 = ItereS;
+%      f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+%      uin2 = K2\f2;
+%      lagr2 = uin2(2*nnodes+1:end,1);
+%      lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+%      % Regularization term
+%      AI = lamb1-lamb2;
+%      
+%      ResS = AI-b;
+%      resS(i) = norm(ResS);   
+%      regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
+%      errS(i) = norm(ItereS(indexa)-uref(indexa))/norm(uref(indexa));
+%   end
    
    figure
    hold on

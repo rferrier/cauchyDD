@@ -1,4 +1,4 @@
-% 01/12/2016 : Algo de Schur Dual avec plusieurs sous-domaines
+% 23/02/2017 : Couplage entre Cauchy et décomposition de domaines
 
 clear all;
 close all;
