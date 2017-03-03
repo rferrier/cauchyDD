@@ -7,3 +7,4 @@ addpath( genpath('./sp') );
 addpath( genpath('./testCases') );
 addpath( genpath('./tools') );
 addpath( genpath('./rg') );
+addpath( genpath('./cauchyDD') );

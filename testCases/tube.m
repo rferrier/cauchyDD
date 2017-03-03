@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.;      % noise
+br      = 0.1;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
@@ -110,7 +110,7 @@ end
 %% KMF algo : 10 iterations
 if find(methods==1)
 
-    niter = 100;
+    niter = 10;
     relax = 0;  % Computation of the best relaxtion parameter
     
     % init :
@@ -1662,7 +1662,7 @@ if find(methods==9)
    d(:,1) = Zed(:,1);
    %Ad(:,1) = AZed(:,1);
    
-   residual(1) = norm(Res( indexxy,1));
+   residual(1) = sqrt(Res(indexxy,1)'*Zed(indexxy,1));%norm(Res( indexxy,1));
    error(1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
    regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
    
@@ -1695,10 +1695,6 @@ if find(methods==9)
        Itere         = Itere + d(:,iter)*num;%/den;
        Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
        
-       residual(iter+1) = norm(Res(indexxy,iter+1));
-       error(iter+1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
-       regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
-       
        if precond == 1
            % Solve 1
            f1 = [Res(:,iter+1); zeros(nbloq1d,1)];
@@ -1709,6 +1705,17 @@ if find(methods==9)
        else
            Zed(:,iter+1) = Res(:,iter+1);
        end
+       
+       % Solve 1 for brute force regulari computation
+       rhs1 = Itere;
+       f1 = dirichletRhs2( rhs1, 3, c2node1, boundaryp, nnodes );
+       uin1 = K1\f1;
+       lagr1 = uin1(2*nnodes+1:end,1);
+       SdItere = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
+    
+       residual(iter+1) = sqrt(Res(indexxy,iter+1)'*Zed(indexxy,iter+1));%norm(Res(indexxy,iter+1));
+       error(iter+1)    = norm(Itere(indexxy) - uref(indexxy)) / norm(uref(indexxy));
+       regulari(iter+1) = sqrt(Itere'*SdItere);%sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
        
        % Needed values for the Ritz stuff
        alpha(iter) = num/sqrt(den);
@@ -1839,10 +1846,19 @@ if find(methods==9)
       lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
       %
       AI = lamb1-lamb2;
+      SdItere = lamb1;
       
       ResS = AI-b;
-      resS(i) = norm(ResS);   
-      regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 3) );
+
+      % Solve 1
+      f1 = [ResS; zeros(nbloq1d,1)];
+      uin1 = K1d\f1;
+      u1i = uin1(1:2*nnodes,1);
+      u1 = keepField( u1i, 3, boundaryp );
+      ZedS = u1;
+   
+      resS(i) = sqrt(ResS'*ZedS);%norm(ResS);   
+      regS(i) = sqrt(ItereS'*SdItere);%sqrt( ItereS'*regul(ItereS, nodes, boundary, 3) );
       errS(i) = norm(ItereS(indexxy)-uref(indexxy))/norm(uref(indexxy));
    end
    

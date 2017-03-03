@@ -53,8 +53,8 @@ function [nodes1, elements1, boundary1, map1...
  end
  
  % Ensure the last index
- map1(end) = nnodes-j+1;
- map2(end) = nnodes-k+1;
+ map1(end) = nnodes-j+1; map1( find(map1>nnodes-j+1) ) = nnodes-j+1;
+ map2(end) = nnodes-k+1; map2( find(map2>nnodes-k+1) ) = nnodes-k+1;
 
  nodes1( killed1, : ) = [];
  nodes2( killed2, : ) = [];

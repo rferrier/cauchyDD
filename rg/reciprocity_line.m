@@ -18,8 +18,8 @@ dolcurve   = 0;      % Do a L-curve or not
 usefourier = 0;
 usepolys   = 1;
 
-nbase = 2; % Number of Fourier basis functions
-ordp = 5;  % Number of Polynomial basis functions
+nbase = 3; % Number of Fourier basis functions
+ordp = 4;  % Number of Polynomial basis functions
 
 useorder = 1; % Order of the FE computation
 
@@ -35,7 +35,7 @@ neumann2   = [2,1,fscalar ; 4,1,-fscalar];
 
 % First, import the mesh
 if useorder == 1
-   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate_c.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c.msh' );
 elseif useorder == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_ct6.msh' );
 end
@@ -92,7 +92,7 @@ plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'refer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
 if useorder == 1
-   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/plate_n.msh' );
+   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_n.msh' );
 elseif useorder == 2
    [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nt6.msh' );
 end

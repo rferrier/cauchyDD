@@ -19,10 +19,10 @@ dolcurve   = 0;      % Do a L-curve or not
 usefourier = 0;
 usepolys   = 1;
 
-nbase = 2; % Number of Fourier basis functions
-ordp = 5;  % Number of Polynomial basis functions
+nbase = 3; % Number of Fourier basis functions
+ordp = 9;  % Number of Polynomial basis functions
 
-useorder = 1; % Order of the FE computation
+useorder = 2; % Order of the FE computation
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -36,7 +36,7 @@ neumann2   = [2,1,fscalar ; 4,1,-fscalar];
 
 % First, import the mesh
 if useorder == 1
-   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate_c.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c.msh' );
 elseif useorder == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_ct6.msh' );
 end
@@ -93,7 +93,7 @@ plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'refer
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
 if useorder == 1
-   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/plate_n.msh' );
+   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_n.msh' );
 elseif useorder == 2
    [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nt6.msh' );
 end
@@ -218,43 +218,35 @@ for i=1:nboun1
       extnorm1(i,:) = -extnorm1(i,:);
    end
    
-   % sigma(ur)
-   for j=1:size(elements,2)
-      map(1,[2*j-1,2*j]) = [ 2*elements(elt,j)-1 , 2*elements(elt,j) ];
-   end
-   ue1 = u1(map); ue2 = u2(map);
+   % ur
    urr1(i,1:4) = u1( [2*no1-1,2*no1,2*no2-1,2*no2] );
    urr2(i,1:4) = u2( [2*no1-1,2*no1,2*no2-1,2*no2] );
-   Sm = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
-   if order==1
-      S = abs( .5*((x2-x1)*(y3-y1)-(x3-x1)*(y2-y1)) );% element area
-      Be=[y2-y3,0,y3-y1,0,y1-y2,0;
-          0,x3-x2,0,x1-x3,0,x2-x1;
-          x3-x2,y2-y3,x1-x3,y3-y1,x2-x1,y1-y2]/(2*S);
-      sigr1(i,:) = transpose(inv(Sm)*Be*ue1);
-      sigr2(i,:) = transpose(inv(Sm)*Be*ue2);
+   if order == 2
+      no4 = boundary(i,4);
+      urr1(i,5:6) = u1( [2*no4-1,2*no4] );
+      urr2(i,5:6) = u2( [2*no4-1,2*no4] );
    end
 end
 
 %% First determine the crack's line.
 % Compute and apply v fields (for plane constraint)
-v1 = zeros(2*nnodes2, 1);
-v2 = zeros(2*nnodes2, 1);
-v3 = zeros(2*nnodes2, 1);
-for i=1:nnodes2
-   x = nodes2(i,1);
-   y = nodes2(i,2);
-   v1(2*i-1) = 1/E*x;
-   v2(2*i-1) = -nu/E*x;
-   v3(2*i-1) = (1+nu)/(2*E)*y;
-   v1(2*i)   = -nu/E*y;
-   v2(2*i)   = 1/E*y;
-   v3(2*i)   = (1+nu)/(2*E)*x;
-end
-%
-f1 = Kinter2*v1;
-f2 = Kinter2*v2;
-f3 = Kinter2*v3;
+%v1 = zeros(2*nnodes2, 1);
+%v2 = zeros(2*nnodes2, 1);
+%v3 = zeros(2*nnodes2, 1);
+%for i=1:nnodes2
+%   x = nodes2(i,1);
+%   y = nodes2(i,2);
+%   v1(2*i-1) = 1/E*x;
+%   v2(2*i-1) = -nu/E*x;
+%   v3(2*i-1) = (1+nu)/(2*E)*y;
+%   v1(2*i)   = -nu/E*y;
+%   v2(2*i)   = 1/E*y;
+%   v3(2*i)   = (1+nu)/(2*E)*x;
+%end
+%%
+%f1 = Kinter2*v1;
+%f2 = Kinter2*v2;
+%f3 = Kinter2*v3;
 
 % Clean redondant stuff in indexbound2
 i = 1;
@@ -266,59 +258,84 @@ while i <= size(indexbound2,1)
    i = i+1;
 end
 
-R11e = (fr1(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur1(indexbound2));
-R21e = (fr1(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur1(indexbound2));
-R31e = (fr1(indexbound2)'*v3(indexbound2) - f3(indexbound2)'*ur1(indexbound2));
-%[R11s, R31s ; R31s, R21s]
+%R11e = (fr1(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur1(indexbound2));
+%R21e = (fr1(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur1(indexbound2));
+%R31e = (fr1(indexbound2)'*v3(indexbound2) - f3(indexbound2)'*ur1(indexbound2));
+%%[R11s, R31s ; R31s, R21s]
+%
+%R12e = (fr2(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur2(indexbound2));
+%R22e = (fr2(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur2(indexbound2));
+%R32e = (fr2(indexbound2)'*v3(indexbound2) - f3(indexbound2)'*ur2(indexbound2));
 
-R12e = (fr2(indexbound2)'*v1(indexbound2) - f1(indexbound2)'*ur2(indexbound2));
-R22e = (fr2(indexbound2)'*v2(indexbound2) - f2(indexbound2)'*ur2(indexbound2));
-R32e = (fr2(indexbound2)'*v3(indexbound2) - f3(indexbound2)'*ur2(indexbound2));
-
-% Second method : loop over boundaries to comput the integral
+% Second method : loop over boundaries to compute the integrals
 R11 = 0; R21 = 0; R31 = 0; R12 = 0; R22 = 0; R32 = 0;
 for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
    bonod = boundary2(i,:); exno = extnorm2(i,:)';
-   uer1 = urr1(i,:)'; uer2 = urr2(i,:)';
+
    no1 = bonod(2); no2 = bonod(3);
    x1 = nodes2(no1,1); y1 = nodes2(no1,2);
    x2 = nodes2(no2,1); y2 = nodes2(no2,2);
    len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
    
-   % Compute sigma.n
-   sier1 = sigr1(i,:)'; sier2 = sigr2(i,:)';
+%   % Compute sigma.n
    nomat = [ exno(1), 0, exno(2) ; ...
              0, exno(2), exno(1) ];% Such that sigma.n = nomat*sier
-   if order==1
-      fer1 = nomat*sier1;
-      fer2 = nomat*sier2; % 1 Gauss Point
-      uer1 = .5*transpose( (urr1(i,1:2)+urr1(i,3:4)) ); % [ux;uy] on the middle point
-      uer2 = .5*transpose( (urr2(i,1:2)+urr2(i,3:4)) );
-   end
    
-   % Test fields
-   v1(2*i-1) = 1/E*x;
-   v2(2*i-1) = -nu/E*x;
-   v3(2*i-1) = (1+nu)/(2*E)*y;
-   v1(2*i)   = -nu/E*y;
-   v2(2*i)   = 1/E*y;
-   v3(2*i)   = (1+nu)/(2*E)*x;
-   s1 = [1;0;0]; s2 = [0;1;0]; s3 = [0;0;1];
    if order==1
-      xg = (x1+x2)/2; yg = (y1+y2)/2;
-      f1 = nomat*s1; f2 = nomat*s2; f3 = nomat*s3;
-      v1 = 1/E*[ xg ; -nu*yg ];
-      v2 = 1/E*[ -nu*xg ; yg ];
-      v3 = (1+nu)/(2*E)*[ yg ; xg ];
+      Ng = 1;
+   elseif order==2
+      Ng  = 2; no3 = bonod(4);
+      x3  = nodes2(no3,1); y3 = nodes2(no3,2);
+   end
+   [ Xg, Wg ] = gaussPt1d( Ng );
+             
+   for j=1:Ng
+      xg = Xg(j); wg = Wg(j);
       
-      R11 = R11 + len * ( fer1'*v1 - f1'*uer1 ); % Integral with 1 Gauss Point
-      R21 = R21 + len * ( fer1'*v2 - f2'*uer1 );
-      R31 = R31 + len * ( fer1'*v3 - f3'*uer1 );
-      R12 = R12 + len * ( fer2'*v1 - f1'*uer2 );
-      R22 = R22 + len * ( fer2'*v2 - f2'*uer2 );
-      R32 = R32 + len * ( fer2'*v3 - f3'*uer2 );
+      % Interpolations
+      if order==1
+         uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
+         uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
+         xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
+      elseif order==2
+         uer1 = transpose( urr1(i,1:2) + ...
+                xg*(4*urr1(i,5:6)-3*urr1(i,1:2)-urr1(i,3:4)) + ...   % [ux;uy] on the
+                xg^2*(2*urr1(i,3:4)+2*urr1(i,1:2)-4*urr1(i,5:6)) ); % Gauss point
+         uer2 = transpose( urr2(i,1:2) + ...
+                xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
+                xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
+         xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
+                xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+      end
+
+      % Reference force from the BC's
+      if exno(1) == 1
+         fer1 = [0;0]; fer2 = [fscalar;0];
+      elseif exno(1) == -1
+         fer1 = [0;0]; fer2 = -[fscalar;0];
+      elseif exno(2) == 1
+         fer1 = [0;fscalar]; fer2 = [0;0];
+      elseif exno(2) == -1
+         fer1 = -[0;fscalar]; fer2 = [0;0];
+      end
+
+       % Test fields
+      s1 = [1;0;0]; s2 = [0;1;0]; s3 = [0;0;.5];
+      f1 = nomat*s1; f2 = nomat*s2; f3 = nomat*s3;
+      v1 = 1/E*[ xgr(1) ; -nu*xgr(2) ];
+      v2 = 1/E*[ -nu*xgr(1) ; xgr(2) ];
+      v3 = (1+nu)/(2*E)*[ xgr(2) ; xgr(1) ];
+
+      R11 = R11 + len * wg * ( fer1'*v1 - f1'*uer1 ); % increment the integral
+      R21 = R21 + len * wg * ( fer1'*v2 - f2'*uer1 );
+      R31 = R31 + len * wg * ( fer1'*v3 - f3'*uer1 );
+      R12 = R12 + len * wg * ( fer2'*v1 - f1'*uer2 );
+      R22 = R22 + len * wg * ( fer2'*v2 - f2'*uer2 );
+      R32 = R32 + len * wg * ( fer2'*v3 - f3'*uer2 );
    end
 end
+%RRe = [R11e,R31e;R31e,R21e];
+%RR  = [R11,R31;R31,R21];
 
 % Normalize R1
 %R11 = R1d; R21 = R2d; R31 = R3d;%DEBUG
@@ -433,48 +450,94 @@ axis('equal');
 
 % First, find the minimal point (in order to have Cte < 0)
 norep = Q'*nodes'; K = min(norep(2,:));
-
-vt = zeros(2*nnodes2, 1);
-%vn = zeros(2*nnodes2, 1);
-Xs = zeros(nnodes2, 1);
-Ys = zeros(nnodes2, 1);
-for i=1:nnodes2
-   x = nodes2(i,1);
-   y = nodes2(i,2);
-   % Change base (for coordiantes)
-   ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)-K;
-   Xs(i) = X; Ys(i) = Y;
-
-   vloc = [ -X^2/(2*E) + (2+nu)*Y^2/(2*E) ; nu*X*Y/E ];
-   % Change base (for vector), in the other direction
-   vxy = Q*vloc; vt(2*i-1) = vxy(1); vt(2*i) = vxy(2);
-end
+%
+%vt = zeros(2*nnodes2, 1);
+%%vn = zeros(2*nnodes2, 1);
+%Xs = zeros(nnodes2, 1);
+%Ys = zeros(nnodes2, 1);
+%for i=1:nnodes2
+%   x = nodes2(i,1);
+%   y = nodes2(i,2);
+%   % Change base (for coordiantes)
+%   ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)-K;
+%   Xs(i) = X; Ys(i) = Y;
+%
+%   vloc = [ -X^2/(2*E) + (2+nu)*Y^2/(2*E) ; nu*X*Y/E ];
+%   % Change base (for vector), in the other direction
+%   vxy = Q*vloc; vt(2*i-1) = vxy(1); vt(2*i) = vxy(2);
+%end
 
 % Norm of [[ut]] (case 1)
 normT  = sqrt( abs( 2*(R11^2+R21^2+2*R31^2) - 2*(R11+R21)^2 ) );
 normT2 = sqrt( abs( 2*(R12^2+R22^2+2*R32^2) - 2*(R12+R22)^2 ) );
 
-%% Debug : check sigma /!\ it's not straingtforward because diagonalization /!\
-%sigmat = stress(vt,E,nu,nodes2,elements2,order,1,ntoelem2);
-%scalN = sparse(2*nnodes2, 3*nnodes2);
-%scalN( 1:2:2*nnodes2-1 , 1:3:3*nnodes2-2 ) = normal(1);
-%scalN( 1:2:2*nnodes2-1 , 3:3:3*nnodes2 ) = normal(2);
-%scalN( 2:2:2*nnodes2 , 2:3:3*nnodes2-1 ) = normal(2);
-%scalN( 2:2:2*nnodes2 , 3:3:3*nnodes2 ) = normal(1);
-%sigNt = scalN*sigmat;
-%plotGMSH({sigmat(1:3:3*nnodes2-2),'sigmat';...
-%                               Xs,'X';Ys,'Y'}, elements2, nodes2, 'sigmas');
+%ft = Kinter2*vt;
+%
+%Rte = (fr1(indexbound2)'*vt(indexbound2) - ft(indexbound2)'*ur1(indexbound2));
+%Rt2e = (fr2(indexbound2)'*vt(indexbound2) - ft(indexbound2)'*ur2(indexbound2));
 
-%fn = Kinter2*vn;
-ft = Kinter2*vt;
+Rt = 0; Rt2 = 0;
+for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
+   bonod = boundary2(i,:); exno = extnorm2(i,:)';
 
-%Rn = fr1(indexbound2)'*vn(indexbound2) - fn(indexbound2)'*ur1(indexbound2);
-Rt = (fr1(indexbound2)'*vt(indexbound2) - ft(indexbound2)'*ur1(indexbound2));
-%Rn2 = fr2(indexbound2)'*vn(indexbound2) - fn(indexbound2)'*ur2(indexbound2);
-Rt2 = (fr2(indexbound2)'*vt(indexbound2) - ft(indexbound2)'*ur2(indexbound2));
+   no1 = bonod(2); no2 = bonod(3);
+   x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+   x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+   len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
+   
+   if order==1
+      Ng = 2;
+   elseif order==2
+      Ng  = 2; no3 = bonod(4);  % Yes, 2 and not 3 (because order = 2Ng-1)
+      x3  = nodes2(no3,1); y3 = nodes2(no3,2);
+   end
+   [ Xg, Wg ] = gaussPt1d( Ng );
+             
+   for j=1:Ng
+      xg = Xg(j); wg = Wg(j);
+      
+      % Interpolations
+      if order==1
+         uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
+         uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
+         xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
+      elseif order==2
+         uer1 = transpose( urr1(i,1:2) + ...
+                xg*(4*urr1(i,5:6)-3*urr1(i,1:2)-urr1(i,3:4)) + ...   % [ux;uy] on the
+                xg^2*(2*urr1(i,3:4)+2*urr1(i,1:2)-4*urr1(i,5:6)) ); % Gauss point
+         uer2 = transpose( urr2(i,1:2) + ...
+                xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
+                xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
+         xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
+                xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+      end
 
-%Cte  = 1/normR1*sqrt(Rn^2 + Rt^2);
-%Cte2 = 1/normR2*sqrt(Rn2^2 + Rt2^2); % DEBUG
+      % Reference force from the BC's
+      if exno(1) == 1
+         fer1 = [0;0]; fer2 = [fscalar;0];
+      elseif exno(1) == -1
+         fer1 = [0;0]; fer2 = -[fscalar;0];
+      elseif exno(2) == 1
+         fer1 = [0;fscalar]; fer2 = [0;0];
+      elseif exno(2) == -1
+         fer1 = -[0;fscalar]; fer2 = [0;0];
+      end
+
+      % Test fields
+      ixigrec = Q'*[xgr(1);xgr(2)]; X = ixigrec(1); Y = ixigrec(2)-K;
+       
+      sloc = [-X,Y;Y,0];
+      st = Q*sloc*Q';
+      ft = st*exno;
+      
+      vloc = [ -X^2/(2*E) + (2+nu)*Y^2/(2*E) ; nu*X*Y/E ];
+      vt = Q*vloc;
+
+      Rt  = Rt + len * wg * ( fer1'*vt - ft'*uer1 ); % increment the integral
+      Rt2 = Rt2 + len * wg * ( fer2'*vt - ft'*uer2 );
+   end
+end
+%Rt = Rte; Rt2 = Rt2e;
 Cte  = min( Rt/normT, -Rt/normT) - K;       % Select the negative one
 Cte2 = min( Rt2/normT2, -Rt2/normT2 ) - K;  %  /!\ The sign depends on the test case
 % Plot the crack, and its estimated lines (there are Y +/- Cte)
@@ -517,6 +580,9 @@ newX  = [left(1:end-1)';
 if usefourier == 1
    Rp     = zeros(nbase+1,1);
    Rm     = zeros(nbase+1,1);
+   Rpe    = zeros(nbase+1,1);
+   Rme    = zeros(nbase+1,1);
+   
    lambda = zeros(nbase+1,1);
    fourn  = zeros(nbase+1,1);
    fournm = zeros(nbase+1,1);
@@ -530,36 +596,118 @@ if usefourier == 1
       lambda(kp) = 2*k*pi/L;
       for sx = [1,-1]  % sx=-1 is not really used, but Debug stuff
          lambdae = sx*lambda(kp);
-         for i=1:nnodes2
-            x = nodes2(i,1);
-            y = nodes2(i,2);
-            % Change base (for coordinates)
-            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
-            Xs(i) = X; Ys(i) = Y;
-            
-            v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
-                               ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
-            v2 = lambda(kp)*exp(-I*lambdae*X)* ...
-                               ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
-            vloc = [ v1 ; v2 ];
-            % Change base (for vector), in the other direction
-            vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
-         end
-         fp = Kinter2*vp;
+%         for i=1:nnodes2
+%            x = nodes2(i,1);
+%            y = nodes2(i,2);
+%            % Change base (for coordinates)
+%            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+%            Xs(i) = X; Ys(i) = Y;
+%            
+%            v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
+%                               ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
+%            v2 = lambda(kp)*exp(-I*lambdae*X)* ...
+%                               ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
+%            vloc = [ v1 ; v2 ];
+%            % Change base (for vector), in the other direction
+%            vxy = Q*vloc; vp(2*i-1) = vxy(1); vp(2*i) = vxy(2);
+%         end
+%         fp = Kinter2*vp;
+%         
+%         % Fourier coefficient
+%         if sx == 1
+%            Rpe(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+%            %Rp(kp) = (fr2(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur2(indexbound2));
+%            if dolcurve == 0 % No L-curve stuff
+%               fourn(kp) = - 1/(1+mu*k^2) *(1+nu)/(2*E*L*lambda(kp)^2)*Rpe(kp);
+%               akan(k) = 2*real(fourn(kp));
+%               bkan(k) = 2*imag(fourn(kp));
+%            end
+%         else
+%            Rpme = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+%            fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpme;
+%         end
          
-         % Fourier coefficient
-         if sx == 1
-            Rp(kp) = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
-            %Rp(kp) = (fr2(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur2(indexbound2));
-            if dolcurve == 0 % No L-curve stuff
-               fourn(kp) = - 1/(1+mu*k^2) *(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
-               akan(k) = 2*real(fourn(kp));
-               bkan(k) = 2*imag(fourn(kp));
+         %% Alternative way
+         if sx == 1 Rp(kp) = 0; else Rpm = 0; end
+         for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
+            bonod = boundary2(i,:); exno = extnorm2(i,:)';
+         
+            no1 = bonod(2); no2 = bonod(3);
+            x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+            x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+            len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
+            
+            if order==1
+               Ng = 8; % Give everything you can
+            elseif order==2
+               Ng  = 8; no3 = bonod(4);
+               x3  = nodes2(no3,1); y3 = nodes2(no3,2);
             end
-         else
-            Rpm = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
-            fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpm;
+            [ Xg, Wg ] = gaussPt1d( Ng );
+                      
+            for j=1:Ng
+               xg = Xg(j); wg = Wg(j);
+               
+               % Interpolations
+               if order==1
+                  uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
+                  uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
+                  xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
+               elseif order==2
+                  uer1 = transpose( urr1(i,1:2) + ...
+                         xg*(4*urr1(i,5:6)-3*urr1(i,1:2)-urr1(i,3:4)) + ...   % [ux;uy] on the
+                         xg^2*(2*urr1(i,3:4)+2*urr1(i,1:2)-4*urr1(i,5:6)) ); % Gauss point
+                  uer2 = transpose( urr2(i,1:2) + ...
+                         xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
+                         xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
+                  xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
+                         xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+               end
+         
+               % Reference force from the BC's
+               if exno(1) == 1
+                  fer1 = [0;0]; fer2 = [fscalar;0];
+               elseif exno(1) == -1
+                  fer1 = [0;0]; fer2 = -[fscalar;0];
+               elseif exno(2) == 1
+                  fer1 = [0;fscalar]; fer2 = [0;0];
+               elseif exno(2) == -1
+                  fer1 = -[0;fscalar]; fer2 = [0;0];
+               end
+         
+               % Test fields
+               ixigrec = Q'*[xgr(1);xgr(2)]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+               
+               sloc11 = E/(1+nu)*lambdae^2*exp(-I*lambdae*X)* ...
+                               ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
+               sloc12 = E/(1+nu)*I*lambdae^2*exp(-I*lambdae*X)* ...
+                               ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
+
+               sloc = [-sloc11,-sloc12;-sloc12,sloc11];
+               sp = Q*sloc*Q';
+               fp = sp*exno;
+               
+               v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
+                               ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
+               v2 = lambda(kp)*exp(-I*lambdae*X)* ...
+                               ( exp(lambda(kp)*Y)-exp(-lambda(kp)*Y) );
+               vloc = [ v1 ; v2 ];
+               vp = Q*vloc;
+
+               if sx == 1
+                  Rp(kp) = Rp(kp) + len * wg * ( fer1'*vp - fp'*uer1 );
+                  if dolcurve == 0 % No L-curve stuff
+                     fourn(kp) = - 1/(1+mu*k^2) *(1+nu)/(2*E*L*lambda(kp)^2)*Rp(kp);
+                     akan(k) = 2*real(fourn(kp));
+                     bkan(k) = 2*imag(fourn(kp));
+                  end
+               else
+                  Rpm = Rpm + len * wg * ( fer1'*vp - fp'*uer1 );
+                  fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpm;
+               end  
+            end
          end
+            
       end
    end
    
@@ -662,27 +810,114 @@ if usepolys == 1
    end
    
    %% Compute the RG
-   Rhs = zeros(ordp+1,1);
-   vpa = zeros(2*nnodes2, 1);
+   Rhse = zeros(ordp+1,1);
+   Rhs  = zeros(ordp+1,1);
+   vpa  = zeros(2*nnodes2, 1);
+
    for k=0:ordp
-      for i=1:nnodes2
-         x = nodes2(i,1);
-         y = nodes2(i,2);
-         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L;
+%      for i=1:nnodes2
+%         x = nodes2(i,1);
+%         y = nodes2(i,2);
+%         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L;
+%         
+%         % Build X^k*Y^j
+%         GROX = zeros(ordp+2,1);
+%         for j = 0:k+1
+%            GROX(j+1) = X^(k+1-j)*Y^j;
+%         end
+%         
+%         vloc = [ coefa(:,k+1)'*GROX ; coefb(:,k+1)'*GROX ];
+%         vxy = Q*vloc; vpa(2*i-1) = vxy(1); vpa(2*i) = vxy(2);
+%      end
+%      fpa = Kinter2*vpa;
+%      Rhse(k+1) = (fr1'*vpa - fpa'*ur1);
+
+      %% Alternative way
+      Rhs(k+1) = 0;
+      for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
+         bonod = boundary2(i,:); exno = extnorm2(i,:)';
+      
+         no1 = bonod(2); no2 = bonod(3);
+         x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+         x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+         len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
          
-         % Build X^k*Y^j
-         GROX = zeros(ordp+2,1);
-         for j = 0:k+1
-            GROX(j+1) = X^(k+1-j)*Y^j;
+         if order==1
+            Ng = max(1, ceil((ordp-3)/2)); % Exact integration ceil((ordp+3)/2);
+         elseif order==2
+            Ng  = max(1, ceil((ordp-2)/2)); no3 = bonod(4);
+            x3  = nodes2(no3,1); y3 = nodes2(no3,2);
          end
-         
-         vloc = [ coefa(:,k+1)'*GROX ; coefb(:,k+1)'*GROX ];
-         vxy = Q*vloc; vpa(2*i-1) = vxy(1); vpa(2*i) = vxy(2);
+         [ Xg, Wg ] = gaussPt1d( Ng );
+                   
+         for j=1:Ng
+            xg = Xg(j); wg = Wg(j);
+            
+            % Interpolations
+            if order==1
+               uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
+               uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
+               xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
+            elseif order==2
+               uer1 = transpose( urr1(i,1:2) + ...
+                      xg*(4*urr1(i,5:6)-3*urr1(i,1:2)-urr1(i,3:4)) + ...   % [ux;uy] on the
+                      xg^2*(2*urr1(i,3:4)+2*urr1(i,1:2)-4*urr1(i,5:6)) ); % Gauss point
+               uer2 = transpose( urr2(i,1:2) + ...
+                      xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
+                      xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
+               xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
+                      xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+            end
+      
+            % Reference force from the BC's
+            if exno(1) == 1
+               fer1 = [0;0]; fer2 = [fscalar;0];
+            elseif exno(1) == -1
+               fer1 = [0;0]; fer2 = -[fscalar;0];
+            elseif exno(2) == 1
+               fer1 = [0;fscalar]; fer2 = [0;0];
+            elseif exno(2) == -1
+               fer1 = -[0;fscalar]; fer2 = [0;0];
+            end
+            
+            ixigrec = Q'*[xgr(1);xgr(2)];
+            X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L;
+            
+            % Build X^k+1-j*Y^j
+            GROX = zeros(ordp+2,1);
+            for j = 0:k+1
+               GROX(j+1) = X^(k+1-j)*Y^j;
+            end
+            
+            vloc = [ coefa(:,k+1)'*GROX ; coefb(:,k+1)'*GROX ];
+            vpa = Q*vloc;
+            
+            sloc11 = 0; sloc12 = 0; sloc22 = 0;
+            for j=0:floor(k/2)
+               sloc11 = sloc11 + ( E/(1-nu^2)*(k+1-2*j)*coefa(2*j+1,k+1) + ...
+                        nu*E/(1-nu^2)*(2*j+1)*coefb(2*j+2,k+1) )*X^(k-2*j)*Y^(2*j);
+               sloc22 = sloc22 + ( nu*E/(1-nu^2)*(k+1-2*j)*coefa(2*j+1,k+1) + ...
+                        E/(1-nu^2)*(2*j+1)*coefb(2*j+2,k+1) )*X^(k-2*j)*Y^(2*j);
+            end
+            for j=1:floor((k+1)/2)
+               sloc12 = sloc12 + ( E/(2*(1+nu))*(2*j)*coefa(2*j+1,k+1)* ...
+                                   X^(k+1-2*j)*Y^(2*j-1) );
+            end
+            for j=0:floor((k-1)/2)
+               sloc12 = sloc12 + ( E/(2*(1+nu))*(k-2*j)*coefb(2*j+2,k+1)* ...
+                                   X^(k-1-2*j)*Y^(2*j+1) );
+            end
+
+            sloc = 1/L*[sloc11,sloc12;sloc12,sloc22];
+            spa = Q*sloc*Q';
+            fpa = spa*exno;
+
+            Rhs(k+1) = Rhs(k+1) + len * wg * ( fer1'*vpa - fpa'*uer1 );
+         end
       end
-      fpa = Kinter2*vpa;
-      Rhs(k+1) = (fr1'*vpa - fpa'*ur1); 
+      
    end
-   
+
 %   L1 = offset; L2 = offset+L;
    L1 = 0; L2 = 1;
    for i=0:ordp
@@ -695,71 +930,6 @@ if usepolys == 1
          end
       end
    end
-   
-   %% Manual stuff for DEBUG
-   
-   %vp3 = zeros(2*nnodes2, 1);
-   %vp2 = zeros(2*nnodes2, 1);
-   %vp1 = zeros(2*nnodes2, 1);
-   %vp0 = zeros(2*nnodes2, 1);
-   %
-   %for i=1:nnodes2
-   %   x = nodes2(i,1);
-   %   y = nodes2(i,2);
-   %   % Change base (for coordiantes)
-   %   ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
-   %
-   %   %vloc = [nu/E*X ; -1/E*Y];
-   %   vloc = -[ (1-nu^2)/(nu*E)*X ; 0 ];
-   %   vxy = Q*vloc; vp0(2*i-1) = vxy(1); vp0(2*i) = vxy(2);
-   %   
-   %   %vloc = [ - (1+nu^2)/(2*nu*E)*X^2 + (1+nu)/(nu*E)*Y^2 ; 0 ];
-   %   vloc = -[ (1-nu^2)/(2*nu*E)*X^2 - (1+nu)/(nu*E)*Y^2 ; 0 ];
-   %   vxy = Q*vloc; vp1(2*i-1) = vxy(1); vp1(2*i) = vxy(2);
-   %   
-   %   a1 = (1-nu^2)/(3*nu*E); b1 = -2*(1+nu)/(nu*E);
-   %   c1 = -(1-nu^2)/(6*E)*( 2*nu*E/(1-nu^2) + E/(1+nu) )*b1;
-   %   vloc = -[ a1*X^3 + b1*X*Y^2 ; c1*Y^3 ];
-   %   vxy = Q*vloc; vp2(2*i-1) = vxy(1); vp2(2*i) = vxy(2);
-   %   
-   %   a1 = (1-nu^2)/(4*nu*E); b1 = -3*(1+nu)/(nu*E);
-   %   d1 = -(1-nu^2)/(6*E)*( 4*nu*E/(1-nu^2) + 2*E/(1+nu) )*b1;
-   %   c1 = -(1+nu)/(6*E) * ( 2*E/(1-nu^2)*b1 + 3*nu*E/(1-nu^2)*d1 + 3*E/(2*(1+nu))*d1 );
-   %   vloc = -[ a1*X^4 + b1*X^2*Y^2 + c1*Y^4 ;...
-   %            d1*X*Y^3 ];
-   %   vxy = Q*vloc; vp3(2*i-1) = vxy(1); vp3(2*i) = vxy(2);
-   %end
-   %fp3 = Kinter2*vp3;
-   %fp2 = Kinter2*vp2;
-   %fp1 = Kinter2*vp1;
-   %fp0 = Kinter2*vp0;
-   %
-   %Rp3 = (fr1(indexbound2)'*vp3(indexbound2) - fp3(indexbound2)'*ur1(indexbound2));
-   %Rp2 = (fr1(indexbound2)'*vp2(indexbound2) - fp2(indexbound2)'*ur1(indexbound2));
-   %Rp1 = (fr1(indexbound2)'*vp1(indexbound2) - fp1(indexbound2)'*ur1(indexbound2));
-   %Rp0 = (fr1(indexbound2)'*vp0(indexbound2) - fp0(indexbound2)'*ur1(indexbound2));
-   %
-   %%% /!\ savage zone /!\
-   %%Xs(100)
-   %%Ys(100)
-   %%sigm = stress(vp1,E,nu,nodes2,elements2,order,1,ntoelem2);
-   %%S = [sigm(3*100-2),sigm(300);sigm(300),sigm(3*100-1)]
-   %%Q'*S*Q
-   %
-   %Rhs =  [Rp0 ;Rp1 ; Rp2 ; Rp3];
-   %L1 = offset; L2 = offset+L;
-   %for i=1:4
-   %   for j=1:4
-   %      ord = i+j-1;
-   %      Lhs(i,j) = (L2^ord - L1^ord)/ord;
-   %   end
-   %end
-   %%Lhs = [L2-L1, (L2^2 - L1^2)/2, (L2^3 - L1^3)/3 ;...
-   %%       (L2^2 - L1^2)/2, (L2^3 - L1^3)/3, (L2^4 - L1^4)/4 ;...
-   %%       (L2^3 - L1^3)/3, (L2^4 - L1^4)/4, (L2^5 - L1^5)/5 ];
-   %%Rhs = -[Rp0]; 
-   %%Lhs = [L];
-   %%Rhs = Rhs(1:3); Lhs = Lhs(1:3,1:3);
    
       % Invert the operator
    if dolcurve == 1
