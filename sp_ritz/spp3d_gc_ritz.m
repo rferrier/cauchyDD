@@ -494,9 +494,12 @@ if find(methods==1)
    %L-curve :
    figure;
    hold on;
-   loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
-   loglog(resS(2:iter+1),regS(2:iter+1),'-+');
+   set(gca, 'fontsize', 20);
+   loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
+   loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
    legend('L-curve','RL-curve')
+   xlabel('Residual')
+   ylabel('H1 norm')
    %legend('RL-curve')
    %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
    %findCorner (resS(2:iter+1), regS(2:iter+1), 3)
@@ -881,9 +884,12 @@ if methods == 2
    %L-curve :
    figure;
    hold on;
-   loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
-   loglog(resS(2:iter+1),regS(2:iter+1),'-+');
+   set(gca, 'fontsize', 20);
+   loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
+   loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
    legend('L-curve','RL-curve')
+   xlabel('Residual')
+   ylabel('H1 norm')
    %legend('RL-curve')
    %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
    %findCorner (resS(2:iter+1), regS(2:iter+1), 3)

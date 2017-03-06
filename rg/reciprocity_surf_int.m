@@ -15,12 +15,12 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 3; % Order of polynom
+ordp      = 4; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal
 
 usefourier = 0;
-usepolys   = 0;
+usepolys   = 1;
 plotref    = 0;
 
 if loadfield ~= 1
@@ -131,7 +131,7 @@ for i=1:nboun2
    cand4 = intersect(cand1, cand2);
    cand5 = intersect(cand4, cand3);
    if cand5 == 0
-      cand5 = nelem2; % Ok, ti's not optimized
+      cand5 = nelem2; % Ok, it's not optimized
    end
    boun2vol2(i) = cand5; % If everything went well, there is only one
 
@@ -1046,6 +1046,8 @@ if usepolys == 1
                            lam*(l+1-2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) + ...
                            (lam+2*mu)*(2*ii+2*jj+1)*coefc( 1+jj+ii*(floor(l/2)+1) ) ) ...
                            * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+                     s13 = s13 + mu*(k-2*ii)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
+                     s23 = s23 + mu*(l-2*jj)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
                   end
                end
                
@@ -1060,20 +1062,28 @@ if usepolys == 1
                   end
                end
                
-               ii = 0; jj = 1;
-               if l >= 2
-                  s13 = s13 + mu*(2*ii+2*jj)*coefa( 1+jj+ii*(floor(l/2)+1) ) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
-               end
-               if l >= 1
-                  s23 = s23 + mu*(2*ii+2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
-               end
-               ii = 1; jj = 0;
-               if k >= 1
-                  s13 = s13 + mu*(2*ii+2*jj)*coefa( 1+jj+ii*(floor(l/2)+1) ) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
-               end
-               if k >= 2
-                  s23 = s23 + mu*(2*ii+2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
-               end
+               jj = 0; %ii = 0; 
+               %if l >= 2
+                  for ii=1:floor((k+1)/2)
+                     s13 = s13 + mu*(2*ii+2*jj)*coefa( 1+jj+ii*(floor(l/2)+1) ) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
+                  end
+               %end
+               %if l >= 1
+                  for ii=1:floor(k/2)
+                     s23 = s23 + mu*(2*ii+2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
+                  end
+               %end
+               ii = 0;% jj = 0;
+               %if k >= 1
+                  for jj=1:floor(l/2)
+                     s13 = s13 + mu*(2*ii+2*jj)*coefa( 1+jj+ii*(floor(l/2)+1) ) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
+                  end
+               %end
+               %if k >= 2
+                  for jj=1:floor((l+1)/2)
+                     s23 = s23 + mu*(2*ii+2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
+                  end
+               %end
                for ii=1:floor((k+1)/2)
                   for jj=1:floor(l/2)
                      s13 = s13 + mu*(2*ii+2*jj)*coefa( 1+jj+ii*(floor(l/2)+1) ) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
@@ -1084,12 +1094,12 @@ if usepolys == 1
                      s23 = s23 + mu*(2*ii+2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
                   end
                end
-               for ii=1:floor(k/2)
-                  for jj=1:floor(l/2)
-                     s13 = s13 + mu*(k-2*ii)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
-                     s23 = s23 + mu*(l-2*jj)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
-                  end
-               end
+%               for ii=0:floor(k/2)   % Fusionned with stuff up there
+%                  for jj=0:floor(l/2)
+%                     s13 = s13 + mu*(k-2*ii)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
+%                     s23 = s23 + mu*(l-2*jj)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
+%                  end
+%               end
                
                slocp = 1/Lx*[s11,s12,s13;s12,s22,s23;s13,s23,s33]; % 1/Lx because of the homotecy (fog)' = g'*f'og
                sp = Q*slocp*Q';

@@ -20,7 +20,7 @@ usefourier = 0;
 usepolys   = 1;
 
 nbase = 3; % Number of Fourier basis functions
-ordp = 9;  % Number of Polynomial basis functions
+ordp = 8;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation
 
@@ -993,9 +993,13 @@ if usepolys == 1
    
    figure
    hold on;
-   plot(newX, solref)
-   plot(newX, solu, 'Color', 'red')
+   set(gca, 'fontsize', 20);
+   plot(newX, solref,'linewidth',3)
+   plot(newX, solu, 'Color', 'red','linewidth',3)
    %plot(newX, solpref, 'Color', 'green')
+   legend('Reference gap','reconstructed gap')
+   xlabel('X')
+   ylabel('[[u]]')
    
    % Check the MS :
    Sref = sum((solpref-solref).^2) / sum(solref.^2);
