@@ -178,21 +178,21 @@ for i = 1:nsub
       rmtosd(j) = i;
    
       nnodess = nno{i};
-      r1 = zeros(2*nnodess,1); r2 = r1; r3 = r1; g1 = r1; g2 = r1; g3 = r1;
-      ind = 2:2:2*nnodess;
-      r1(ind-1,1) = 1; r2(ind,1) = 1;
-      
-      moyx = (max( nodess(:,1) ) - min( nodess(:,1) ))/2;
-      moyy = (max( nodess(:,2) ) - min( nodess(:,2) ))/2;
-      r3(ind-1,1) = -nodess(ind/2,2)+moyy;
-      r3(ind,1) = nodess(ind/2,1)-moyx;
+%      r1 = zeros(2*nnodess,1); r2 = r1; r3 = r1; g1 = r1; g2 = r1; g3 = r1;
+%      ind = 2:2:2*nnodess;
+%      r1(ind-1,1) = 1; r2(ind,1) = 1;
+%      
+%      moyx = (max( nodess(:,1) ) - min( nodess(:,1) ))/2;
+%      moyy = (max( nodess(:,2) ) - min( nodess(:,2) ))/2;
+%      r3(ind-1,1) = -nodess(ind/2,2)+moyy;
+%      r3(ind,1) = nodess(ind/2,1)-moyx;
 %      g1(2*boun1-1) = r1(2*boun1-1);
 %      g2(2*boun1) = r2(2*boun1);
 %      g3([2*boun1-1;2*boun1]) = r3([2*boun1-1;2*boun1]);
 %   
 %      G{i} = [g1,g2,g3]; Gloc = G{i};
-      R{i} = [r1,r2,r3]; Rloc = R{i};
-%      R{i} = null(K{i}); Rloc = R{i};
+%      R{i} = [r1,r2,r3]; Rloc = R{i};
+      R{i} = null(K{i}); Rloc = R{i};
       
       nbloq{i} = size(R{i},2);
       

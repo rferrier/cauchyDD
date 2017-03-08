@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.1;      % noise
+br      = 0.;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [9];
+methods = [10];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -1862,12 +1862,12 @@ if find(methods==9)
       errS(i) = norm(ItereS(indexxy)-uref(indexxy))/norm(uref(indexxy));
    end
    
-%   figure
-%   hold on
-%   set(gca, 'fontsize', 15);
-%   plot(error,'Color','blue')
-%   plot(residual/residual(1),'Color','red')
-%   legend('error','residual')
+   figure
+   hold on
+   set(gca, 'fontsize', 15);
+   plot(error,'Color','blue')
+   plot(residual/residual(1),'Color','red')
+   legend('error','residual')
   
 %   figure; 
 %   hold on;
@@ -1935,12 +1935,12 @@ if find(methods==9)
 %   plot(thetax,efeR(index-1,1), 'Color', 'red');
 %   xlabel('angle(rad)')
    
-%   efe = Kinter*usol;
+%   efe = Kinter*usolR;
 %   figure
 %   hold on
 %   set(gca, 'fontsize', 15);
-%   plot(thetax,usol(index,1));
-%   plot(thetax,usol(index-1,1), 'Color', 'red');
+%   plot(thetax,usolR(index,1));
+%   plot(thetax,usolR(index-1,1), 'Color', 'red');
 %   xlabel('angle(rad)')
 %   figure
 %   hold on
@@ -1955,7 +1955,7 @@ if find(methods==9)
 end
 %%
 if find(methods==10)
-   niter   = 50;
+   niter   = 20;
    precond = 0;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
@@ -1969,7 +1969,7 @@ if find(methods==10)
    Zed   = zeros( 2*nnodes, niter+1 );
    alpha = zeros( niter+1, 1 );
    beta  = zeros( niter+1, 1 );
-   ntrunc = 18;  % In case the algo finishes before max ratio is reached
+   ntrunc = 0;  % In case the algo finishes before max ratio is reached
    
    %% Perform A x0 :
    % Solve 1
@@ -2002,9 +2002,20 @@ if find(methods==10)
    Res(:,1) = b - Axz;
    
    if precond == 1
-       Zed(:,1) = Res(:,1); % No precond for now
+      % Solve 1
+      f1 = dirichletRhs2( Res(:,1)/2, 3, c2node1, boundaryp, nnodes );
+      uin1 = K1\f1;
+      lagr1 = uin1(2*nnodes+1:end,1);
+      lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
+      % Solve 2
+%      f2 = dirichletRhs2( Res(:,1)/2, 3, c2node2, boundaryp, nnodes );
+%      uin2 = K2\f2;
+%      lagr2 = uin2(2*nnodes+1:end,1);
+%      lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
+      %
+      Zed(:,1) = lamb1/2;%lamb1/2-lamb2/2;   
    else
-       Zed(:,1) = Res(:,1);
+      Zed(:,1) = Res(:,1);
    end
    
    d(:,1) = Zed(:,1);
@@ -2046,15 +2057,28 @@ if find(methods==10)
        regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
        
        if precond == 1
-           Zed(:,iter+1) = Res(:,iter+1); % No precond
+          % Solve 1
+          f1 = dirichletRhs2( Res(:,iter+1)/2, 3, c2node1, boundaryp, nnodes );
+          uin1 = K1\f1;
+          lagr1 = uin1(2*nnodes+1:end,1);
+          lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp, nnodes );
+         %  Solve 2
+   %       f2 = dirichletRhs2( Res(:,iter+1)/2, 3, c2node2, boundaryp, nnodes );
+   %       uin2 = K2\f2;
+   %       lagr2 = uin2(2*nnodes+1:end,1);
+   %       lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp, nnodes );
+          %
+          Zed(:,iter+1) = lamb1/2;%lamb1/2-lamb2/2;  
        else
            Zed(:,iter+1) = Res(:,iter+1);
        end
        
        % Needed values for the Ritz stuff
-       alpha(iter) = Res(indexxy,iter)'*Res(indexxy,iter) / den;
-       beta(iter)  = Zed(indexxy,iter+1)'*Res(indexxy,iter+1) /... 
-                                   (Zed(indexxy,iter)'*Res(indexxy,iter));
+       alpha(iter) = num/sqrt(den);
+       beta(iter)  = - Zed(indexxy,iter+1)'*Ad(indexxy,iter)/sqrt(den);
+%       alpha(iter) = Res(indexxy,iter)'*Res(indexxy,iter) / den;
+%       beta(iter)  = Zed(indexxy,iter+1)'*Res(indexxy,iter+1) /... 
+%                                   (Zed(indexxy,iter)'*Res(indexxy,iter));
        
        % First Reorthogonalize the residual (as we use it next), in sense of M
        for jter=1:iter
@@ -2160,16 +2184,16 @@ if find(methods==10)
    figure
    hold on
    set(gca, 'fontsize', 15);
-   plot(error,'Color','blue')
-   plot(residual/residual(1),'Color','red')
+   plot(log10(error),'Color','blue')
+   plot(log10(residual/residual(1)),'Color','red')
    legend('error','residual')
   
-   figure; 
-   hold on;
-   plot(log10(theta),'Color','blue')
-   plot(log10(abs(Y'*b)),'Color','red')
-   plot(log10(abs(chi)),'Color','black')
-   legend('Ritz Values','RHS values','solution coefficients')
+%   figure; 
+%   hold on;
+%   plot(log10(theta),'Color','blue')
+%   plot(log10(abs(Y'*b)),'Color','red')
+%   plot(log10(abs(chi)),'Color','black')
+%   legend('Ritz Values','RHS values','solution coefficients')
    
    regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
    errD = zeros(niter,1);
@@ -2181,11 +2205,11 @@ if find(methods==10)
       errD(i) = norm(ItereD(indexxy) - fref(indexxy)) / norm(fref(indexxy));
    end
    % RL-curve
-   figure
-   loglog(resD(2:iter),regD(2:iter),'-+');
-%   % L-curve
-   figure
-   loglog(residual/residual(1),regulari,'-+');
+%   figure
+%   loglog(resD(2:iter),regD(2:iter),'-+');
+%%   % L-curve
+%   figure
+%   loglog(residual/residual(1),regulari,'-+');
 %   ntrunc = findCorner (resD(2:iter), regD(2:iter), 3)
 %   findCorner (residual(2:iter)', regulari(2:iter)', 3);
    
