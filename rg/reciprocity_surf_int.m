@@ -15,7 +15,7 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 5; % Order of polynom
+ordp      = 6; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal
 
@@ -35,7 +35,7 @@ if loadfield ~= 1
    neumann2   = [4,1,fscalar ; 6,1,-fscalar];
    
    % First, import the mesh
-   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710t10u.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710t10.msh' );
    nnodes = size(nodes,1);
    
    % mapBounds
@@ -78,7 +78,7 @@ if loadfield ~= 1
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710t10u.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710t10.msh' );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D (nodes2,elements2,mat,order2,boundary2,[]);
 Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
@@ -912,32 +912,35 @@ if usepolys == 1
          for ii = 0:floor((k+1)/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj);
-               u = reshape([u;u;u],1,[])'; % Because size(K) = 3*nnodes
+               u(~indexbound2) = 0;
+               u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
                ka( 1+jj+ii*(floor(l/2)+1), 1 ) =...
-%                        max( abs( Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj) ) );
-                        sum( ( Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj) ).^2 );
-%                        u'*Kinter2*u;
+%                        max( abs( u ) );
+%                        sum( ( u ).^2 );
+                        u'*Kinter2*u;
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor((l+1)/2)
                u = Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj);
-               u = reshape([u;u;u],1,[])';
+               u(~indexbound2) = 0;
+               u = reshape([;u-u;u;;u-u],1,[])';
                kb( 1+jj+ii*(floor((l+1)/2)+1), 1 ) =...
-%                       max( abs( Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj) ) );
-                       sum( ( Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj) ).^2 );
-%                       u'*Kinter2*u;
+%                       max( abs( u ) );
+%                       sum( ( u ).^2 );
+                       u'*Kinter2*u;
 
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1);
-               u = reshape([u;u;u],1,[])';
+               u(~indexbound2) = 0;
+               u = reshape([;u-u;;u-u;u],1,[])';
                kc( 1+jj+ii*(floor(l/2)+1), 1 ) =...
-%                       max( abs( Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1) ) );
-                       sum( ( Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1) ).^2 );
-%                       u'*Kinter2*u;
+%                       max( abs( u ) );
+%                       sum( ( u ).^2 );
+                       u'*Kinter2*u;
             end
          end
       
@@ -945,8 +948,8 @@ if usepolys == 1
          zac = zeros( size(ka,1), size(kc,1) );
          zbc = zeros( size(kb,1), size(kc,1) );
       
-         % Mm consists in minimizing the worst amplification for each a, b or c
-         Mm = [ diag(ka),zab,zac ; zab',diag(kb),zbc ; zac',zbc',diag(kc) ];
+         % Mm consists in minimizing the worst amplification for each a, b or c (E^2 just for condition number)
+         Mm = [ diag(ka),zab,zac ; zab',diag(kb),zbc ; zac',zbc',diag(kc) ]*E; %*E^2
 %         Mm = [ diag(ka).^2,zab,zac ; zab',diag(kb).^2,zbc ; zac',zbc',diag(kc).^2 ];
          
          % Minimize under the constraints
