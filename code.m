@@ -23,8 +23,8 @@ dirichlet = [0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0];
 neumann   = [ 2,3,fscalar ; 1,3,-fscalar ];
 
 % First, import the mesh
-%[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/plate3d.msh' );
-[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/tetra10/plate3d.msh' );
+[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/plate3d_crack0.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/tetra10/plate3d.msh' );
 nnodes = size(nodes,1);
 
 % Then, build the stiffness matrix :
@@ -47,7 +47,7 @@ sigma = stress3D(u,mat,nodes,elements,order,1,ntoelem);
 
 % Output :
 % plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
-plotGMSH3D({ux,'U_x';uy,'U_y';uz,'U_z';u,'U_vect';sigma,'stress'}, elements, nodes, 'linear_field');
+plotGMSH3D({ux,'U_x';uy,'U_y';uz,'U_z';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

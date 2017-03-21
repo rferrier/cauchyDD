@@ -1,6 +1,6 @@
 
 // Geometric parameters
-H   = 10;  //  height of plate
+H   = 5;  //  height of plate
 L   = 10;  //  width of plate
 eps = L/30; // refined boundary
 
@@ -22,7 +22,7 @@ x8 = xm - Ri; y8 = ym + Ri*(x6-x5)/(y6-y5);
 // Discretization parameters
 lc1 = .5;  // element size at the interior
 lc2 = .5;  // element size at the crack tip
-lc3 = .07; // element size at the boundary
+lc3 = .1; // element size at the boundary
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc3};

@@ -121,6 +121,12 @@ Res   = zeros( 2*nnodes, niter+1 );
 Zed   = zeros( 2*nnodes, niter+1 );
 H12   = H1demi(size(Res,1), nodes, boundary, 2 );
 
+%% Error estimation quantities
+%binferror = zeros(niter+1,1);
+%lambr = zeros( 2*nnodes, 1 ); % to be incremented
+%ulamr = zeros( 2*nnodes, 1 ); % to be incremented = Z^(-1)*lambr
+%tr = loading(0,nodes,boundary,neumann2); % loading on the redondant boundary
+
 %% Perform A x0 :
 % Solve 1
 f1 = [Itere; zeros(nbloq1d,1)];
@@ -134,6 +140,10 @@ u2i = uin2(1:2*nnodes,1);
 u2 = keepField( u2i, 2, boundaryp2 );
 % Regularization term
 Nu = regul(Itere, nodes, boundary, 2);
+
+% Error estimation assets
+%lambr = lambr + lagr2forces( uin1(2*nnodes+1:end,1), C1d, 4, boundaryp1 );
+%ulamr = ulamr + keepField( u1i, 4, boundaryp1 );
 %
 Axz = mu*Nu+u2-u1;
 %%%%
@@ -150,9 +160,10 @@ u2i = uin2(1:2*nnodes,1);
 u2 = keepField( u2i, 2, boundaryp2 );
 %
 b = u1-u2;
-
+%utr = keepField( u2i, 4, boundaryp2 ); % error estimator asset
 %%
 Res(:,1) = b - Axz;
+%binferror(1) = (tr-lambr)'*(utr-ulamr); % Error inferior born
 
 if precond == 1
     % Solve 1
@@ -176,7 +187,7 @@ end
 d(:,1) = Zed(:,1);
 
 residual(1) = norm(Res( indexa,1));
-error(1)    = norm(Itere(indexa) - fref(indexa) / norm(fref(indexa));
+error(1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 %%
@@ -198,12 +209,21 @@ for iter = 1:niter
     %
     Ad(:,iter) = mu*Nu+u2-u1;
     
+    % Error estimation assets
+%    lambri = lagr2forces( uin1(2*nnodes+1:end,1), C1d, 4, boundaryp1 );
+%    ulamri = keepField( u1i, 4, boundaryp1 );
+    
     den = (d(indexa,iter)'*Ad(indexa,iter));
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
     num = Res(indexa,iter)'*d(indexa,iter);
 
     Itere         = Itere + d(:,iter)*num;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
+    
+    % Increment error estimation
+%    lambr         = lambr + lambri*num/sqrt(den);
+%    ulamr         = ulamr + ulamri*num/sqrt(den);
+%    binferror(iter+1) = (tr-lambr)'*(utr-ulamr);
     
     residual(iter+1) = norm(Res(indexa,iter+1));
     error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));

@@ -14,10 +14,11 @@ mat        = [0, E, nu];
 mu         = 1e-2;%1e-5;%5e-3;     % Regularization coef
 %mu         = 3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
-niter      = 10;
+niter1     = 30;
+niter2     = 20;
 
-usefourier = 0;
-usepolys   = 1;
+usefourier = 1;
+usepolys   = 0;
 
 nbase = 2; % Number of Fourier basis functions
 ordp = 6;  % Number of Polynomial basis functions
@@ -69,7 +70,37 @@ uin = K\f2;
 u2 = uin(1:2*nnodes,1);
 f2s = Kinter*u2; u2s = u2;
 
-% Display both fields
+%% Cut the mesh in order to get only the top to compute the reaction forces
+%line = [ 0 ; 20/6 ; 1 ; 20/6];
+%[ nodes_d, elements_d, boundary_d, map_d,...
+%  nodes_u, elements_u, boundary_u, map_u, newbound ] =...
+%                            cutMesh (nodes, elements, boundary, line);
+%[K_u,C_u,nbloq_u,node2c_u,c2node_u] = Krig2 (nodes_u,elements_u,mat,order,boundary_u,dirichlet);
+%nnu = size(nodes_u,1);
+%Kinter_u = K_u( 1:2*nnu, 1:2*nnu );
+%
+%[ b1to2, b2to1 ] = superNodes( nodes_u, nodes, 1e-6 );
+%
+%u1u = zeros(2*size(nodes_u,1),1); u2u = zeros(2*size(nodes_u,1),1);
+%u1u([(1:2:2*nnu-1)';(2:2:2*nnu)']) = u1s([2*b1to2-1;2*b1to2]); 
+%u2u([(1:2:2*nnu-1)';(2:2:2*nnu)']) = u2s([2*b1to2-1;2*b1to2]);
+%
+%%u1u([2*map_u-1;2*map_u]) = u1s([(1:2:2*nnodes-1)';(2:2:2*nnodes)']); % Why doesn't that shit work ?
+%%u2u([2*map_u-1;2*map_u]) = u2s([(1:2:2*nnodes-1)';(2:2:2*nnodes)']);
+%
+%f1u = Kinter_u*u1u; f2u = Kinter_u*u2u;
+%f1su = zeros(2*nnodes); f2su = zeros(2*nnodes);
+%f1su([2*b1to2-1;2*b1to2]) = f1u([(1:2:2*nnu-1)';(2:2:2*nnu)']);
+%f2su([2*b1to2-1;2*b1to2]) = f2u([(1:2:2*nnu-1)';(2:2:2*nnu)']);
+
+%f1su([1:2:2*nnodes-1;2:2:2*nnodes]) = f1u([2*map_u-1;2*map_u]);
+%f2su([1:2:2*nnodes-1;2:2:2*nnodes]) = f2u([2*map_u-1;2*map_u]);
+
+%figure; hold on;
+%ret  = patch('Faces',elements_u(:,1:3),'Vertices',nodes_u,'FaceAlpha',0);
+%axis('equal');
+
+%% Display both fields
 ui = reshape(u1,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'reference1');
@@ -77,6 +108,8 @@ plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'refer
 ui = reshape(u2,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 sigma = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({ux,'U_x';uy,'U_y';u2,'U_vect';sigma,'stress'}, elements, nodes, 'reference2');
+
+uref1 = u1; uref2 = u2;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -91,6 +124,11 @@ end
 nnodesd = size(nodesd,1);
 
 [ b1to2, b2to1 ] = superNodes( nodes, nodesd, 1e-3 );
+
+% Reference reactions on 5
+%f1sus = zeros(nnodesd,1); f2sus = zeros(nnodesd,1);
+%f1sus([(1:2:2*nnu-1)';(2:2:2*nnu)']) = f1su([2*b1to2-1;2*b1to2]); 
+%f2sus([(1:2:2*nnu-1)';(2:2:2*nnu)']) = f2su([2*b1to2-1;2*b1to2]);
 
 [ node2b5d, b2node5d ]   = mapBound( 5, boundaryd, nnodesd );
 [ node2b6d, b2node6d ]   = mapBound( 6, boundaryd, nnodesd );
@@ -114,12 +152,12 @@ uref2([1:2:2*nnodesd-1,2:2:2*nnodesd]) = u2( [2*b2to1-1;2*b2to1] );
 dirichlet1d = [1,1,0;1,2,0;
                7,1,0;7,2,0;
                6,1,0;6,2,0];
-[K1d,C1d,nbloq1d] = Krig (nodesd,elementsd,E,nu,order,boundaryd,dirichlet1d);
+[K1d,C1d,nbloq1d,node2c1d,c2node1d] = Krig (nodesd,elementsd,E,nu,order,boundaryd,dirichlet1d);
 Kinter1d = K1d(1:2*nnodesd, 1:2*nnodesd);
 
 % Second problem
 dirichlet2d = [1,1,0;1,2,0];
-[K2d,C2d,nbloq2d] = Krig (nodesd,elementsd,E,nu,order,boundaryd,dirichlet2d);
+[K2d,C2d,nbloq2d,node2c2d,c2node2d] = Krig (nodesd,elementsd,E,nu,order,boundaryd,dirichlet2d);
 
 % The loading (it's 0 for the first problem)
 neumann1d   = [];
@@ -133,15 +171,18 @@ fsr2 = Kinter1d*uref2 - fref2(1:2*nnodesd) ;
 fsr1(~index5d) = 0; fsr2(~index5d) = 0;
 fsr1(index7d) = 0;  fsr2(index7d) = 0;  % Because of the corners
 fsr1(index6d) = 0;  fsr2(index6d) = 0;
+%fsr1(~[2*index5d-1,2*index5d]) = 0; fsr2(~[2*index5d-1,2*index5d]) = 0;
+%fsr1([2*index7d-1,2*index7d]) = 0;  fsr2([2*index7d-1,2*index7d]) = 0;  % Because of the corners
+%fsr1([2*index6d-1,2*index6d]) = 0;  fsr2([2*index6d-1,2*index6d]) = 0;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ORTHODIR for the first problem : (S1-S2) x = b
 Itere = zeros( 2*nnodesd, 1 );
-p     = zeros( 2*nnodesd, niter+1 );
-q     = zeros( 2*nnodesd, niter+1 );
-Delta = zeros( niter+1, 1 );
-Res   = zeros( 2*nnodesd, niter+1 );
-Zed   = zeros( 2*nnodesd, niter+1 );
+p     = zeros( 2*nnodesd, niter1+1 );
+q     = zeros( 2*nnodesd, niter1+1 );
+Delta = zeros( niter1+1, 1 );
+Res   = zeros( 2*nnodesd, niter1+1 );
+Zed   = zeros( 2*nnodesd, niter1+1 );
 
 %% Perform A x0 :
 % Solve 1
@@ -159,9 +200,9 @@ Axz = u1-u2;
 %%%%
 %% Compute Rhs :
 % Solve 1
-f11 = dirichletRhs(uref1, 6, C1d, boundaryd);
-f12 = dirichletRhs(uref1, 7, C1d, boundaryd);
-f1 = assembleDirichlet( [f11, f12 ] );
+f11 = dirichletRhs2(uref1, 6, c2node1d, boundaryd, nnodesd);
+f12 = dirichletRhs2(uref1, 7, c2node1d, boundaryd, nnodesd);
+f1 = f11+f12;%assembleDirichlet( [f11, f12 ] );
 uin1 = K1d\f1;
 u1i = uin1(1:2*nnodesd,1);
 u1 = keepField( u1i, 5, boundaryd );
@@ -179,7 +220,9 @@ Zed(:,1) = Res(:,1); % No precond
 p(:,1) = Zed(:,1);
 
 residual(1) = sqrt( Res(:,1)'*Res(:,1) );
-error(1)    = sqrt( (Itere - fsr1)'*(Itere - fsr1) / (fsr1'*fsr1) );
+error(1)    = sqrt( (Itere(index5d) - fsr1(index5d))'*...
+                       (Itere(index5d) - fsr1(index5d) ) / ...
+                       (fsr1(index5d)'*fsr1(index5d)) );
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundaryd, 5) );
 
 %% Perform Q1 = A P1 :
@@ -197,7 +240,7 @@ u2 = keepField( u2i, 5, boundaryd );
 q(:,1) = u1-u2;
 %%%%
 %%
-for iter = 1:niter
+for iter = 1:niter1
     
     Delta(iter,1) = q(:,iter)'*q(:,iter);
     gammai        = q(:,iter)'*Res(:,iter);
@@ -209,7 +252,9 @@ for iter = 1:niter
     Zed(:,iter+1) = Res(:,iter+1);
 
     residual(iter+1) = sqrt( (Res(:,iter+1))'*Res(:,iter+1) ) ;
-    error(iter+1)    = sqrt( (Itere - fsr1)'*(Itere - fsr1) / (fsr1'*fsr1) );
+    error(iter+1)    = sqrt( (Itere(index5d) - fsr1(index5d))'*...
+                       (Itere(index5d) - fsr1(index5d) ) / ...
+                       (fsr1(index5d)'*fsr1(index5d)) );
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundaryd, 5) );
 
     %% Perform Ari = A*Res
@@ -238,28 +283,41 @@ for iter = 1:niter
     end 
 end
 
-% Plot convergence
-figure; hold on;
-plot(error,'Color','blue')
-plot(residual,'Color','red')
-legend('error','residual')
+%% Plot convergence
+%figure; hold on;
+%plot(error,'Color','blue')
+%plot(residual,'Color','red')
+%legend('error','residual')
 
 % Last resolution
 f3 = [ Itere ; zeros(nbloq2d,1) ]; fsol1 = Itere;
 usoli = K2d \ ( fref1 + f3 );
 usol1 = usoli(1:2*nnodesd,1);
+
+figure; hold on;
+plot(usoli(2*b2node5d));
+plot(uref1(2*b2node5d),'Color','red');
+legend('solution','reference')
+
+figure; hold on;
+plot(Itere(2*b2node5d));
+plot(fsr1(2*b2node5d),'Color','red');
+legend('solution','reference')
+
 % Compute stress :
 sigma1 = stress(usol1,E,nu,nodesd,elementsd,order,1,ntoelemd);
 plotGMSH({usol1,'U_vect';sigma1,'stress'}, elementsd, nodesd, 'solution_SP_1');
 
+Itere1 = Itere;
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ORTHODIR for the second problem : (S1-S2) x = b
 Itere = zeros( 2*nnodesd, 1 );
-p     = zeros( 2*nnodesd, niter+1 );
-q     = zeros( 2*nnodesd, niter+1 );
-Delta = zeros( niter+1, 1 );
-Res   = zeros( 2*nnodesd, niter+1 );
-Zed   = zeros( 2*nnodesd, niter+1 );
+p     = zeros( 2*nnodesd, niter2+1 );
+q     = zeros( 2*nnodesd, niter2+1 );
+Delta = zeros( niter2+1, 1 );
+Res   = zeros( 2*nnodesd, niter2+1 );
+Zed   = zeros( 2*nnodesd, niter2+1 );
 
 %% Perform A x0 :
 % Solve 1
@@ -277,9 +335,9 @@ Axz = u1-u2;
 %%%%
 %% Compute Rhs :
 % Solve 1
-f11 = dirichletRhs(uref2, 6, C1d, boundaryd);
-f12 = dirichletRhs(uref2, 7, C1d, boundaryd);
-f1 = assembleDirichlet( [f11, f12 ] );
+f11 = dirichletRhs2(uref2, 6, c2node1d, boundaryd, nnodesd);
+f12 = dirichletRhs2(uref2, 7, c2node1d, boundaryd, nnodesd);
+f1 = f11+f12;%assembleDirichlet( [f11, f12 ] );
 uin1 = K1d\f1;
 u1i = uin1(1:2*nnodesd,1);
 u1 = keepField( u1i, 5, boundaryd );
@@ -297,7 +355,9 @@ Zed(:,1) = Res(:,1); % No precond
 p(:,1) = Zed(:,1);
 
 residual(1) = sqrt( Res(:,1)'*Res(:,1) );
-error(1)    = sqrt( (Itere - fsr2)'*(Itere - fsr2) / (fsr2'*fsr2) );
+error(1)    = sqrt( (Itere(index5d) - fsr2(index5d))'*...
+                       (Itere(index5d) - fsr2(index5d) ) / ...
+                       (fsr2(index5d)'*fsr2(index5d)) );
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundaryd, 5) );
 
 %% Perform Q1 = A P1 :
@@ -315,7 +375,7 @@ u2 = keepField( u2i, 5, boundaryd );
 q(:,1) = u1-u2;
 %%%%
 %%
-for iter = 1:niter
+for iter = 1:niter2
     
     Delta(iter,1) = q(:,iter)'*q(:,iter);
     gammai        = q(:,iter)'*Res(:,iter);
@@ -327,7 +387,9 @@ for iter = 1:niter
     Zed(:,iter+1) = Res(:,iter+1);
 
     residual(iter+1) = sqrt( (Res(:,iter+1))'*Res(:,iter+1) ) ;
-    error(iter+1)    = sqrt( (Itere - fsr2)'*(Itere - fsr2) / (fsr2'*fsr2) );
+    error(iter+1)    = sqrt( (Itere(index5d) - fsr2(index5d))'*...
+                       (Itere(index5d) - fsr2(index5d) ) / ...
+                       (fsr2(index5d)'*fsr2(index5d)) );
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundaryd, 5) );
 
     %% Perform Ari = A*Res
@@ -356,11 +418,11 @@ for iter = 1:niter
     end 
 end
 
-% Plot convergence
-figure; hold on;
-plot(error,'Color','blue')
-plot(residual,'Color','red')
-legend('error','residual')
+%% Plot convergence
+%figure; hold on;
+%plot(error,'Color','blue')
+%plot(residual,'Color','red')
+%legend('error','residual')
 
 % Last resolution
 f3 = [ Itere ; zeros(nbloq2d,1) ]; fsol2 = Itere;
@@ -369,6 +431,16 @@ usol2 = usoli(1:2*nnodesd,1);
 % Compute stress :
 sigma2 = stress(usol2,E,nu,nodesd,elementsd,order,1,ntoelemd);
 plotGMSH({usol2,'U_vect';sigma2,'stress'}, elementsd, nodesd, 'solution_SP_2');
+
+figure; hold on;
+plot(usoli(2*b2node5d));
+plot(uref2(2*b2node5d),'Color','red');
+legend('solution','reference')
+
+figure; hold on;
+plot(Itere(2*b2node5d));
+plot(fsr2(2*b2node5d),'Color','red');
+legend('solution','reference')
 
 % Build u1, f1, u2 and f2 on the total domain.
 u1 = u1s; u2 = u2s; f1 = f1s; f2 = f2s;
@@ -391,7 +463,7 @@ ferror1 = ( f1(index5)-f1s(index5) )'*( f1(index5)-f1s(index5) ) /...
 ferror2 = ( f2(index5)-f2s(index5) )'*( f2(index5)-f2s(index5) ) /...
            ( f2s(index5)'*f2s(index5) );
 
-plotGMSH({u2,'U_vect';f2,'F_vect'}, elements, nodes, 'uref');
+%plotGMSH({u1,'U_vect';f1,'F_vect'}, elements, nodes, 'uref');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -436,7 +508,7 @@ ur2 = zeros( 2*nnodes2, 1 ); fr2 = zeros( 2*nnodes2, 1 );
 ur2(indexbound2) = u2(indexbound);
 fr2(indexbound2) = f2(indexbound);
 
-%plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
+%plotGMSH({ur2,'U_vect';fr2,'F_vect'}, elements2, nodes2, 'uref');
 
 % Debug : compute the displacement gap
 Mc = bMass_mat (nodes, boundary, 5);
@@ -453,6 +525,60 @@ n1 = 1; n2 = -n1*(x7-x8)/(y7-y8);
 non = sqrt(n1^2+n2^2);
 n1 = n1/non; n2 = n2/non;
 CteR = x8*n1+y8*n2;
+
+%%% Preliminary stuff : find the volumic elements corresponding to the boundaries
+%nboun2 = size(boundary2,1); nelem2 = size(elements2,1);
+%boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
+%for i=1:nboun2
+%   % Volumic element
+%   no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
+%   cand1 = rem( find(elements2==no1),nelem2 ); % find gives line + column*size
+%   cand2 = rem( find(elements2==no2),nelem2 );
+%   boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
+%   
+%   % Exterior normal
+%   elt = boun2vol2(i); no3 = setdiff( elements2( elt, 1:3 ), [no1,no2]);
+%   x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+%   x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+%   x3 = nodes2(no3,1); y3 = nodes2(no3,2);
+%   extnorm2(i,:) = [ y1-y2 , -(x1-x2) ];
+%   extnorm2(i,:) = extnorm2(i,:)/norm(extnorm2(i,:));
+%   if (x3-x2)*(y1-y2) - (y3-y2)*(x1-x2) > 0 % Check that the normal is exterior
+%      extnorm2(i,:) = -extnorm2(i,:);
+%   end
+%end
+%
+%nboun1 = size(boundary,1); nelem1 = size(elements,1);
+%boun2vol1 = zeros( nboun1, 1 ); extnorm1 = zeros( nboun1, 2 );
+%sigr1 = zeros( nboun1, 3*order ); sigr2 = zeros( nboun1, 3*order );
+%urr1  = zeros( nboun1, 2+2*order ); urr2 = zeros( nboun1, 2+2*order );
+%for i=1:nboun1
+%   % Volumic element
+%   no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
+%   cand1 = rem( find(elements==no1),nelem1 ); % find gives line + column*size
+%   cand2 = rem( find(elements==no2),nelem1 );
+%   boun2vol1(i) = intersect(cand1, cand2); % If everything went well, there is only one
+%   
+%   % Exterior normal
+%   elt = boun2vol1(i); no3 = setdiff( elements( elt, 1:3 ), [no1,no2]);
+%   x1 = nodes(no1,1); y1 = nodes(no1,2);
+%   x2 = nodes(no2,1); y2 = nodes(no2,2);
+%   x3 = nodes(no3,1); y3 = nodes(no3,2);
+%   extnorm1(i,:) = [ y1-y2 , -(x1-x2) ];
+%   extnorm1(i,:) = extnorm1(i,:)/norm(extnorm1(i,:));
+%   if (x3-x2)*(y1-y2) - (y3-y2)*(x1-x2) > 0 % Check that the normal is exterior
+%      extnorm1(i,:) = -extnorm1(i,:);
+%   end
+%   
+%   % ur
+%   urr1(i,1:4) = u1( [2*no1-1,2*no1,2*no2-1,2*no2] );
+%   urr2(i,1:4) = u2( [2*no1-1,2*no1,2*no2-1,2*no2] );
+%   if order == 2
+%      no4 = boundary(i,4);
+%      urr1(i,5:6) = u1( [2*no4-1,2*no4] );
+%      urr2(i,5:6) = u2( [2*no4-1,2*no4] );
+%   end
+%end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% First determine the crack's line.
@@ -564,36 +690,17 @@ end
 % Build the base-change matrix : [x;y] = Q*[X;Y], [X;Y] = Q'*[x;y]
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
 
-% Plot the mesh with the normal
+% Plot the normal
 figure
 hold on;
 ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
-x8 = nodes(8,1); y8 = nodes(8,2); x7 = nodes(7,1); y7 = nodes(7,2); 
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
 xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
 yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
 
-x1 = xc + dir11(1); y1 = yc + dir11(2);
-x2 = xc + dir21(1); y2 = yc + dir21(2);
-xn = xc + n1; yn = yc + n2;
-plot( [xc,x1], [yc,y1] ,'Color', 'red', 'LineWidth',3);
-plot( [xc,x2], [yc,y2] ,'Color', 'green', 'LineWidth',3);
-plot( [xc,xn], [yc,yn] ,'Color', 'cyan', 'LineWidth',2);
-plot( [x7,x8], [y7,y8] ,'Color', 'magenta', 'LineWidth',3);
-axis('equal');
-
-% And the other one
-figure
-hold on;
-ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
-x8 = nodes(8,1); y8 = nodes(8,2); x7 = nodes(7,1); y7 = nodes(7,2); 
-xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
-yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
-
-x1 = xc + dir12(1); y1 = yc + dir12(2);
-x2 = xc + dir22(1); y2 = yc + dir22(2);
-xn = xc + n1; yn = yc + n2;
-plot( [xc,x1], [yc,y1] ,'Color', 'red', 'LineWidth',3);
-plot( [xc,x2], [yc,y2] ,'Color', 'green', 'LineWidth',3);
+x2 = xc + 3*normal(1); y2 = yc + 3*normal(2);
+xn = xc + 3*n1; yn = yc + 3*n2;
+plot( [xc,x2], [yc,y2] ,'Color', 'red', 'LineWidth',3);
 plot( [xc,xn], [yc,yn] ,'Color', 'cyan', 'LineWidth',2);
 plot( [x7,x8], [y7,y8] ,'Color', 'magenta', 'LineWidth',3);
 axis('equal');
@@ -636,8 +743,8 @@ hold on;
 ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
 x7 = nodes(7,1); y6 = nodes(7,2); x8 = nodes(8,1); y8 = nodes(8,2); 
 
-Vp1 = [10;-Cte]; Vp2 = [-10;-Cte];
-Vm1 = [10;-Cte2]; Vm2 = [-10;-Cte2];
+Vp1 = [20;-Cte]; Vp2 = [-20;-Cte];
+Vm1 = [20;-Cte2]; Vm2 = [-20;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
 
 plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',1);
@@ -712,7 +819,7 @@ if usefourier == 1
                bkan(k) = 2*imag(fourn(kp));
             end
          else
-            Rpm = (fr1(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+            Rpm = (fr2(indexbound2)'*vp(indexbound2) - fp(indexbound2)'*ur2(indexbound2));
             fournm(kp) = -(1+nu)/(2*E*L*lambda(kp)^2)*Rpm;
          end
       end

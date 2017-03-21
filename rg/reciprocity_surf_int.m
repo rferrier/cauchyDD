@@ -15,7 +15,7 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 4; % Order of polynom
+ordp      = 5; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal
 
@@ -35,7 +35,7 @@ if loadfield ~= 1
    neumann2   = [4,1,fscalar ; 6,1,-fscalar];
    
    % First, import the mesh
-   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710t10u.msh' );
    nnodes = size(nodes,1);
    
    % mapBounds
@@ -78,7 +78,7 @@ if loadfield ~= 1
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710t10u.msh' );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D (nodes2,elements2,mat,order2,boundary2,[]);
 Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
@@ -748,6 +748,13 @@ end
 % Polynomial interpolation
 if usepolys == 1
    tic
+   
+   % Build the xyz vectors in the crack's base
+   xyz = nodes2';
+   Xyz = Q'*xyz; Xs = Xyz(1,:)/Lx; Ys = Xyz(2,:)/Lx; Zs = (Xyz(3,:)+Cte)/Lx;
+   X0 = (max(Xs)+min(Xs))/2; Y0 = (max(Ys)+min(Ys))/2;
+   Xso = Xs-X0; Yso = Ys-Y0;
+   
    % First, determine the coefficients
    lam = nu*E/((1+nu)*(1-2*nu)) ;
    mu = E/(2*(1+nu)) ;
@@ -871,12 +878,12 @@ if usepolys == 1
 %         Lhsca( neq, end) = E; Lhscb( neq, end) = -E; % akl = bkl
 %         neq = neq+1;
 
-         for j=1:floor(l/2) % c0j = 0
-            Lhscc( neq, j+1 ) = E;
-            neq = neq+1;
-         end
-         Lhsca( neq, 1) = E; Lhscb( neq, 1) = -E; % a00 = b00
-         neq = neq+1;
+%         for j=1:floor(l/2) % c0j = 0
+%            Lhscc( neq, j+1 ) = E;
+%            neq = neq+1;
+%         end
+%         Lhsca( neq, 1) = E; Lhscb( neq, 1) = -E; % a00 = b00
+%         neq = neq+1;
          % Purpose equation
          Lhsca( neq, 1) = lam*(k+1);
          Lhscb( neq, 1) = lam*(l+1);
@@ -892,11 +899,62 @@ if usepolys == 1
 %         coef{ k+1, l+1 } = Lhsco\Rhsco;
          
          % Ker stuff
-         U = E*null(Lhsco);  % E* in order to have a better condition number
-         Lhsto = [ Lhsco ; U' ]; Rhsto = [ Rhsco ; zeros(size(U,2), 1) ];
-         Solpro = Lhsto\Rhsto;
-         coef{ k+1, l+1 } = Solpro(1:sze);
+%         U = E*null(Lhsco);  % E* in order to have a better condition number
+%         Lhsto = [ Lhsco ; U' ]; Rhsto = [ Rhsco ; zeros(size(U,2), 1) ];
+%         Solpro = Lhsto\Rhsto;
+%         coef{ k+1, l+1 } = Solpro(1:sze);
          
+         %% Minimization problem to find the best polynom
+         ka = zeros(floor((k+1)/2)*(floor(l/2)+1),1);
+         kb = zeros(floor(k/2)*(floor((l+1)/2)+1),1);
+         kc = zeros(floor(k/2)*(floor(l/2)+1),1);
+         
+         for ii = 0:floor((k+1)/2)
+            for jj = 0:floor(l/2)
+               u = Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj);
+               u = reshape([u;u;u],1,[])'; % Because size(K) = 3*nnodes
+               ka( 1+jj+ii*(floor(l/2)+1), 1 ) =...
+%                        max( abs( Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj) ) );
+                        sum( ( Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj) ).^2 );
+%                        u'*Kinter2*u;
+            end
+         end
+         for ii = 0:floor(k/2)
+            for jj = 0:floor((l+1)/2)
+               u = Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj);
+               u = reshape([u;u;u],1,[])';
+               kb( 1+jj+ii*(floor((l+1)/2)+1), 1 ) =...
+%                       max( abs( Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj) ) );
+                       sum( ( Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj) ).^2 );
+%                       u'*Kinter2*u;
+
+            end
+         end
+         for ii = 0:floor(k/2)
+            for jj = 0:floor(l/2)
+               u = Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1);
+               u = reshape([u;u;u],1,[])';
+               kc( 1+jj+ii*(floor(l/2)+1), 1 ) =...
+%                       max( abs( Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1) ) );
+                       sum( ( Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1) ).^2 );
+%                       u'*Kinter2*u;
+            end
+         end
+      
+         zab = zeros( size(ka,1), size(kb,1) );
+         zac = zeros( size(ka,1), size(kc,1) );
+         zbc = zeros( size(kb,1), size(kc,1) );
+      
+         % Mm consists in minimizing the worst amplification for each a, b or c
+         Mm = [ diag(ka),zab,zac ; zab',diag(kb),zbc ; zac',zbc',diag(kc) ];
+%         Mm = [ diag(ka).^2,zab,zac ; zab',diag(kb).^2,zbc ; zac',zbc',diag(kc).^2 ];
+         
+         % Minimize under the constraints
+         Lhsto2 = [ Mm , Lhsco' ; Lhsco , zeros(size(Lhsco,1)) ];
+         Rhsto2 = [ zeros(size(Mm,1), 1) ; Rhsco ];
+         Solpro2 = Lhsto2\Rhsto2;
+         coef{ k+1, l+1 } = Solpro2(1:sze);
+      
       end
    end
 
@@ -917,15 +975,15 @@ if usepolys == 1
          coefc   = coefabc( floor((k+3)/2)*floor((l+2)/2) +...
                            floor((k+2)/2)*floor((l+3)/2) + 1 : end );
                
-         for no = 1:nnodes2
-         
-            x = nodes2(no,1);
-            y = nodes2(no,2);
-            z = nodes2(no,3);
-            % Change base (for coordiantes)
-            ixigrec = Q'*[x;y;z]; X = (ixigrec(1))/Lx; Y = ixigrec(2)/Lx;
-            Z = (ixigrec(3)+Cte)/Lx;
-            Xs(no) = X; Ys(no) = Y; Zs(no) = Z;
+%         for no = 1:nnodes2
+%         
+%            x = nodes2(no,1);
+%            y = nodes2(no,2);
+%            z = nodes2(no,3);
+%            % Change base (for coordiantes)
+%            ixigrec = Q'*[x;y;z]; X = (ixigrec(1))/Lx; Y = ixigrec(2)/Lx;
+%            Z = (ixigrec(3)+Cte)/Lx;
+%            Xs(no) = X; Ys(no) = Y; Zs(no) = Z;
 
 %            % Build the xyz vector
 %            GROXa = zeros( floor((k+3)/2)*floor((l+2)/2), 1 );
@@ -959,9 +1017,12 @@ if usepolys == 1
 %            vloc = [ v1 ; v2 ; v3 ];
 %            % Change base (for vector), in the other direction
 %            vxy = Q*vloc; vpa(3*no-2) = vxy(1); vpa(3*no-1) = vxy(2); vpa(3*no) = vxy(3);
-         end
+%         end
 %         fp = Kinter2*vpa;
 %         Rhse(1+l+(ordp+1)*k) = (fr1(indexbound2)'*vpa(indexbound2) - fp(indexbound2)'*ur1(indexbound2));
+         
+         % Compute the center of the crack plane
+%         X0 = (max(Xs)+min(Xs))/2; Y0 = (max(Ys)+min(Ys))/2;
          
          Rhs(1+l+(ordp+1)*k) = 0;
          for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
@@ -1028,7 +1089,7 @@ if usepolys == 1
                end
          
                ixigrec = Q'*[xgr(1);xgr(2);xgr(3)];
-               X = ixigrec(1)/Lx; Y = ixigrec(2)/Lx; Z = (ixigrec(3)+Cte)/Lx;
+               X = ixigrec(1)/Lx-X0; Y = ixigrec(2)/Lx-Y0; Z = (ixigrec(3)+Cte)/Lx;
                
                 % Test fields
                s11 = 0; s22 = 0; s33 = 0; s12 = 0; s13 = 0; s23 = 0;
@@ -1146,8 +1207,8 @@ if usepolys == 1
    end
 
    %% Build the Lhs : /!\ you must have the same odd numerotation as previously
-   L1x = min(Xs); L2x = max(Xs);
-   L1y = min(Ys); L2y = max(Ys);
+   L1x = min(Xs)-X0; L2x = max(Xs)-X0;
+   L1y = min(Ys)-Y0; L2y = max(Ys)-Y0;
    for i=0:ordp
       for j=0:ordp
          for k=0:ordp
@@ -1211,7 +1272,7 @@ if usepolys == 1
    solup = zeros(101,101);
    for k=0:ordp
       for l=0:ordp
-         solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
+         solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
       end
    end
    solup = solup'; % prepare for plot
@@ -1268,7 +1329,7 @@ if usepolys == 1
    solup = 0;
    for k=0:ordp
       for l=0:ordp
-         solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx)'.^k * (Y/Lx).^l;
+         solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
       end
    end
    

@@ -16,7 +16,7 @@ mu         = 0;%1e-5;%5e-3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
 
 usefourier = 0;
-usepolys   = 1;
+usepolys   = 0;
 
 nbase = 3; % Number of Fourier basis functions
 ordp = 4;  % Number of Polynomial basis functions

@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.;      % noise
+br      = 0.01;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [10];
+methods = [9];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -1588,7 +1588,7 @@ if find(methods==8)
 end
 %%
 if find(methods==9)
-   niter   = 10;
+   niter   = 5;
    precond = 1;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
@@ -1602,7 +1602,7 @@ if find(methods==9)
    Zed   = zeros( 2*nnodes, niter+1 );
    alpha = zeros( niter+1, 1 );
    beta  = zeros( niter+1, 1 );
-   ntrunc = 25;  % In case the algo finishes before max ratio is reached
+   ntrunc = 0;  % In case the algo finishes before max ratio is reached
    
    %% Perform A x0 :
    % Solve 1
@@ -1889,9 +1889,14 @@ if find(methods==9)
 %   % L-curve
    figure
    hold on;
-   loglog(resS(2:iter+1),regS(2:iter+1),'-*','Color','red');
-   loglog(residual(2:iter+1),regulari(2:iter+1),'-+');
-   legend('RL-curve','L-curve')
+   set(gca, 'fontsize', 20);
+%   loglog(resS(2:iter+1),regS(2:iter+1),'-*','Color','red','linewidth',3);
+%   loglog(residual(2:iter+1),regulari(2:iter+1),'-+','linewidth',3);
+   plot(log10(residual(2:iter+1)),log10(regulari(2:iter+1)),'-+','linewidth',3);
+%   legend('RL-curve','L-curve')
+   legend('L-curve')
+   xlabel('Residual (log)')
+   ylabel('H1 Norm (log)')
 %   ntrunc = findCorner (resD(2:iter), regD(2:iter), 3)
 %   findCorner (residual(2:iter)', regulari(2:iter)', 3);
    
@@ -1928,12 +1933,16 @@ if find(methods==9)
 %   plot(thetax,usolR(index,1));
 %   plot(thetax,usolR(index-1,1), 'Color', 'red');
 %   xlabel('angle(rad)')
-%   figure
-%   hold on
-%   set(gca, 'fontsize', 15);
-%   plot(thetax,efeR(index,1));
-%   plot(thetax,efeR(index-1,1), 'Color', 'red');
-%   xlabel('angle(rad)')
+   figure
+   hold on
+   set(gca, 'fontsize', 20);
+%   plot(thetax,efeR(index,1),'linewidth',3);
+%   plot(thetax,efeR(index-1,1), 'Color', 'red','linewidth',3);
+   plot( thetax,sqrt(efeR(index-1,1).^2+efeR(index,1).^2) ,'linewidth',3);
+   plot( thetax,sqrt(fref(index-1,1).^2+fref(index,1).^2) ,'linewidth',3,'Color','red');
+   xlabel('angle(rad)')
+   ylabel('pressure')
+   legend('Solution','Reference')
    
 %   efe = Kinter*usolR;
 %   figure

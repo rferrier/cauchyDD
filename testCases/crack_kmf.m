@@ -14,7 +14,7 @@ br      = 0.0;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6 = Evanescent regul, 7 = CG + Ritz filter
-methods = [5];
+methods = [1];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -95,7 +95,7 @@ plot(uref(index,1));
 figure
 plot(fref(index,1),'Color','red');
 
-indexxy = [index;index+1];
+indexxy = [index-1;index];
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% KMF prequisites
 if size(find(methods==1),1) == 1 || size(find(methods==2),1) == 1

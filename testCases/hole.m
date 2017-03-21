@@ -9,17 +9,17 @@ E        = 210000; % MPa : Young modulus
 nu       = 0.3;    % Poisson ratio
 fscalar  = 250;    % N.mm-2 : Loading on the plate
 mat      = [0, E, nu];
-niter    = 30;
+niter    = 10;
 precond  = 0;      %
 mu       = 0.;     % Regularization parameter
 ratio    = 1e-300; % Maximal ratio (for eigenfilter)
-br       = 0.01;      % noise
+br       = .0;      % noise
 brt      = 0;      % "translation" noise
 epsilon  = 1e-1;   % Convergence criterion for ritz value
 ntrunc   = 10;      % In case the algo finishes at niter
 bestiter = 0;     % chooses the best iteration with the L-curve
 
-% methods : 1-> SPD, 2-> KMF-O
+% methods : 1-> SPD, 2-> KMF-O, 3-> KMF-fixed point
 methods = [1];
 
 % Boundary conditions
@@ -499,24 +499,28 @@ if find(methods==1)
    sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem);
    plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
 end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% KMF + Orthodir
-if find(methods==2)
-
+%% KMF Prequisites
+if size(find(methods==2),1) == 1 || size(find(methods==3),1) == 1
    %% Definition of the operators
    % DN problem
    dirichlet1 = [5,1,0;5,2,0;
                  3,1,0;3,2,0];
    neumann1   = [];
    neumann0   = [];
-   [K1,C1,nbloq1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
+   [K1,C1,nbloq1,node2c1,c2node1] = ...
+                   Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
    
    % ND problem
    dirichlet2 = [6,1,0;6,2,0;
                  3,1,0;3,2,0];
    neumann2   = [];% [3,1,lagr1; 3,2,lagr1] is managed by lagr2forces
-   [K2,C2,nbloq2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
+   [K2,C2,nbloq2,node2c2,c2node2] = ...
+                   Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% KMF + Orthodir
+if find(methods==2)
    
    error   = zeros(niter+1,1);
    residual = zeros(niter+1,1);
@@ -637,7 +641,7 @@ if find(methods==2)
    figure
    hold on
    set(gca, 'fontsize', 15);
-   set(gca,'ylim',[-11 1])
+%   set(gca,'ylim',[-11 1])
    plot(log10(error(2:end)),'Color','blue')
    plot(log10(residual(2:end)/residual(1)),'Color','red')
    legend('error (log)','residual (log)')
@@ -662,4 +666,64 @@ if find(methods==2)
    plot(uref(index));
    plot(Itere(index,stopHere),'Color','red');
    
+end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% KMF + fixed point
+if find(methods==3)
+    % init :
+    u1    = uref-uref;
+    u2    = u1;
+    u2(2:2:2*nnodes,1) = 3e-3;
+
+    error1   = zeros(niter,1);
+    error2   = zeros(niter,1);
+    residual = zeros(niter,1);
+    regulari = zeros(niter,1);
+
+    for iter = 1:niter
+        % Solve DN
+        f1 = dirichletRhs2(u2, 5, c2node1, boundary, nnodes);
+        fdir = dirichletRhs2(uref, 3, c2node1, boundary, nnodes);
+        uin1 = K1\(f1+fdir);
+        u1 = uin1(1:2*nnodes,1);
+        lagr1 = uin1(2*nnodes+1:end,1);
+        error1(iter) = norm(u1(indexxy)-uref(indexxy)) / norm(uref(indexxy));
+
+        % Solve ND
+        fr = lagr2forces2( lagr1, c2node1, 5, boundary, nnodes );
+        fr = [ fr; zeros(size(C2,2),1) ]; % Give to fr the right size
+        fdir1 = dirichletRhs2(urefb, 6, c2node2, boundary, nnodes);
+        fdir2 = dirichletRhs2(uref, 3, c2node2, boundary, nnodes);
+        f2 = fr + assembleDirichlet( [fdir1,fdir2] );
+        uin2 = K2\f2;
+        u2 = uin2(1:2*nnodes,1);
+        
+        error2(iter) = norm(u2(indexxy)-uref(indexxy)) / norm(uref(indexxy));
+        if iter>1  
+           residual(iter) = norm(u1(indexxy)-u2(indexxy)) /...
+                            sqrt ( norm(u1(indexxy))*norm(u2(indexxy)) );
+        end
+        regulari(iter) = sqrt(u2'*( regul(u2, nodes, boundary, 5) ));
+
+    end
+    
+    figure
+    hold on
+    set(gca, 'fontsize', 20);
+%    set(gca,'ylim',[-11 1])
+    plot(log10(error1(2:end)),'Color','blue','linewidth',3)
+    plot(log10(error2(2:end)),'Color','black','linewidth',3)
+    plot(log10(residual(2:end)),'Color','red','linewidth',3)
+    legend('error1 (log)','error2 (log)','residual (log)')
+
+    % L-curve
+    figure
+    loglog(residual(2:end),regulari(2:end));
+   
+    % Plot chosen Itere
+    figure
+    hold on;
+    set(gca, 'fontsize', 20);
+    plot(uref(index),'linewidth',3);
+    plot(u2(index),'Color','red','linewidth',3);
 end

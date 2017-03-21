@@ -15,12 +15,13 @@ mat        = [0, E, nu];
 mu         = 0;%1e-5;%5e-3;     % Regularization coef
 %mu         = 3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
+br         = .0;      % Noise level
 
 usefourier = 0;
 usepolys   = 1;
 
-nbase = 3; % Number of Fourier basis functions
-ordp = 8;  % Number of Polynomial basis functions
+nbase = 2; % Number of Fourier basis functions
+ordp = 15;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation
 
@@ -98,6 +99,10 @@ elseif useorder == 2
    [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nt6.msh' );
 end
 
+if order ~= useorder || order2 ~= useorder
+   warning('Looks like one of the meshes did not have the right order');
+end
+
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet);
 Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
@@ -130,6 +135,12 @@ fr1(indexbound2) = f1(indexbound);
 ur2 = zeros( 2*nnodes2, 1 ); fr2 = zeros( 2*nnodes2, 1 );
 ur2(indexbound2) = u2(indexbound);
 fr2(indexbound2) = f2(indexbound);
+
+% Add the noise
+u1n = u1; u2n = u2;
+br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
+%noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
+u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
 
 %plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
 
@@ -411,8 +422,49 @@ end
 
 % Build the base-change matrix : [x;y] = Q*[X;Y], [X;Y] = Q'*[x;y]
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
+%Qref = [ n2, n1 ;-n1, n2 ]; % Reference matrix
+Qref = Q;
 
-% Plot the mesh with the normal
+% Plot the mesh
+%figure
+%ret = patch('Faces',elements(:,1:3),'Vertices',nodes,'FaceAlpha',0);
+%axis('equal');
+
+%% Plot the mesh with the normal
+%figure
+%hold on;
+%ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
+%x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+%xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
+%yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
+%
+%x1 = xc + dir11(1); y1 = yc + dir11(2);
+%x2 = xc + dir21(1); y2 = yc + dir21(2);
+%xn = xc + n1; yn = yc + n2;
+%plot( [xc,x1], [yc,y1] ,'Color', 'red', 'LineWidth',3);
+%plot( [xc,x2], [yc,y2] ,'Color', 'green', 'LineWidth',3);
+%plot( [xc,xn], [yc,yn] ,'Color', 'cyan', 'LineWidth',2);
+%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
+%axis('equal');
+%
+%% And the other one
+%figure
+%hold on;
+%ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
+%x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+%xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
+%yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
+%
+%x1 = xc + dir12(1); y1 = yc + dir12(2);
+%x2 = xc + dir22(1); y2 = yc + dir22(2);
+%xn = xc + n1; yn = yc + n2;
+%plot( [xc,x1], [yc,y1] ,'Color', 'red', 'LineWidth',3);
+%plot( [xc,x2], [yc,y2] ,'Color', 'green', 'LineWidth',3);
+%plot( [xc,xn], [yc,yn] ,'Color', 'cyan', 'LineWidth',2);
+%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
+%axis('equal');
+
+% Plot the normal
 figure
 hold on;
 ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
@@ -420,28 +472,9 @@ x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2);
 xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
 yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
 
-x1 = xc + dir11(1); y1 = yc + dir11(2);
-x2 = xc + dir21(1); y2 = yc + dir21(2);
-xn = xc + n1; yn = yc + n2;
-plot( [xc,x1], [yc,y1] ,'Color', 'red', 'LineWidth',3);
-plot( [xc,x2], [yc,y2] ,'Color', 'green', 'LineWidth',3);
-plot( [xc,xn], [yc,yn] ,'Color', 'cyan', 'LineWidth',2);
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
-axis('equal');
-
-% And the other one
-figure
-hold on;
-ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
-x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
-xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
-yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
-
-x1 = xc + dir12(1); y1 = yc + dir12(2);
-x2 = xc + dir22(1); y2 = yc + dir22(2);
-xn = xc + n1; yn = yc + n2;
-plot( [xc,x1], [yc,y1] ,'Color', 'red', 'LineWidth',3);
-plot( [xc,x2], [yc,y2] ,'Color', 'green', 'LineWidth',3);
+x2 = xc + 3*normal(1); y2 = yc + 3*normal(2);
+xn = xc + 3*n1; yn = yc + 3*n2;
+plot( [xc,x2], [yc,y2] ,'Color', 'red', 'LineWidth',3);
 plot( [xc,xn], [yc,yn] ,'Color', 'cyan', 'LineWidth',2);
 plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
 axis('equal');
@@ -546,8 +579,8 @@ hold on;
 ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
 x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
 
-Vp1 = [10;-Cte]; Vp2 = [-10;-Cte];
-Vm1 = [10;-Cte2]; Vm2 = [-10;-Cte2];
+Vp1 = [20;-Cte]; Vp2 = [-20;-Cte];
+Vm1 = [20;-Cte2]; Vm2 = [-20;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
 
 plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',1);
@@ -562,13 +595,13 @@ tangent = [normal(2) ; -normal(1)]; b = max(nodes(:,1)) - min(nodes(:,1));
 a = tangent(2)/tangent(1)*b; L = sqrt(a^2+b^2);
 
 % Convenient values for plot
-udepx  = u1(icrack5x)-u1(icrack6x);
-udepy  = u1(icrack5y)-u1(icrack6y);
+udepx  = u1n(icrack5x)-u1n(icrack6x);
+udepy  = u1n(icrack5y)-u1n(icrack6y);
 Xx     = nodes(b2node5,1); Yy = nodes(b2node5,2);
-ubase  = Q'*[udepx,udepy]'; ubase = ubase';
-XY     = Q'*[Xx,Yy]'; XY = XY';
+ubase  = Qref'*[udepx,udepy]'; ubase = ubase';
+XY     = Qref'*[Xx,Yy]'; XY = XY'; %XY(:,2) = -XY(:,2);
 [newX, orderX] = sort(XY(:,1));          % In case order > 1, need to sort
-offset = Q(1,2)/Q(1,1)*CteR;   % /!\ Only in case rectangle
+offset = Qref(1,2)/Qref(1,1)*CteR;   % /!\ Only in case rectangle
 
 left  = offset : (-offset+newX(1))/(size(newX,1)) : newX(1) ;
 right = newX(end) : (offset + L - newX(end))/(size(newX,1)) : offset + L ;
@@ -600,7 +633,7 @@ if usefourier == 1
 %            x = nodes2(i,1);
 %            y = nodes2(i,2);
 %            % Change base (for coordinates)
-%            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+%            ixigrec = Q'*[x;y]; X = ixigrec(1); Y = ixigrec(2)+Cte2;
 %            Xs(i) = X; Ys(i) = Y;
 %            
 %            v1 = -I*lambda(kp)*exp(-I*lambdae*X)* ...
@@ -676,7 +709,7 @@ if usefourier == 1
                end
          
                % Test fields
-               ixigrec = Q'*[xgr(1);xgr(2)]; X = ixigrec(1); Y = ixigrec(2)+Cte;
+               ixigrec = Q'*[xgr(1);xgr(2)]; X = ixigrec(1); Y = ixigrec(2)+Cte2;
                
                sloc11 = E/(1+nu)*lambdae^2*exp(-I*lambdae*X)* ...
                                ( exp(lambda(kp)*Y)+exp(-lambda(kp)*Y) );
@@ -751,8 +784,13 @@ if usefourier == 1
    
    figure
    hold on;
-   plot(newX, [0*newXo;ubase(:,2);0*newXo])
-   plot(newX, solu, 'Color', 'red')
+   set(gca, 'fontsize', 20);
+   plot(newX, [0*newXo;ubase(:,2);0*newXo],'linewidth',3)
+   plot(newX, solu, 'Color', 'red','linewidth',3)
+   legend('Reference gap','reconstructed gap')
+   xlabel('X')
+   ylabel('[[u]]')
+   
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mean square polynoms
@@ -818,7 +856,7 @@ if usepolys == 1
 %      for i=1:nnodes2
 %         x = nodes2(i,1);
 %         y = nodes2(i,2);
-%         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L;
+%         ixigrec = Q'*[x;y]; X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte2)/L;
 %         
 %         % Build X^k*Y^j
 %         GROX = zeros(ordp+2,1);
@@ -881,7 +919,7 @@ if usepolys == 1
             end
             
             ixigrec = Q'*[xgr(1);xgr(2)];
-            X = (ixigrec(1)-offset)/L; Y = (ixigrec(2)+Cte)/L;
+            X = (ixigrec(1)-offset)/L-.5; Y = (ixigrec(2)+Cte2)/L;
             
             % Build X^k+1-j*Y^j
             GROX = zeros(ordp+2,1);
@@ -919,7 +957,8 @@ if usepolys == 1
    end
 
 %   L1 = offset; L2 = offset+L;
-   L1 = 0; L2 = 1;
+%   L1 = 0; L2 = 1;
+   L1 = -.5; L2 = .5;
    for i=0:ordp
       for j=0:ordp
          ord = i+j+1;
@@ -985,7 +1024,7 @@ if usepolys == 1
    
    solu = zeros(size(newX,1),1); solpref = zeros(size(newX,1),1);
    for i=1:nbase
-      solu = solu + McCoef(i)*( (newX-offset)./L).^(i-1);
+      solu = solu + McCoef(i)*( (newX-offset)./L-.5).^(i-1);
    end
    for i=1:nbase
       solpref = solpref + McCoefref(i)*newX.^(i-1);

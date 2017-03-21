@@ -19,7 +19,7 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal
 
 usefourier = 0;
-usepolys   = 1;
+usepolys   = 0;
 plotref    = 0;
 
 if loadfield ~= 1
