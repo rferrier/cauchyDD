@@ -23,6 +23,8 @@ usefourier = 0;
 usepolys   = 1;
 plotref    = 0;
 
+centCrack = [4;3;1]; % Center of the crack (for reference)
+
 if loadfield ~= 1
    tic
    % Boundary conditions
@@ -527,7 +529,7 @@ Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
 
 % Reference : we know that the point P belongs to the plane.
-Pt = [4;3;1]; QPt = Q'*Pt; CteR = -QPt(3);
+Pt = centCrack; QPt = Q'*Pt; CteR = -QPt(3);
 
 %% And now, the crack itself
 % Compute L ( (not so) provisionnal formula assuming that we have a particular case)
@@ -755,6 +757,10 @@ if usepolys == 1
    X0 = (max(Xs)+min(Xs))/2; Y0 = (max(Ys)+min(Ys))/2;
    Xso = Xs-X0; Yso = Ys-Y0;
    
+   nodes2b = transpose(Q*nodes2'); %[Xso',Yso',Zs'];
+   [K2b,~,~,~,~] = Krig3D (nodes2b,elements2,mat,order2,boundary2,[]);
+   Kinter2b = K2b( 1:3*nnodes2, 1:3*nnodes2 );
+   
    % First, determine the coefficients
    lam = nu*E/((1+nu)*(1-2*nu)) ;
    mu = E/(2*(1+nu)) ;
@@ -912,35 +918,38 @@ if usepolys == 1
          for ii = 0:floor((k+1)/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj);
-               u(~indexbound2) = 0;
                u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
+               f = Kinter2b*u;
+               u(~indexbound2) = 0; f(~indexbound2) = 0; 
                ka( 1+jj+ii*(floor(l/2)+1), 1 ) =...
 %                        max( abs( u ) );
 %                        sum( ( u ).^2 );
-                        u'*Kinter2*u;
+                        u'*f;
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor((l+1)/2)
                u = Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj);
-               u(~indexbound2) = 0;
-               u = reshape([;u-u;u;;u-u],1,[])';
+               u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
+               f = Kinter2b*u;
+               u(~indexbound2) = 0; f(~indexbound2) = 0; 
                kb( 1+jj+ii*(floor((l+1)/2)+1), 1 ) =...
 %                       max( abs( u ) );
 %                       sum( ( u ).^2 );
-                       u'*Kinter2*u;
+                       u'*f;
 
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1);
-               u(~indexbound2) = 0;
-               u = reshape([;u-u;;u-u;u],1,[])';
+               u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
+               f = Kinter2b*u;
+               u(~indexbound2) = 0; f(~indexbound2) = 0; 
                kc( 1+jj+ii*(floor(l/2)+1), 1 ) =...
 %                       max( abs( u ) );
 %                       sum( ( u ).^2 );
-                       u'*Kinter2*u;
+                       u'*f;
             end
          end
       
