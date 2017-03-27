@@ -15,13 +15,13 @@ mat        = [0, E, nu];
 mu         = 0;%1e-5;%5e-3;     % Regularization coef
 %mu         = 3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
-br         = .0;      % Noise level
+br         = .01;      % Noise level
 
 usefourier = 0;
 usepolys   = 1;
 
 nbase = 2; % Number of Fourier basis functions
-ordp = 15;  % Number of Polynomial basis functions
+ordp = 6;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation
 
@@ -138,8 +138,8 @@ fr2(indexbound2) = f2(indexbound);
 
 % Add the noise
 u1n = u1; u2n = u2;
-br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
-%noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
+%br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
+noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
 u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
 
 %plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');

@@ -133,4 +133,4 @@ function [ C, node2c, c2node, ntot ] = Cbound ( nodes, bc, boundary )
      end
  end
 
-endfunction
+end

@@ -15,17 +15,22 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 6; % Order of polynom
-loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
-               % If 2 : meshes are conformal
+ordp      = 1; % Order of polynom
+loadfield = 3; % If 0 : recompute the reference problem and re-pass mesh
+               % If 2 : meshes are conformal, do everything
+               % If 3 : meshes are conformal, store the u field
+               % If 4 : meshes are conformal, read the u field
 
 usefourier = 0;
 usepolys   = 1;
-plotref    = 0;
+plotref    = 1;
+
+cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh'
 
 centCrack = [4;3;1]; % Center of the crack (for reference)
 
-if loadfield ~= 1
+if loadfield ~= 1 && loadfield ~= 4
    tic
    % Boundary conditions
    % first index  : index of the boundary
@@ -37,7 +42,7 @@ if loadfield ~= 1
    neumann2   = [4,1,fscalar ; 6,1,-fscalar];
    
    % First, import the mesh
-   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dpp/plate_c_710t10.msh' );
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( cracked_mesh );
    nnodes = size(nodes,1);
    
    % mapBounds
@@ -74,13 +79,18 @@ if loadfield ~= 1
    % Compute stress :
    sigma = stress3D(u1,mat,nodes,elements,order,1,ntoelem);
    
+   % Save the field
+   if loadfield == 3
+      save("fields/U.mat","u1","u2","f1","f2");
+   end
+   
    % Output :
    plotGMSH3D({ux,'U_x';uy,'U_y';uz,'U_z';u1,'U_vect';sigma,'stress'}, elements, nodes, 'reference');
    disp([ 'Direct problem solved ', num2str(toc) ]);
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
-[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( 'meshes/rg3dpp/plate710t10.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh3D( uncracked_mesh );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D (nodes2,elements2,mat,order2,boundary2,[]);
 Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
@@ -110,11 +120,21 @@ elseif loadfield == 1
    UFR = load('fields/UFr107.mat'); UFr = UFR.UFr;
    ur1 = UFr(:,1); ur2 = UFr(:,2); fr1 = UFr(:,3); fr2 = UFr(:,4);
    plotGMSH3D({ur1,'u1';ur2,'u2'}, elements2, nodes2, 'us');
-else  % loadfield == 2 : conformal mesh /!\
+elseif loadfield == 2 || loadfield == 3 %: conformal mesh /!\
    ur1 = zeros( 3*nnodes2, 1 );   ur2 = zeros( 3*nnodes2, 1 );
    fr1 = zeros( 3*nnodes2, 1 );   fr2 = zeros( 3*nnodes2, 1 );
    ur1(indexbound2) = u1(indexbound);   ur2(indexbound2) = u2(indexbound);
    fr1(indexbound2) = f1(indexbound);   fr2(indexbound2) = f2(indexbound);
+elseif loadfield == 4
+   % For the reference stuff
+   [ nodes,elements,ntoelem,boundary,order] = readmesh3D( cracked_mesh );
+   
+   UU = load('fields/U.mat'); u1 = UU.u1; u2 = UU.u2; f1 = UU.f1; f2 = UU.f2;
+   ui = reshape(u1,3,[])'; ux = ui(:,1); uy = ui(:,2); uz = ui(:,3);
+   ur1 = zeros( 3*nnodes2, 1 );   ur2 = zeros( 3*nnodes2, 1 );
+   fr1 = zeros( 3*nnodes2, 1 );   fr2 = zeros( 3*nnodes2, 1 );
+   ur1(indexbound2) = u1(indexbound2);   ur2(indexbound2) = u2(indexbound2);
+   fr1(indexbound2) = f1(indexbound2);   fr2(indexbound2) = f2(indexbound2);
 end
 
 %% Preliminary stuff : find the volumic elements corresponding to the boundaries
@@ -731,7 +751,7 @@ if usefourier == 1
    end
    solu = solu';  % Very imporant and no hack : comes from the function surf
    % Center of the Circle
-   Cc = [4;3;1]; Cc = Q'*Cc; Rad = 2; zed = max(max(solu));
+   Cc = centCrack; Cc = Q'*Cc; Rad = 2; zed = max(max(solu));
    
    figure;
    hold on;
@@ -918,38 +938,37 @@ if usepolys == 1
          for ii = 0:floor((k+1)/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj);
-               u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
+               u = reshape([u;u-u;u-u],1,[])'; % Because size(K) = 3*nnodes
                f = Kinter2b*u;
                u(~indexbound2) = 0; f(~indexbound2) = 0; 
                ka( 1+jj+ii*(floor(l/2)+1), 1 ) =...
+                         u'*f;
 %                        max( abs( u ) );
 %                        sum( ( u ).^2 );
-                        u'*f;
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor((l+1)/2)
                u = Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj);
-               u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
+               u = reshape([u;u-u;u-u],1,[])'; % Because size(K) = 3*nnodes
                f = Kinter2b*u;
                u(~indexbound2) = 0; f(~indexbound2) = 0; 
                kb( 1+jj+ii*(floor((l+1)/2)+1), 1 ) =...
+                        u'*f;
 %                       max( abs( u ) );
 %                       sum( ( u ).^2 );
-                       u'*f;
-
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1);
-               u = reshape([u;u-u;;u-u],1,[])'; % Because size(K) = 3*nnodes
+               u = reshape([u;u-u;u-u],1,[])'; % Because size(K) = 3*nnodes
                f = Kinter2b*u;
                u(~indexbound2) = 0; f(~indexbound2) = 0; 
                kc( 1+jj+ii*(floor(l/2)+1), 1 ) =...
+                        u'*f;
 %                       max( abs( u ) );
 %                       sum( ( u ).^2 );
-                       u'*f;
             end
          end
       
@@ -1289,7 +1308,7 @@ if usepolys == 1
    end
    solup = solup'; % prepare for plot
    % Center of the Circle
-   Cc = [4;3;1]; Cc = Q'*Cc; Rad = 2; zed = max(max(solup));
+   Cc = centCrack; Cc = Q'*Cc; Rad = 2; zed = max(max(solup));
    
    figure;
    hold on;
@@ -1302,6 +1321,10 @@ if usepolys == 1
                                   'Color', 'black',  'LineWidth', 3 );
 %   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
    axis('equal');
+   
+   csvwrite("fields/rg3d_poly.csv",solup);
+   csvwrite("fields/rg3d_X.csv",X);
+   csvwrite("fields/rg3d_Y.csv",Y);
    
    % "Zoom"
    figure;
@@ -1355,10 +1378,11 @@ if plotref == 1
    XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
    XYZ2 = Q*[X;Y;Z2];
    Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
-   Uxyz = Uxyz'(:); % Re-stick the components together
+   Uxyz = reshape(Uxyz',[],1);%Uxyz'(:); % Re-stick the components together
    
    uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
    uplo = uplo(304:end)-uplo(1:303);%  % Compute the gap
    plot( Y, uplo(3:3:end,1), 'Color', 'red' );
+   csvwrite("fields/rg3d_poly2d.csv",[Y',uplo(3:3:end,1)',solup']);
    %legend
 end
