@@ -11,7 +11,7 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 15;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
 br      = .0;      % noise
@@ -89,6 +89,7 @@ uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
 
 urefb = ( 1 + brt + br*noise ) .* uref;
+fref  = Kinter*uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
@@ -199,17 +200,20 @@ if precond == 1
     f1 = dirichletRhs2( Res(:,1)/2, 2, c2node1, boundaryp1, nnodes );
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
-    % Solve 2
-%    f2 = dirichletRhs2( Res(:,1)/2, 2, c2node2, boundaryp2, nnodes );
-%    uin2 = K2\f2;
-%    lagr2 = uin2(2*nnodes+1:end,1);
-%    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
     %
-    Zed(:,1) = lamb1/2;%-lamb2/2;+lamb1/2;
+    Zed(:,1) = lamb1/2;
 elseif precond == 2
-    Zed(index,1) = E*H12(index,index)*Res(index,1);
+    % Solve 2
+    f2 = dirichletRhs2( Res(:,1)/2, 2, c2node2, boundaryp2, nnodes );
+    uin2 = K2\f2;
+    lagr2 = uin2(2*nnodes+1:end,1);
+    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
+    %
+    Zed(:,1) = lamb2/2;
 elseif precond == 3
+    Zed(index,1) = E*H12(index,index)*Res(index,1);
+elseif precond == 4
     Zed(index,1) = 1/E*Mgr(index,index)\Res(index,1);
 else
     Zed(:,1) = Res(:,1);
@@ -218,7 +222,7 @@ end
 d(:,1) = Zed(:,1);
 
 residual(1) = norm(Res( indexa,1));
-error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
+error(1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 ritzval  = 0; % Last ritz value that converged
@@ -254,7 +258,7 @@ for iter = 1:niter
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
     residual(iter+1) = norm(Res(indexa,iter+1));
-    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
+    error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     if precond == 1
@@ -262,17 +266,20 @@ for iter = 1:niter
         f1 = dirichletRhs2( Res(:,iter+1)/2, 2, c2node1, boundaryp1, nnodes );
         uin1 = K1\f1;
         lagr1 = uin1(2*nnodes+1:end,1);
-        lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
-%        % Solve 2
-%        f2 = dirichletRhs2( Res(:,iter+1)/2, 2, c2node2, boundaryp2, nnodes );
-%        uin2 = K2\f2;
-%        lagr2 = uin2(2*nnodes+1:end,1);
-%        lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+        lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
         %
-        Zed(:,iter+1) = lamb1/2;%-lamb2/2+lamb1/2;
+        Zed(:,iter+1) = lamb1/2;
     elseif precond == 2
-        Zed(index,iter+1) = E*H12(index,index)*Res(index,iter+1);
+        % Solve 2
+        f2 = dirichletRhs2( Res(:,iter+1)/2, 2, c2node2, boundaryp2, nnodes );
+        uin2 = K2\f2;
+        lagr2 = uin2(2*nnodes+1:end,1);
+        lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
+        %
+        Zed(:,iter+1) = lamb2/2;
     elseif precond == 3
+        Zed(index,iter+1) = E*H12(index,index)*Res(index,iter+1);
+    elseif precond == 4
         Zed(index,iter+1) = 1/E*Mgr(index,index)\Res(index,iter+1);
     else
         Zed(:,iter+1) = Res(:,iter+1);
@@ -422,11 +429,11 @@ plot(f(2*b2node2),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
 figure;
 
-%hold on
-%plot(log10(error(2:end)),'Color','blue')
+hold on
+plot(error(2:end),'Color','blue')
 %plot(log10(residual(2:end)),'Color','red')
-%legend('error (log)','residual (log)')
-%figure;
+legend('error')%legend('error (log)','residual (log)')
+figure;
 %L-curve :
 hold on;
 loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');

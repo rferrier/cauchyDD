@@ -1,5 +1,5 @@
-% 07/02/2017
-% Algo Steklov-Poincaré dual bloc avec Gradient Conjugué
+% 30/03/2017
+% Algo Steklov-Poincaré dual bloc avec Gradient Conjugué, régularisé
 
 close all;
 clear all;
@@ -11,9 +11,9 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 5;
-precond = 2;      % 1/2 : Use a dual precond
-mu      = 0.;     % Regularization parameter
-br      = 0.;     % noise
+precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
+k       = 1e7;     % Robin's Stiffness (Regularization parameter)
+br      = 0.01;     % noise
 ntrunc  = 0;
 difmesh = 0;
 
@@ -106,19 +106,21 @@ plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
 %% Definition of the operators
 
 % First problem
-dirichlet1 = [4,1,0;4,2,0;
-              3,1,0;3,2,0;
+dirichlet1 = [3,1,0;3,2,0;
               2,1,0;2,2,0;
               1,1,0;1,2,0];
-
+neumann2   = [4,1,fscalar,0,-fscalar];
 [K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundaryp1,dirichlet1);
+
+f2 = loading(0,nodes,boundary,neumann2);
+kuplusf = urefb;% + f2/k;
+[Kp1, fro1] = robinRHS( nbloq1, nodes, boundary, kuplusf, k, 4 );
+K1 = K1 + Kp1;
 
 % Second problem
 dirichlet2 = [1,1,0;1,2,0;
               2,1,0;2,2,0;
               3,1,0;3,2,0];
-neumann2   = [4,1,fscalar,0,-fscalar];
-%neumann2   = [4,1,fscalar];
 neumann0   = [];
 [K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
 
@@ -128,10 +130,12 @@ regulari = zeros(niter+1,1);
 
 %% Dual problems
 % First problem
-dirichlet1d = [4,1,0;4,2,0;
-               3,1,0;3,2,0;
+dirichlet1d = [3,1,0;3,2,0;
                1,1,0;1,2,0];
 [K1d,C1d,nbloq1d,node2c1d,c2node1d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1d);
+
+[Kp1d, fro1d] = robinRHS( nbloq1d, nodes, boundary, kuplusf, k, 4 );
+K1d = K1d + Kp1d;
 
 % Second problem
 dirichlet2d = [1,1,0;1,2,0;
@@ -177,8 +181,8 @@ Axz = -[u1,u2];
 %%%%
 %% Compute Rhs :
 % Solve 1
-f1 = dirichletRhs2( urefb, 4, c2node1d, boundary, nnodes );
-uin1 = K1d\f1;
+%f1 = dirichletRhs2( urefb, 4, c2node1d, boundary, nnodes );
+uin1 = K1d\fro1d;
 u1i = uin1(1:2*nnodes,1);
 u1 = keepField( u1i, 2, boundaryp1 );
 % Solve 2
@@ -202,15 +206,9 @@ if precond == 1
     %
     Zed(:,[1,2]) = [lamb11,lamb12];
 elseif precond == 2
-    % Solve 2 (Sn)
-    f21 = dirichletRhs2( Res(:,1), 2, c2node2, boundaryp2, nnodes );
-    f22 = dirichletRhs2( Res(:,2), 2, c2node2, boundaryp2, nnodes );
-    uin2 = K2\[f21,f22];
-    lagr2 = uin2(2*nnodes+1:end,:);
-    lamb21 = lagr2forces2( lagr2(:,1), c2node2, 2, boundaryp2, nnodes );
-    lamb22 = lagr2forces2( lagr2(:,2), c2node2, 2, boundaryp2, nnodes );
-    %
-    Zed(:,[1,2]) = [lamb21,lamb22];
+    Zed(index,1) = 1/E*H12(index,index)\Res(index,1);
+elseif precond == 3
+    Zed(index,1) = 1/E*Mgr(index,index)\Res(index,1);
 else
     Zed(:,[1,2]) = Res(:,[1,2]);
 end
@@ -278,15 +276,9 @@ for iter = 1:niter
        %
        Zed(:,[2*iter+1,2*iter+2]) = [lamb11,lamb12];
     elseif precond == 2
-       % Solve 2 (Sn)
-       f21 = dirichletRhs2( Res(:,2*iter+1), 2, c2node2, boundaryp2, nnodes );
-       f22 = dirichletRhs2( Res(:,2*iter+2), 2, c2node2, boundaryp2, nnodes );
-       uin2 = K2\[f21,f22];
-       lagr2 = uin2(2*nnodes+1:end,:);
-       lamb21 = lagr2forces2( lagr2(:,1), c2node2, 2, boundaryp2, nnodes );
-       lamb22 = lagr2forces2( lagr2(:,2), c2node2, 2, boundaryp2, nnodes );
-       %
-       Zed(:,[2*iter+1,2*iter+2]) = [lamb21,lamb22];
+        Zed(index,iter+1) = 1/E*H12(index,index)\Res(index,iter+1);
+    elseif precond == 3
+        Zed(index,iter+1) = 1/E*Mgr(index,index)\Res(index,iter+1);
     else
         Zed(:,[2*iter+1,2*iter+2]) = Res(:,[2*iter+1,2*iter+2]);
     end
@@ -392,22 +384,22 @@ legend('error','residual')
 %loglog(residual(2:end),regulari(2:end));
 %figure
 
-figure;
-hold on;
-plot(log10(theta),'Color','blue')
-plot(log10(abs(Y'*( b(:,1)-b(:,2) ))),'Color','red')
-plot(log10(abs(chiD)),'Color','black')
-plot(t,px,'Color','cyan')
-legend( 'Ritz Values','RHS values','solution coefficients', ...
-        'polynomial approximation' )
+%figure;
+%hold on;
+%plot(log10(theta),'Color','blue')
+%plot(log10(abs(Y'*( b(:,1)-b(:,2) ))),'Color','red')
+%plot(log10(abs(chiD)),'Color','black')
+%plot(t,px,'Color','cyan')
+%legend( 'Ritz Values','RHS values','solution coefficients', ...
+%        'polynomial approximation' )
 
-figure;
-hold on;
-plot(Itere(2*b2node2-1,1)-Itere(2*b2node2-1,2),'Color','red');
-plot(ItereR(2*b2node2-1),'Color','blue');
-plot(fref(2*b2node2-1),'Color','green');
-%legend('solution','reference')
-legend('solution','Ritz solution','reference')
+%figure;
+%hold on;
+%plot(Itere(2*b2node2-1,1)-Itere(2*b2node2-1,2),'Color','red');
+%plot(ItereR(2*b2node2-1),'Color','blue');
+%plot(fref(2*b2node2-1),'Color','green');
+%%legend('solution','reference')
+%legend('solution','Ritz solution','reference')
 
 %%%%
 %% Final problem : compute u
@@ -423,11 +415,11 @@ usoli = K \ (fdir4 + f2);
 usol = usoli(1:2*nnodes,1);
 fsol = Kinter*usol;
 
-figure;
-hold on;
-plot(usol(2*b2node2-1),'Color','red');
-plot(uref(2*b2node2-1),'Color','green');
-legend('solution','reference')
+%figure;
+%hold on;
+%plot(usol(2*b2node2-1),'Color','red');
+%plot(uref(2*b2node2-1),'Color','green');
+%legend('solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

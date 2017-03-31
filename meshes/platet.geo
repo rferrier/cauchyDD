@@ -1,7 +1,7 @@
 
 // Geometric parameters
 H = 10;  //  height of plate
-L = 10;  //  width of plate
+L = 2;  //  width of plate
 
 // Discretization parameters
 lc1 = .5; // element size at the border

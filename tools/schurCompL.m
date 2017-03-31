@@ -38,7 +38,7 @@ function [ S, b, map, Iii ] = schurCompL( K, f, nindex, nbloq, c2nodes )
  %        nz = nz+1;
  %    end
  %end
- nz
+% nz
  
  Iii  = inv(Kii);
 

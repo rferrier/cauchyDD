@@ -16,7 +16,7 @@ regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
 ordp      = 1; % Order of polynom
-loadfield = 3; % If 0 : recompute the reference problem and re-pass mesh
+loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
                % If 4 : meshes are conformal, read the u field
@@ -24,11 +24,14 @@ loadfield = 3; % If 0 : recompute the reference problem and re-pass mesh
 usefourier = 0;
 usepolys   = 1;
 plotref    = 1;
+comperror  = 0;
 
-cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh'
+%cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+%uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
+uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
-centCrack = [4;3;1]; % Center of the crack (for reference)
+centCrack = [4;3;1]; % Point on the crack (for reference)
 
 if loadfield ~= 1 && loadfield ~= 4
    tic
@@ -396,7 +399,7 @@ normal = [phi1(2,2)*phi2(3,2) - phi2(2,2)*phi1(3,2)
 normal = normal/norm(normal);
           
 % Build the base-change matrix : [x;y;z] = Q*[X;Y;Z], [X;Y;Z] = Q'*[x;y;z]
-t = [1 ; 0 ; -(normal(1))/normal(3)]; t = t/norm(t); % Total random t
+t = sign(normal(3))*[1 ; 0 ; -(normal(1))/normal(3)]; t = t/norm(t); % Total random t
 v = [normal(2)*t(3) - t(2)*normal(3)
      normal(3)*t(1) - t(3)*normal(1)
      normal(1)*t(2) - t(1)*normal(2)]; % v = n^t
@@ -764,6 +767,49 @@ if usefourier == 1
                                   'Color', 'black',  'LineWidth', 3 );
    disp([ 'Fourier method ', num2str(toc) ]);
    axis('equal');
+   
+   if comperror == 1
+      Xp = X; Yp = Y;
+      X = X'*ones(size(Yp)); Y = Y'*ones(size(Xp));
+      X = transpose(reshape(X',[],1)); Y = transpose(reshape(Y,[],1));
+      
+      Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
+      XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
+      XYZ2 = Q*[X;Y;Z2];
+      Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
+      Uxyz = reshape(Uxyz',[],1);% Re-stick the components together
+
+      uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
+      uplo = uplo(3*size(XYZ1,2)+1:end)-uplo(1:3*size(XYZ1,2)); % Compute the gap
+      
+
+      solu2 = reshape(solu,[],1);
+      four_error = norm( solu2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
+      
+      % DEBUG plots
+%      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
+%      figure;
+%      hold on;
+%      surf(Xp,Yp,uplo1);
+%      shading interp;
+%      colorbar();
+%      zed = max(max(uplo));
+%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                               'Color', 'black',  'LineWidth', 3 );
+%      axis('equal');
+%      
+%      udiff = solu2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));
+%      figure;
+%      hold on;
+%      surf(Xp,Yp,udiff);
+%      shading interp;
+%      colorbar();
+%      zed = max(max(uplo));
+%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                               'Color', 'black',  'LineWidth', 3 );
+%      axis('equal');
+      
+   end
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1322,9 +1368,9 @@ if usepolys == 1
 %   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
    axis('equal');
    
-   csvwrite("fields/rg3d_poly.csv",solup);
-   csvwrite("fields/rg3d_X.csv",X);
-   csvwrite("fields/rg3d_Y.csv",Y);
+   csvwrite('fields/rg3d_poly.csv',solup);
+   csvwrite('fields/rg3d_X.csv',X);
+   csvwrite('fields/rg3d_Y.csv',Y);
    
    % "Zoom"
    figure;
@@ -1338,6 +1384,50 @@ if usepolys == 1
    axis('equal');
    
    disp([ 'Polynomial method ', num2str(toc) ]);
+   
+   if comperror == 1
+      Xp = X; Yp = Y;
+      X = X'*ones(size(Yp)); Y = Y'*ones(size(Xp));
+      X = transpose(reshape(X',[],1)); Y = transpose(reshape(Y,[],1));
+      
+      Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
+      XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
+      XYZ2 = Q*[X;Y;Z2];
+      Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
+      Uxyz = reshape(Uxyz',[],1);% Re-stick the components together
+
+      uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
+      uplo = uplo(3*size(XYZ1,2)+1:end)-uplo(1:3*size(XYZ1,2)); % Compute the gap
+      
+
+      solup2 = reshape(solup,[],1);
+      poly_error = norm( solup2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
+      
+      % DEBUG plots
+%      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
+%      figure;
+%      hold on;
+%      surf(Xp,Yp,uplo1);
+%      shading interp;
+%      colorbar();
+%      zed = max(max(uplo));
+%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                               'Color', 'black',  'LineWidth', 3 );
+%      axis('equal');
+%      
+%      udiff = solup2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));
+%      figure;
+%      hold on;
+%      surf(Xp,Yp,udiff);
+%      shading interp;
+%      colorbar();
+%      zed = max(max(uplo));
+%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                               'Color', 'black',  'LineWidth', 3 );
+%      axis('equal');
+      
+   end
+   
 end
 
 % Plot on the line X = 4
@@ -1378,11 +1468,11 @@ if plotref == 1
    XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
    XYZ2 = Q*[X;Y;Z2];
    Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
-   Uxyz = reshape(Uxyz',[],1);%Uxyz'(:); % Re-stick the components together
+   Uxyz = reshape(Uxyz',[],1); % Re-stick the components together
    
    uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
    uplo = uplo(304:end)-uplo(1:303);%  % Compute the gap
    plot( Y, uplo(3:3:end,1), 'Color', 'red' );
-   csvwrite("fields/rg3d_poly2d.csv",[Y',uplo(3:3:end,1)',solup']);
+   csvwrite('fields/rg3d_poly2d.csv',[Y',uplo(3:3:end,1),solup']);
    %legend
 end

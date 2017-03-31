@@ -10,7 +10,7 @@ nu       = 0.3;    % Poisson ratio
 fscalar  = 250;    % N.mm-2 : Loading on the plate
 mat      = [0, E, nu];
 niter    = 10;
-precond  = 0;      %
+precond  = 1;      %
 mu       = 0.;     % Regularization parameter
 ratio    = 1e-300; % Maximal ratio (for eigenfilter)
 br       = .0;      % noise
@@ -85,21 +85,21 @@ plotGMSH({ux,'U_x';uy,'U_y';uref,'U_vect';sigma,'stress'}, elements, nodes, 'fie
 % Plot displacement on the interface :
 index = 2*b2node5;
 thetax = 0:2*pi/size(index,1):2*pi*(1-1/size(index,1));
-hold on
-set(gca, 'fontsize', 20);
-plot(thetax,uref(index,1),'linewidth',3);
-plot(thetax,uref(index-1,1),'Color','red','linewidth',3);
-legend('uy','ux')
-xlabel('angle(rad)')
-ylabel('U(mm)')
-figure
-hold on
-set(gca, 'fontsize', 20);
-plot(thetax,fref(index,1),'linewidth',3);
-plot(thetax,fref(index-1,1),'Color','red','linewidth',3);
-legend('fy','fx')
-xlabel('angle(rad)')
-ylabel('F(mm)')
+%hold on
+%set(gca, 'fontsize', 20);
+%plot(thetax,uref(index,1),'linewidth',3);
+%plot(thetax,uref(index-1,1),'Color','red','linewidth',3);
+%legend('uy','ux')
+%xlabel('angle(rad)')
+%ylabel('U(mm)')
+%figure
+%hold on
+%set(gca, 'fontsize', 20);
+%plot(thetax,fref(index,1),'linewidth',3);
+%plot(thetax,fref(index-1,1),'Color','red','linewidth',3);
+%legend('fy','fx')
+%xlabel('angle(rad)')
+%ylabel('F(mm)')
 
 indexxy = [index-1;index];
 
@@ -186,11 +186,11 @@ if find(methods==1)
    Res(:,1) = b - Axz;
    
    if precond == 1
-   %    % Solve 1
-   %    f1 = dirichletRhs2( Res(:,1)/2, 5, c2node1, boundary, nnodes );
-   %    uin1 = K1\f1;
-   %    lagr1 = uin1(2*nnodes+1:end,1);
-   %    lamb1 = lagr2forces( lagr1, C1, 5, boundary );
+       % Solve 1
+       f1 = dirichletRhs2( Res(:,1), 5, c2node1, boundary, nnodes );
+       uin1 = K1\f1;
+       lagr1 = uin1(2*nnodes+1:end,1);
+       lamb1 = lagr2forces2( lagr1, c2node1, 5, boundary, nnodes );
    %    % Solve 2
    %    f2 = dirichletRhs2( Res(:,1)/2, 5, c2node2, boundary, nnodes );
    %    uin2 = K2\f2;
@@ -198,7 +198,8 @@ if find(methods==1)
    %    lamb2 = lagr2forces( lagr2, C2, 5, boundary );
    %    %
    %    Zed(:,1) = -lamb2/2+lamb1/2;
-       Zed(:,1) = Res(:,1);
+       Zed(:,1) = lamb1;
+%       Zed(:,1) = Res(:,1);
    else
        Zed(:,1) = Res(:,1);
    end
@@ -246,11 +247,11 @@ if find(methods==1)
        regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 5) );
        
        if precond == 1
-   %        % Solve 1
-   %        f1 = dirichletRhs2( Res(:,iter+1)/2, 5, c2node1, boundary, nnodes );
-   %        uin1 = K1\f1;
-   %        lagr1 = uin1(2*nnodes+1:end,1);
-   %        lamb1 = lagr2forces( lagr1, C1, 5, boundary );
+           % Solve 1
+           f1 = dirichletRhs2( Res(:,iter+1), 5, c2node1, boundary, nnodes );
+           uin1 = K1\f1;
+           lagr1 = uin1(2*nnodes+1:end,1);
+           lamb1 = lagr2forces2( lagr1, c2node1, 5, boundary, nnodes );
    %        % Solve 2
    %        f2 = dirichletRhs2( Res(:,iter+1)/2, 5, c2node2, boundary, nnodes );
    %        uin2 = K2\f2;
@@ -258,7 +259,8 @@ if find(methods==1)
    %        lamb2 = lagr2forces( lagr2, C2, 5, boundary );
    %        %
    %        Zed(:,iter+1) = -lamb2/2+lamb1/2;
-           Zed(:,iter+1) = Res(:,iter+1);
+           Zed(:,iter+1) = lamb1;
+           %Zed(:,iter+1) = Res(:,iter+1);
        else
            Zed(:,iter+1) = Res(:,iter+1);
        end
@@ -406,15 +408,15 @@ if find(methods==1)
    %plot(fref(2*b2node5-1),'Color','green')
    %legend('brutal solution','filtred solution', 'reference')
    %
-   figure;
-   hold on;
-   set(gca, 'fontsize', 20);
-   %plot(Itere(2*b2node5),'Color','red')
-   plot(thetax,ItereR(2*b2node5),'Color','blue','linewidth',3)
-   plot(thetax,fref(2*b2node5),'Color','green','linewidth',3)
-   %legend('brutal solution','filtred solution', 'reference')
-   legend('SPD solution', 'reference')
-   xlabel('angle'); ylabel('F');
+%   figure;
+%   hold on;
+%   set(gca, 'fontsize', 20);
+%   %plot(Itere(2*b2node5),'Color','red')
+%   plot(thetax,ItereR(2*b2node5),'Color','blue','linewidth',3)
+%   plot(thetax,fref(2*b2node5),'Color','green','linewidth',3)
+%   %legend('brutal solution','filtred solution', 'reference')
+%   legend('SPD solution', 'reference')
+%   xlabel('angle'); ylabel('F');
    
    figure;
    hold on
@@ -423,14 +425,14 @@ if find(methods==1)
    plot(errS(2:end),'Color','green')
    legend('error','residual','Ritz error')
    %L-curve :
-   figure;
-   set(gca, 'fontsize', 20);
-   hold on;
-   loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
-   loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
-   legend('L-curve','RL-curve')
-   xlabel('residual')
-   ylabel('H1 norm')
+%   figure;
+%   set(gca, 'fontsize', 20);
+%   hold on;
+%   loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
+%   loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
+%   legend('L-curve','RL-curve')
+%   xlabel('residual')
+%   ylabel('H1 norm')
    %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
    %findCorner (resS(2:iter+1), regS(2:iter+1), 3)
    
@@ -475,24 +477,24 @@ if find(methods==1)
    usoli = K \ (assembleDirichlet( [ fdir6, fdir3 ] ) + f5);
    
    usolR = usoli(1:2*nnodes,1);
-   fsolR = Kinter*usol;
+   fsolR = Kinter*usolR;
    
-   figure;
-   hold on;
-   plot(usol(2*b2node5-1),'Color','red')
-   plot(usolR(2*b2node5-1),'Color','blue')
-   plot(uref(2*b2node5-1),'Color','green')
-   legend('brutal solution','filtred solution','reference')
+%   figure;
+%   hold on;
+%   plot(usol(2*b2node5-1),'Color','red')
+%   plot(usolR(2*b2node5-1),'Color','blue')
+%   plot(uref(2*b2node5-1),'Color','green')
+%   legend('brutal solution','filtred solution','reference')
    
-   figure;
-   hold on;
-   set(gca, 'fontsize', 20);
-   %plot(thetax,usol(2*b2node5),'Color','red')
-   plot(thetax,usolR(2*b2node5),'Color','blue','linewidth',3)
-   plot(thetax,uref(2*b2node5),'Color','green','linewidth',3)
-   legend('SPD solution','reference')
-   %legend('brutal solution','filtred solution','reference')
-   xlabel('angle'); ylabel('U');
+%   figure;
+%   hold on;
+%   set(gca, 'fontsize', 20);
+%   %plot(thetax,usol(2*b2node5),'Color','red')
+%   plot(thetax,usolR(2*b2node5),'Color','blue','linewidth',3)
+%   plot(thetax,uref(2*b2node5),'Color','green','linewidth',3)
+%   legend('SPD solution','reference')
+%   %legend('brutal solution','filtred solution','reference')
+%   xlabel('angle'); ylabel('U');
    
    total_error = norm(usol-uref)/norm(uref);
    % Compute stress :
@@ -716,14 +718,43 @@ if find(methods==3)
     plot(log10(residual(2:end)),'Color','red','linewidth',3)
     legend('error1 (log)','error2 (log)','residual (log)')
 
-    % L-curve
-    figure
-    loglog(residual(2:end),regulari(2:end));
+%    % L-curve
+%    figure
+%    loglog(residual(2:end),regulari(2:end));
    
-    % Plot chosen Itere
-    figure
+%    % Plot chosen Itere
+%    figure
+%    hold on;
+%    set(gca, 'fontsize', 20);
+%    plot(uref(index),'linewidth',3);
+%    plot(u2(index),'Color','red','linewidth',3);
+    
+    % Last problem
+    dirichlet = [5,1,0;5,2,0;
+                 4,1,0;4,2,0;
+                 3,1,0;3,2,0;
+                 2,1,0;2,2,0;
+                 1,1,0;1,2,0];
+
+    [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+    f5    = dirichletRhs(u2, 5, C, boundary );
+    fdir3 = dirichletRhs(uref, 3, C, boundary);
+    fdir6 = dirichletRhs(urefb, 6, C, boundary);
+    usoli = K \ (assembleDirichlet( [ fdir6, fdir3 ] ) + f5);
+
+    usolR = usoli(1:2*nnodes,1);
+    fsolR = Kinter*usolR;
+    
+    figure;
     hold on;
-    set(gca, 'fontsize', 20);
-    plot(uref(index),'linewidth',3);
-    plot(u2(index),'Color','red','linewidth',3);
+    plot(usolR(2*b2node5),'Color','blue')
+    plot(uref(2*b2node5),'Color','green')
+    legend('solution','reference')
+    
+    figure;
+    hold on;
+    plot(fsolR(2*b2node5),'Color','blue')
+    plot(fref(2*b2node5),'Color','green')
+    legend('solution','reference')
+    
 end

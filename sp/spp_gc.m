@@ -13,7 +13,7 @@ fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 10;
 precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
 mu      = 0.;    % Regularization parameter
-br      = 0.0;     % noise
+br      = 0.;     % noise
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -72,6 +72,7 @@ uino = Ko\fo; urefo = uino(1:2*nnodeso,1);
 
 % Extract displacement and Lagrange multiplicators :
 uref = uin(1:2*nnodes,1);
+fref = Kinter*uref;
 lagr = uin(2*nnodes+1:end,1);
 
 urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
@@ -142,7 +143,7 @@ f11 = dirichletRhs2( urefb, 1, c2node1s, boundary, nnodes );
 f12 = dirichletRhs2( urefb, 2, c2node1s, boundary, nnodes );
 f1 = assembleDirichlet( [f11,f12] );
 f2 = loading(nbloq2s,nodes,boundary,neumann2);
-% 
+%%
 %Krr = Kinter([2*b2node4-1;2*b2node4], [2*b2node4-1;2*b2node4]);
 %%
 %Kjj = Kinter;
@@ -217,14 +218,19 @@ f2 = loading(nbloq2s,nodes,boundary,neumann2);
 % [ S2, b2, map2 ] = schurCompL( K2s, f2, b2node2, nbloq2s, c2node2s );
 % Stot = S1-S2;
 % btot = b1-b2;
-
+% D1 = inv(S1); D2 = inv(S2); Dtot = D2-D1;
+% cond(Stot)
+% cond(Dtot)
+% 
 % hold on;
-% plot(log10(svd(S1-S2)),'Color','red');
+% plot(log10(svd(D1)),'Color','red');
+% plot(log10(svd(D2)),'Color','blue');
 %plot(log10(svd(K1k)),'Color','blue');
 %figure
 %plot(log10(svd(Korth)),'Color','blue');
 %figure
 % cond(K1k)
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
 Itere = zeros( 2*nnodes, 1 );
@@ -268,7 +274,7 @@ usolC = usolC + uin1(1:2*nnodes);
 %%%%
 %% Compute Rhs :
 % Solve 1
-f1 = dirichletRhs2( urefb, 4, c2node1, boundary, nnodes );
+f1 = dirichletRhs2( urefb, 4, c2node1, boundaryp1, nnodes );
 uin1 = K1\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
 lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
@@ -301,13 +307,13 @@ if precond == 1
     uin1 = K1d\f1;
     u1i = uin1(1:2*nnodes,1);
     u1 = keepField( u1i, 2, boundaryp1 );
-    % Solve 2
-    f2 = [Res(:,1)/2; zeros(nbloq2d,1)];
-    uin2 = K2d\f2;
-    u2i = uin2(1:2*nnodes,1);
-    u2 = keepField( u2i, 2, boundaryp2 );
-    %
-    Zed(:,1) = u1/2-u2/2;
+%    % Solve 2
+%    f2 = [Res(:,1)/2; zeros(nbloq2d,1)];
+%    uin2 = K2d\f2;
+%    u2i = uin2(1:2*nnodes,1);
+%    u2 = keepField( u2i, 2, boundaryp2 );
+%    %
+    Zed(:,1) = u1;%/2-u2/2;
 elseif precond == 2
     Zed(index,1) = 1/E*H12(index,index)\Res(index,1);
 elseif precond == 3
@@ -383,13 +389,13 @@ for iter = 1:niter
         uin1 = K1d\f1;
         u1i = uin1(1:2*nnodes,1);
         u1 = keepField( u1i, 2, boundaryp1 );
-        % Solve 2
-        f2 = [Res(:,iter+1)/2; zeros(nbloq2d,1)];
-        uin2 = K2d\f2;
-        u2i = uin2(1:2*nnodes,1);
-        u2 = keepField( u2i, 2, boundaryp2 );
-        %
-        Zed(:,iter+1) = u1/2-u2/2;
+%        % Solve 2
+%        f2 = [Res(:,iter+1)/2; zeros(nbloq2d,1)];
+%        uin2 = K2d\f2;
+%        u2i = uin2(1:2*nnodes,1);
+%        u2 = keepField( u2i, 2, boundaryp2 );
+%        %
+        Zed(:,iter+1) = u1;%/2-u2/2;
     elseif precond == 2
         Zed(index,iter+1) = 1/E*H12(index,index)\Res(index,iter+1);
     elseif precond == 3
@@ -437,7 +443,14 @@ usoli = K \ (fdir4 + fdir2);
 usol = usoli(1:2*nnodes,1);
 fsol = Kinter*usol;
 
+hold on;
+plot(usol(2*b2node2-1),'Color','red');
+plot(uref(2*b2node2-1),'Color','blue');
+
+figure;
+hold on;
 plot(fsol(2*b2node2-1),'Color','red');
+plot(fref(2*b2node2-1),'Color','blue');
 
 total_error = norm(usol-uref)/norm(uref);
 % Energetic error

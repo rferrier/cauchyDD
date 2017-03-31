@@ -18,7 +18,7 @@ br      = .0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 0;      % inhomogeneous medium
+inhomog = 2;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -164,12 +164,12 @@ Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
 f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
 uin1 = K1\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
 % Solve 2
 f2 = dirichletRhs2( Itere, 2, c2node2, boundaryp2, nnodes );
 uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 % Regularization term
 Nu = regul(Itere, nodes, boundary, 2);
 %
@@ -229,13 +229,13 @@ for iter = 1:niter
     f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
     % Solve 2
     rhs2 = d(:,iter);
     f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
     % Regularization term
     Nu = regul(d(:,iter), nodes, boundaryp2, 2);
     %

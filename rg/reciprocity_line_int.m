@@ -15,13 +15,13 @@ mat        = [0, E, nu];
 mu         = 0;%1e-5;%5e-3;     % Regularization coef
 %mu         = 3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
-br         = .01;      % Noise level
+br         = .0;      % Noise level
 
 usefourier = 0;
 usepolys   = 1;
 
 nbase = 2; % Number of Fourier basis functions
-ordp = 6;  % Number of Polynomial basis functions
+ordp = 8;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation
 
@@ -791,6 +791,19 @@ if usefourier == 1
    xlabel('X')
    ylabel('[[u]]')
    
+   %% Error computation
+   ref = [0*newXo;ubase(:,2);0*newXo]; errorU = ref - solu;
+   nelem = size(newX,1)-1;
+   nerrnonrom = 0; nnormaliz = 0; % Well those are ugly names...
+   for i=1:nelem
+      dlen = newX(i+1)-newX(i);
+      Me = dlen/3*[1,.5;.5,1];
+      ue = errorU([i,i+1]); uer = ref([i,i+1]);
+      nerrnonrom = nerrnonrom + ue'*Me*ue;
+      nnormaliz  = nnormaliz  + uer'*Me*uer;
+   end
+   four_error = nerrnonrom / nnormaliz;
+   
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mean square polynoms
@@ -1041,6 +1054,20 @@ if usepolys == 1
    ylabel('[[u]]')
    
    % Check the MS :
-   Sref = sum((solpref-solref).^2) / sum(solref.^2);
-   Smc  = sum((solu-solref).^2) / sum(solref.^2);
+%   Sref = sum((solpref-solref).^2) / sum(solref.^2);
+%   Smc  = sum((solu-solref).^2) / sum(solref.^2);
+   %% Error computation
+   
+   ref = [0*newXo;ubase(:,2);0*newXo]; errorU = ref - solu;
+   nelem = size(newX,1)-1;
+   nerrnonrom = 0; nnormaliz = 0; % Well those are ugly names...
+   for i=1:nelem
+      dlen = newX(i+1)-newX(i);
+      Me = dlen/3*[1,.5;.5,1];
+      ue = errorU([i,i+1]); uer = ref([i,i+1]);
+      nerrnonrom = nerrnonrom + ue'*Me*ue;
+      nnormaliz  = nnormaliz  + uer'*Me*uer;
+   end
+   poly_error = nerrnonrom / nnormaliz;
+
 end

@@ -8,3 +8,4 @@ addpath( genpath('./testCases') );
 addpath( genpath('./tools') );
 addpath( genpath('./rg') );
 addpath( genpath('./cauchyDD') );
+addpath( genpath('./sp_r') );

@@ -23,7 +23,7 @@ dirichlet = [0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0];
 neumann   = [ 2,3,fscalar ; 1,3,-fscalar ];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/plate3d_crack0.msh' );
+[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dm/platem_c.msh' );
 %[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/tetra10/plate3d.msh' );
 nnodes = size(nodes,1);
 

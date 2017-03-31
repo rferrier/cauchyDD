@@ -14,7 +14,7 @@ br      = 0.0;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6 = Evanescent regul, 7 = CG + Ritz filter
-methods = [1];
+methods = [5];
 
 % Boundary conditions
 % first index  : index of the boundary
