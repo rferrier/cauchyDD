@@ -28,8 +28,8 @@ comperror  = 0;
 
 %cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 %uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
-uncracked_mesh = 'meshes/rg3dm/platemu.msh';
+cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -84,7 +84,7 @@ if loadfield ~= 1 && loadfield ~= 4
    
    % Save the field
    if loadfield == 3
-      save("fields/U.mat","u1","u2","f1","f2");
+      save('fields/U.mat','u1','u2','f1','f2');
    end
    
    % Output :
