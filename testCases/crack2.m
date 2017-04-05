@@ -15,7 +15,7 @@ br      = 0.;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD rigid modes
 % 6=SPD with 4=0
-methods = [6];
+methods = [4];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -471,7 +471,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Primal SP with Orthodir (niter = 20)
 if find(methods==4)
-    niter   = 20;
+    niter   = 5;
     mu      = 0.;      % Regularization parameter
     precond = 2;      % use a dual precond ?
     
@@ -491,12 +491,12 @@ if find(methods==4)
     f1 = dirichletRhs2( Itere, 9, c2node1, boundaryp, nnodes_up );
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes_up+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 9, boundaryp );
+    lamb1 = lagr2forces2( lagr1, c2node1, 9, boundaryp, nnodes_up );
     % Solve 2
     f2 = dirichletRhs2( Itere, 9, c2node2, boundaryp, nnodes_up );
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes_up+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 9, boundaryp );
+    lamb2 = lagr2forces2( lagr2, c2node2, 9, boundaryp, nnodes_up );
     % Regularization term
     Nu = regul(Itere, nodes_up, boundaryp, 9);
     %
@@ -551,15 +551,15 @@ if find(methods==4)
 
     %% Perform Q1 = A P1 :
     % Solve 1
-    f1 = dirichletRhs(p(:,1), 9, C1, boundaryp);
+    f1 = dirichletRhs2(p(:,1), 9, c2node1, boundaryp, nnodes_up );
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes_up+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 9, boundaryp );
+    lamb1 = lagr2forces2( lagr1, c2node1, 9, boundaryp, nnodes_up );
     % Solve 2
-    f2 = dirichletRhs(p(:,1), 9, C2, boundaryp);
+    f2 = dirichletRhs2(p(:,1), 9, c2node2, boundaryp, nnodes_up );
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes_up+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 9, boundaryp );
+    lamb2 = lagr2forces2( lagr2, c2node2, 9, boundaryp, nnodes_up );
     % Regularization term
     Nu = regul(p(:,1), nodes_up, boundaryp, 9);
     %
@@ -833,7 +833,9 @@ if find(methods==5)
     
     % Output
     figure
+    hold on
     plot(Itere(index),'Color','red');
+    plot(uref(index),'Color','red');
     
     %% Final problem
     dirichlet = [4,1,0;4,2,0;
@@ -865,7 +867,7 @@ if find(methods==6)
     [K2d,C2d,nbloq2d,node2c2s,c2node2s] =...
         Krig (nodes_up,elements_up,E,nu,order,boundaryp,dirichlet2d);
     
-    niter   = 8;
+    niter   = 7;
     mu      = 0.0/E;      % Regularization parameter
     precond = 0;      % use a primal precond ?
     
@@ -1024,7 +1026,9 @@ if find(methods==6)
     
     % Output
     figure
+    hold on
     plot(Itere(index),'Color','red');
+    plot(fref(index),'Color','blue');
     
     %% Final problem
     dirichlet = [4,1,0;4,2,0;

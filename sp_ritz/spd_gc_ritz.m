@@ -11,7 +11,7 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 15;
-precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
+precond = 2;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
 br      = .0;      % noise
@@ -422,25 +422,25 @@ plot(f(2*b2node2-1),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
 figure;
 
-hold on;
-plot(Itere(2*b2node2),'Color','red')
-plot(ItereR(2*b2node2),'Color','blue')
-plot(f(2*b2node2),'Color','green')
-legend('brutal solution','filtred solution', 'reference')
-figure;
+%hold on;
+%plot(Itere(2*b2node2),'Color','red')
+%plot(ItereR(2*b2node2),'Color','blue')
+%plot(f(2*b2node2),'Color','green')
+%legend('brutal solution','filtred solution', 'reference')
+%figure;
 
-hold on
-plot(error(2:end),'Color','blue')
-%plot(log10(residual(2:end)),'Color','red')
-legend('error')%legend('error (log)','residual (log)')
-figure;
+%hold on
+%plot(error(2:end),'Color','blue')
+%%plot(log10(residual(2:end)),'Color','red')
+%legend('error')%legend('error (log)','residual (log)')
+%figure;
 %L-curve :
-hold on;
-loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
+%hold on;
+%loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
+%%figure
+%loglog(resS(2:iter+1),regS(2:iter+1),'-+');
+%legend('L-curve','RL-curve')
 %figure
-loglog(resS(2:iter+1),regS(2:iter+1),'-+');
-legend('L-curve','RL-curve')
-figure
 %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
 %findCorner (resS(2:iter+1), regS(2:iter+1), 3)
 
@@ -484,10 +484,10 @@ usolR = usoli(1:2*nnodes,1);
 fsolR = Kinter*usol;
 
 hold on;
-plot(usol(2*b2node2-1),'Color','red')
+%plot(usol(2*b2node2-1),'Color','red')
 plot(usolR(2*b2node2-1),'Color','blue')
 plot(uref(2*b2node2-1),'Color','green')
-legend('brutal solution','filtred solution','reference')
+legend('filtred solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

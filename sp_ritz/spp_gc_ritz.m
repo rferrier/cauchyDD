@@ -11,14 +11,14 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 15;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = .0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -226,13 +226,13 @@ for iter = 1:niter
     
     % Solve 1
     rhs1 = d(:,iter);
-    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+    f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
     lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
     % Solve 2
     rhs2 = d(:,iter);
-    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+    f2 = dirichletRhs2(rhs2, 2, c2node2, boundaryp2, nnodes);
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
     lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
@@ -362,16 +362,16 @@ for i = 1:iter+1
    
    % Solve 1
    rhs1 = ItereS;
-   f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+   f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
    uin1 = K1\f1;
    lagr1 = uin1(2*nnodes+1:end,1);
-   lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+   lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
    % Solve 2
    rhs2 = ItereS;
-   f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+   f2 = dirichletRhs2(rhs2, 2, c2node2, boundaryp2, nnodes);
    uin2 = K2\f2;
    lagr2 = uin2(2*nnodes+1:end,1);
-   lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+   lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
    % Regularization term
    AI = lamb1-lamb2;
    
@@ -426,7 +426,7 @@ plot(Itere(2*b2node2-1),'Color','red')
 plot(ItereR(2*b2node2-1),'Color','blue')
 plot(uref(2*b2node2-1),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
-figure;
+%figure;
 %
 %hold on;
 %plot(Itere(2*b2node2),'Color','red')
@@ -435,21 +435,21 @@ figure;
 %legend('brutal solution','filtred solution', 'reference')
 %figure;
 
-hold on
-plot(error(2:end),'Color','blue')
-plot(errS(2:end),'Color','green')
-plot(residual(2:end),'Color','red')
-legend('error','Ritz error','residual')
-figure;
-%L-curve :
-hold on;
-set(gca, 'fontsize', 20);
-loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
-loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
-legend('L-curve','RL-curve')
-%legend('RL-curve')
-xlabel('residual')
-ylabel('H1 norm')
+%hold on
+%plot(error(2:end),'Color','blue')
+%plot(errS(2:end),'Color','green')
+%plot(residual(2:end),'Color','red')
+%legend('error','Ritz error','residual')
+%figure;
+%%L-curve :
+%hold on;
+%set(gca, 'fontsize', 20);
+%loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*','linewidth',3);
+%loglog(resS(2:iter+1),regS(2:iter+1),'-+','linewidth',3);
+%legend('L-curve','RL-curve')
+%%legend('RL-curve')
+%xlabel('residual')
+%ylabel('H1 norm')
 %findCorner (residual(2:iter+1), regulari(2:iter+1), 2)
 %findCorner (resS(2:iter+1), regS(2:iter+1), 2)
 

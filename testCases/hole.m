@@ -16,7 +16,7 @@ ratio    = 1e-300; % Maximal ratio (for eigenfilter)
 br       = .0;      % noise
 brt      = 0;      % "translation" noise
 epsilon  = 1e-1;   % Convergence criterion for ritz value
-ntrunc   = 10;      % In case the algo finishes at niter
+ntrunc   = 0;      % In case the algo finishes at niter
 bestiter = 0;     % chooses the best iteration with the L-curve
 
 % methods : 1-> SPD, 2-> KMF-O, 3-> KMF-fixed point
@@ -51,7 +51,7 @@ f = dirichletRhs2( udi, 3, c2node, boundary, nnodes );
 %f = loading(nbloq,nodes,boundary,neumann);
 
 % Center of the pion / Radius
-Rc = .997;
+Rc = .997;%.997
 xc = 0; yc = (Rc-1);
 
 % Build Cc
@@ -401,22 +401,22 @@ if find(methods==1)
    legend('Ritz Values','RHS values','solution coefficients', ...
           'polynomial approxiamtion')
    %
-   %figure;
-   %hold on;
-   %plot(Itere(2*b2node5-1),'Color','red')
-   %plot(ItereR(2*b2node5-1),'Color','blue')
-   %plot(fref(2*b2node5-1),'Color','green')
-   %legend('brutal solution','filtred solution', 'reference')
-   %
 %   figure;
 %   hold on;
-%   set(gca, 'fontsize', 20);
-%   %plot(Itere(2*b2node5),'Color','red')
-%   plot(thetax,ItereR(2*b2node5),'Color','blue','linewidth',3)
-%   plot(thetax,fref(2*b2node5),'Color','green','linewidth',3)
-%   %legend('brutal solution','filtred solution', 'reference')
-%   legend('SPD solution', 'reference')
-%   xlabel('angle'); ylabel('F');
+%   plot(Itere(2*b2node5-1),'Color','red')
+%   plot(ItereR(2*b2node5-1),'Color','blue')
+%   plot(fref(2*b2node5-1),'Color','green')
+%   legend('brutal solution','filtred solution', 'reference')
+   %
+   figure;
+   hold on;
+   set(gca, 'fontsize', 20);
+   %plot(Itere(2*b2node5),'Color','red')
+   plot(thetax,ItereR(2*b2node5),'Color','blue','linewidth',3)
+   plot(thetax,fref(2*b2node5),'Color','green','linewidth',3)
+   %legend('brutal solution','filtred solution', 'reference')
+   legend('SPD solution', 'reference')
+   xlabel('angle'); ylabel('F');
    
    figure;
    hold on
