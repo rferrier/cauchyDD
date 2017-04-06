@@ -14,7 +14,7 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
-ordp      = 4; % Order of polynom
+ordp      = 0; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -22,19 +22,26 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
 
 usepolys   = 1;
 plotref    = 1;
-comperror  = 0;
+comperror  = 1;
 
 % Load the polynom's matrix
-load('conditions.mat');
+load('../analytique/conditionsS.mat');
 M = Expression1;
-nmax = 10;
+nmax = 1;
 ncoef = 3*(nmax+1)^3;
 neq = 3*((nmax+1)^3+(nmax+1)^2);
 
-%cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-%uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+% Sanity check
+if ordp > nmax
+    warning('Interpolation order is too high wrt compted polynoms');
+end
+
+% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+% uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10.msh';
+% uncracked_mesh = 'meshes/rg3dpp/plate710t10.msh';
+cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+uncracked_mesh = 'meshes/rg3dm/platem.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -552,7 +559,7 @@ if usepolys == 1
         end
     end
 
-    Krd = diag(Kr); % debug stuff
+%     Krd = diag(Kr); % debug stuff
     
     kmax = ordp;% Simplicity
     
@@ -588,7 +595,7 @@ if usepolys == 1
          coefabc = coef(:,(kmax+1)*k+l+1);
          coefa = coefabc(1:(nmax+1)^3);
          coefb = coefabc((nmax+1)^3+1:2*(nmax+1)^3);
-         coefc = coefabc(2*(nmax+1)^3:end);
+         coefc = coefabc(2*(nmax+1)^3+1:end);
          
          Rhs(1+l+(ordp+1)*k) = 0;
          for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
@@ -665,8 +672,8 @@ if usepolys == 1
                    for jj=0:nmax
                        for pp=0:nmax
                            aijp = coefa( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
-                           bijp = coefa( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
-                           cijp = coefa( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+                           bijp = coefb( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+                           cijp = coefc( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
                            s11 = s11 + (lam+2*mu)*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
                                       + lam*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
                                       + lam*cijp*pp*X^ii*Y^jj*Z^(pp-1);
@@ -690,11 +697,12 @@ if usepolys == 1
                    end
                end
                
-               slocp = 1/Lx*[s11,s12,s13;s12,s22,s23;s13,s23,s33]; % 1/Lx because of the homotecy (fog)' = g'*f'og
+               % In this version, the field v is multiplied by Lx
+               slocp = [s11,s12,s13;s12,s22,s23;s13,s23,s33];
                sp = Q*slocp*Q';
                fp = sp*exno;
 
-               vlocp = [ v1 ; v2 ; v3 ];
+               vlocp = Lx*[ v1 ; v2 ; v3 ];
                vp = Q*vlocp;
                
                Rhs(1+l+(ordp+1)*k) = Rhs(1+l+(ordp+1)*k) + ...
@@ -708,6 +716,7 @@ if usepolys == 1
    %% Build the Lhs : /!\ you must have the same odd numerotation as previously
    L1x = min(Xs)-X0; L2x = max(Xs)-X0;
    L1y = min(Ys)-Y0; L2y = max(Ys)-Y0;
+   Lhs = zeros( (ordp+1)^2 );
    for i=0:ordp
       for j=0:ordp
          for k=0:ordp
@@ -780,21 +789,20 @@ if usepolys == 1
       uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
       uplo = uplo(3*size(XYZ1,2)+1:end)-uplo(1:3*size(XYZ1,2)); % Compute the gap
       
-
       solup2 = reshape(solup,[],1);
       poly_error = norm( solup2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
       
       % DEBUG plots
-%      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
-%      figure;
-%      hold on;
-%      surf(Xp,Yp,uplo1);
-%      shading interp;
-%      colorbar();
-%      zed = max(max(uplo));
-%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-%                               'Color', 'black',  'LineWidth', 3 );
-%      axis('equal');
+     uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
+     figure;
+     hold on;
+     surf(Xp,Yp,uplo1);
+     shading interp;
+     colorbar();
+     zed = max(max(uplo));
+     plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+                              'Color', 'black',  'LineWidth', 3 );
+     axis('equal');
 %      
 %      udiff = solup2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));
 %      figure;
@@ -834,10 +842,11 @@ if plotref == 1
    Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
    XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
    XYZ2 = Q*[X;Y;Z2];
+
    Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
    Uxyz = reshape(Uxyz',[],1); % Re-stick the components together
-   
    uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
+
    uplo = uplo(304:end)-uplo(1:303);%  % Compute the gap
    plot( Y, uplo(3:3:end,1), 'Color', 'red' );
    csvwrite('fields/rg3d_poly2d.csv',[Y',uplo(3:3:end,1),solup']);

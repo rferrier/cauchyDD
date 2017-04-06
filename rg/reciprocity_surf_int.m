@@ -5,6 +5,8 @@
 close all;
 clear all;
 
+I = i;  % Store the complex number (i will be erased)
+
 addpath(genpath('./tools'))
 
 % Parameters
@@ -14,8 +16,8 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
-nbase     = 2; % Number of Fourier basis functions
-ordp      = 1; % Order of polynom
+nbase     = 1; % Number of Fourier basis functions
+ordp      = 5; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -579,8 +581,8 @@ if usefourier == 1
    ckan     = zeros(nbase,nbase);
    dkan     = zeros(nbase,nbase);
    
-   for kpx=2:nbase+1
-      for kpy=2:nbase+1
+   for kpx=1:nbase+1
+      for kpy=1:nbase+1
          kx = kpx-1; ky = kpy-1;
          vp = zeros(3*nnodes2,1);
          lambdax(kpx) = 2*kx*pi/Lx; lambday(kpy) = 2*ky*pi/Ly;
@@ -721,35 +723,58 @@ if usefourier == 1
 
             end
          end
+         
+      end
+   end
+
+   % Overwrite the NAN constant term (lambda = 0)
+   fournpp(1,1) = -(R11+R21+R31)/(Lx*Ly);
+   fournpm(1,1) = -(R11+R21+R31)/(Lx*Ly);
+   fournmp(1,1) = -(R11+R21+R31)/(Lx*Ly);
+   fournmm(1,1) = -(R11+R21+R31)/(Lx*Ly);
+   
+   akan(1,1) = real(fournpp(1,1)); % Other ones are 0
+   
+   for kp=2:nbase+1
+      akan(kp,1) = real(fournpp(kp,1) + ...% fournpm(kp,1) +...
+                           fournmp(kp,1) );% + fournmm(kp,1));
+      ckan(kp,1) = imag(fournpp(kp,1) -...%+ fournpm(kp,1) -...
+                           fournmp(kp,1) ) ;%- fournmm(kp,1));
+                       
+      akan(1,kp) = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) );% +...
+                              %fournmp(kpx,kpy) + fournmm(kpx,kpy));
+      bkan(1,kp) = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) );% +...
+                              %fournmp(kpx,kpy) - fournmm(kpx,kpy));
+   end
+         
+   for kpx=2:nbase+1
+       for kpy=2:nbase+1
          % u = acoscos+bcossin+csincos+dsinsin
-         akan(kx,ky)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
+         akan(kpx,kpy)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
                               fournmp(kpx,kpy) + fournmm(kpx,kpy));
-         bkan(kx,ky)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
+         bkan(kpx,kpy)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-         ckan(kx,ky)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
+         ckan(kpx,kpy)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
                               fournmp(kpx,kpy) - fournmm(kpx,kpy));
-         dkan(kx,ky)   = -real(fournpp(kpx,kpy) - fournpm(kpx,kpy) -...
+         dkan(kpx,kpy)   = -real(fournpp(kpx,kpy) - fournpm(kpx,kpy) -...
                                fournmp(kpx,kpy) + fournmm(kpx,kpy));
       end
    end
    
-   %% DEBUG :
+   % DEBUG :
    %ui = reshape(imag(vp),2,[])';  ux = ui(:,1);  uy = ui(:,2);
 %   plotGMSH({ Xs,'x' ; Ys,'y' ; Zs,'z' ; real(vp),'U_vect'}, elements2, nodes2, 'test field');
-   
-   % The constant term
-   fournpp(1,1) = -(R11+R21+R31)/(Lx*Ly);
    
    % plot the identified normal gap
    nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
    X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
-   solu = fournpp(1,1);
-   for kpx=2:nbase+1
-      for kpy=2:nbase+1
-         solu = solu + akan(kpx-1,kpy-1)*cos(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
-                     + bkan(kpx-1,kpy-1)*cos(lambdax(kpx)*X')*sin(lambday(kpy)*Y)...
-                     + ckan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
-                     + dkan(kpx-1,kpy-1)*sin(lambdax(kpx)*X')*sin(lambday(kpy)*Y);
+   solu = 0;
+   for kpx=1:nbase+1
+      for kpy=1:nbase+1
+         solu = solu + akan(kpx,kpy)*cos(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
+                     + bkan(kpx,kpy)*cos(lambdax(kpx)*X')*sin(lambday(kpy)*Y)...
+                     + ckan(kpx,kpy)*sin(lambdax(kpx)*X')*cos(lambday(kpy)*Y)...
+                     + dkan(kpx,kpy)*sin(lambdax(kpx)*X')*sin(lambday(kpy)*Y);
       end
    end
    solu = solu';  % Very imporant and no hack : comes from the function surf
@@ -1372,6 +1397,8 @@ if usepolys == 1
    csvwrite('fields/rg3d_X.csv',X);
    csvwrite('fields/rg3d_Y.csv',Y);
    
+%    mean(mean(solup))
+   
    % "Zoom"
    figure;
    hold on;
@@ -1437,13 +1464,13 @@ nys = (max(Ys)-min(Ys))/100;
 Y = min(Ys):nys:max(Ys); X = 4;
 
 if usefourier == 1
-   solu = fournpp(1,1);
-   for kpx=2:nbase+1
-      for kpy=2:nbase+1
-         solu = solu + akan(kpx-1,kpy-1)*cos(lambdax(kpx)*X)*cos(lambday(kpy)*Y)...
-                     + bkan(kpx-1,kpy-1)*cos(lambdax(kpx)*X)*sin(lambday(kpy)*Y)...
-                     + ckan(kpx-1,kpy-1)*sin(lambdax(kpx)*X)*cos(lambday(kpy)*Y)...
-                     + dkan(kpx-1,kpy-1)*sin(lambdax(kpx)*X)*sin(lambday(kpy)*Y);
+   solu = 0;
+   for kpx=1:nbase+1
+      for kpy=1:nbase+1
+         solu = solu + akan(kpx,kpy)*cos(lambdax(kpx)*X)*cos(lambday(kpy)*Y)...
+                     + bkan(kpx,kpy)*cos(lambdax(kpx)*X)*sin(lambday(kpy)*Y)...
+                     + ckan(kpx,kpy)*sin(lambdax(kpx)*X)*cos(lambday(kpy)*Y)...
+                     + dkan(kpx,kpy)*sin(lambdax(kpx)*X)*sin(lambday(kpy)*Y);
       end
    end
    
@@ -1473,6 +1500,6 @@ if plotref == 1
    uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
    uplo = uplo(304:end)-uplo(1:303);%  % Compute the gap
    plot( Y, uplo(3:3:end,1), 'Color', 'red' );
-   csvwrite('fields/rg3d_poly2d.csv',[Y',uplo(3:3:end,1),solup']);
+   %csvwrite('fields/rg3d_poly2d.csv',[Y',uplo(3:3:end,1),solup']);
    %legend
 end
