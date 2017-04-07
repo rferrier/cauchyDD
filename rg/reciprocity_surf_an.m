@@ -14,7 +14,7 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
-ordp      = 0; % Order of polynom
+ordp      = 6; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -25,23 +25,23 @@ plotref    = 1;
 comperror  = 1;
 
 % Load the polynom's matrix
-load('../analytique/conditionsS.mat');
+load('../analytique/conditions12.mat');
 M = Expression1;
-nmax = 1;
+nmax = 12;
 ncoef = 3*(nmax+1)^3;
 neq = 3*((nmax+1)^3+(nmax+1)^2);
 
 % Sanity check
-if ordp > nmax
-    warning('Interpolation order is too high wrt compted polynoms');
+if 2*ordp > nmax
+    warning('Interpolation order is too high wrt computed polynoms');
 end
 
-% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-% uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10.msh';
-cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-uncracked_mesh = 'meshes/rg3dm/platem.msh';
+% cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+% uncracked_mesh = 'meshes/rg3dm/platem.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -507,7 +507,7 @@ Pt = centCrack; QPt = Q'*Pt; CteR = -QPt(3);
 % Compute L ( (not so) provisionnal formula assuming that we have a particular case)
 b = max(nodes2(:,2)) - min(nodes2(:,2)) ;
 bt = max(nodes2(:,1)) - min(nodes2(:,1));
-a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
+a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b; Lx = Lx/2; % Interval is [-1;1]
 
 disp([ 'Plane found ', num2str(toc) ]);
 
@@ -530,65 +530,230 @@ if usepolys == 1
    lam = nu*E/((1+nu)*(1-2*nu)) ;
    mu = E/(2*(1+nu)) ;
    
-%     Kr = eye(ncoef);
+   Kr = eye(ncoef);
     
-    % Physical rotated stiffness matrix
-    nodes2b = transpose(Q*nodes2');
-    [K2b,~,~,~,~] = Krig3D (nodes2b,elements2,mat,order2,boundary2,[]);
-    Kinter2b = K2b( 1:3*nnodes2, 1:3*nnodes2 );
-    Kr = zeros(ncoef);
-    
-    % Compute the diagonal energy operator
-    for ii=0:nmax
-        for jj=0:nmax
-            for pp=0:nmax
-                index = (nmax+1)^2*ii + (nmax+1)*jj + pp+1;
-                indey = index + (nmax+1)^3;
-                indez = index + 2*(nmax+1)^3;
-                u = Xso.^ii.*Yso.^jj.*Zs.^pp;
-                uxx = reshape([u;u-u;u-u],1,[])'; % Because size(K) = 3*nnodes
-                uyy = reshape([u-u;u;u-u],1,[])';
-                uzz = reshape([u-u;u-u;u],1,[])';
-                fx = Kinter2b*uxx; fy = Kinter2b*uyy; fz = Kinter2b*uzz;
-                uxx(~indexbound2) = 0; fx(~indexbound2) = 0; 
-                uyy(~indexbound2) = 0; fy(~indexbound2) = 0; 
-                uzz(~indexbound2) = 0; fz(~indexbound2) = 0; 
-                Kr(index,index) = uxx'*fx; Kr(indey,indey) = uyy'*fy; 
-                Kr(indez,indez) = uzz'*fz;
-            end
-        end
-    end
+%     % Physical rotated stiffness matrix
+%     nodes2b = transpose(Q*nodes2');
+%     [K2b,~,~,~,~] = Krig3D (nodes2b,elements2,mat,order2,boundary2,[]);
+%     Kinter2b = K2b( 1:3*nnodes2, 1:3*nnodes2 );
+%     Kr = zeros(ncoef);
+%     
+%     % Compute the diagonal energy operator
+%     for ii=0:nmax
+%         for jj=0:nmax
+%             for pp=0:nmax
+%                 index = (nmax+1)^2*ii + (nmax+1)*jj + pp+1;
+%                 indey = index + (nmax+1)^3;
+%                 indez = index + 2*(nmax+1)^3;
+%                 u = Xso.^ii.*Yso.^jj.*Zs.^pp;
+%                 uxx = reshape([u;u-u;u-u],1,[])'; % Because size(K) = 3*nnodes
+%                 uyy = reshape([u-u;u;u-u],1,[])';
+%                 uzz = reshape([u-u;u-u;u],1,[])';
+%                 fx = Kinter2b*uxx; fy = Kinter2b*uyy; fz = Kinter2b*uzz;
+%                 uxx(~indexbound2) = 0; fx(~indexbound2) = 0; 
+%                 uyy(~indexbound2) = 0; fy(~indexbound2) = 0; 
+%                 uzz(~indexbound2) = 0; fz(~indexbound2) = 0; 
+%                 Kr(index,index) = uxx'*fx; Kr(indey,indey) = uyy'*fy; 
+%                 Kr(indez,indez) = uzz'*fz;
+%             end
+%         end
+%     end
 
 %     Krd = diag(Kr); % debug stuff
     
-    kmax = ordp;% Simplicity
+   kmax = ordp;% Simplicity
     
-    % Rhs : find (sigma.ez).ez
-    n0 = 3*(nmax+1)^3+2*(nmax+1)^2; % Basic offset
-    b = zeros(neq,(kmax+1)^2);
-    num = 1;
-    for k=0:kmax
-        for l=0:kmax
-           b(n0 + (nmax+1)*k + l+1,num) = 1;
-           num = num+1;
-        end
+   % Rhs : find (sigma.ez).ez
+   n0 = 3*(nmax+1)^3+2*(nmax+1)^2; % Basic offset
+   b = zeros(neq,(kmax+1)^2);
+   num = 1;
+   for k=0:kmax
+       for l=0:kmax
+          b(n0 + (nmax+1)*k + l+1,num) = 1;
+          num = num+1;
+       end
+   end
+    
+   % Pre-process M and b to remove the 0=0 equations.
+   toremove = [];
+   for k=1:size(M,1)
+      if norm(M(k,:)) == 0
+         toremove(end+1) = k;
+      end
+   end
+   M(toremove,:) = []; b(toremove,:) = [];
+    
+   % Find the coefficients thanks to the Kernel.
+   R = null(M);
+   c0 = M\b;
+   RTKR = R'*Kr*R;
+   alpha = -RTKR\R'*Kr*c0;
+   coef = c0 + R*alpha;
+    
+   % Double Kernel
+%    Mm = M(1:3*(nmax+1),:);
+%    Mc = M(3*(nmax+1)+1:end,:);
+%    bc = b(3*(nmax+1)+1:end,:);
+%    N = null(Mm);
+%    CN = Mc*N;
+%    R = null(CN);
+%    al0 = CN\bc;
+%    RTNTKNR = R'*N'*K*N*R;
+%    alpha = -RTNTKNR\R'*N'*K*N*al0;
+%    al = al0 + R*alpha;
+%    coef = N*al;
+
+    % Check the residual
+    rescoefi = zeros(size(b,2),1) ;
+    for k=1:size(b,2)
+       rescoefi(k) = norm(b(:,k)-M*coef(:,k))^2 / norm(b(:,k))^2;
     end
-    
-    % Find the coefficients thanks to the Kernel. TODO : try the double kernel
-    R = null(M);
-    c0 = M\b;
-    RTKR = R'*Kr*R;
-    alpha = -RTKR\R'*Kr*c0;
-    coef = c0 + R*alpha;
+    rescoef = norm(rescoefi);
+    if rescoef > 1e-10
+        disp(['Residual : ',num2str(rescoef)]);
+    end
 
    disp([ 'Coefficients found ', num2str(toc) ]);
    tic
     
    % compute the RG
-   Rhs  = zeros((ordp+1)^2,1);
-   Rhse = zeros((ordp+1)^2,1);
+   Rhs  = zeros((ordp+1)^2,1); % Rhs
+   Rhse = zeros(3*(nmax+1)^3,1); % Elementary terms of the rhs wrt basis polynomials
    vpa  = zeros(3*nnodes2, 1);
    
+   for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
+      bonod = boundary2(i,:); exno = extnorm2(i,:)';
+
+      no1 = bonod(2); no2 = bonod(3); no3 = bonod(4);
+      x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
+      x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
+      x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
+      vecprod = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1),...
+                  -(x2-x1)*(z3-z1) + (x3-x1)*(z2-z1),...
+                  (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)];
+      S = .5*norm(vecprod);
+
+      if order==1
+         Ng = max(1,ceil((ordp)/2)+1);
+      elseif order==2
+         Ng  = max(1,ceil((ordp+1)/2)+1); 
+         no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
+         x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
+         x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);
+         x6  = nodes2(no6,1); y6 = nodes2(no6,2); z6 = nodes2(no6,3);
+      end
+      [ Xg, Wg ] = gaussPt( Ng );
+
+      for j=1:size(Wg,1)
+         xg = Xg(j,:); wg = Wg(j);
+
+         % Interpolations
+         if order==1
+            uer1 = transpose( (1-xg(1)-xg(2))*urr1(i,1:3) + ... % [ux;uy] on the
+                              xg(1)*urr1(i,4:6) + ...           % Gauss point
+                              xg(2)*urr1(i,7:9) );        
+            xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
+
+         elseif order==2
+            uer1 = transpose( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*urr1(i,1:3) + ...
+                   -xg(1)*(1-2*xg(1))*urr1(i,4:6) + ...           % [ux;uy] on the
+                   -xg(2)*(1-2*xg(2))*urr1(i,7:9) + ...          % Gauss point
+                   4*xg(1)*(1-xg(1)-xg(2))*urr1(i,10:12) + ...
+                   4*xg(1)*xg(2)*urr1(i,13:15) + ...
+                   4*xg(2)*(1-xg(1)-xg(2))*urr1(i,16:18) );                       
+           xgr  = ( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*[x1;y1;z1] + ...
+                   -xg(1)*(1-2*xg(1))*[x2;y2;z2] + ...
+                   -xg(2)*(1-2*xg(2))*[x3;y3;z3] + ...
+                   4*xg(1)*(1-xg(1)-xg(2))*[x4;y4;z4] + ...
+                   4*xg(1)*xg(2)*[x5;y5;z5] + ...
+                   4*xg(2)*(1-xg(1)-xg(2))*[x6;y6;z6] ); 
+         end
+
+         % Reference force from the BC's
+         if exno(1) == 1
+            fer1 = [0;0;0];
+         elseif exno(1) == -1
+            fer1 = [0;0;0];
+         elseif exno(2) == 1
+            fer1 = [0;0;0];
+         elseif exno(2) == -1
+            fer1 = [0;0;0];
+         elseif exno(3) == 1
+            fer1 = [0;0;fscalar];
+         elseif exno(3) == -1
+            fer1 = -[0;0;fscalar];
+         end
+
+         ixigrec = Q'*[xgr(1);xgr(2);xgr(3)];
+         X = (ixigrec(1)/Lx-X0); Y = (ixigrec(2)/Lx-Y0); Z = (ixigrec(3)+Cte)/Lx;
+
+         for ii=0:nmax
+             for jj=0:nmax
+                 for pp=0:nmax
+                     s11a = (lam+2*mu)*ii*X^(ii-1)*Y^jj*Z^pp;
+                     s22a = lam*ii*X^(ii-1)*Y^jj*Z^pp;
+                     s33a = lam*ii*X^(ii-1)*Y^jj*Z^pp;
+                     s12a = mu*jj*X^ii*Y^(jj-1)*Z^pp;
+                     s13a = mu*pp*X^ii*Y^jj*Z^(pp-1);
+                     s23a = 0;
+                           
+                     s11b = lam*jj*X^ii*Y^(jj-1)*Z^pp;
+                     s22b = (lam+2*mu)*jj*X^ii*Y^(jj-1)*Z^pp;
+                     s33b = lam*jj*X^ii*Y^(jj-1)*Z^pp;
+                     s12b = mu*ii*X^(ii-1)*Y^jj*Z^pp;
+                     s13b = 0;
+                     s23b = mu*pp*X^ii*Y^jj*Z^(pp-1);
+                           
+                     s11c = lam*pp*X^ii*Y^jj*Z^(pp-1);
+                     s22c = lam*pp*X^ii*Y^jj*Z^(pp-1);
+                     s33c = (lam+2*mu)*pp*X^ii*Y^jj*Z^(pp-1);
+                     s12c = 0;
+                     s13c = mu*ii*X^(ii-1)*Y^jj*Z^pp;
+                     s23c = mu*jj*X^ii*Y^(jj-1)*Z^pp;
+
+                     v1a = X^ii*Y^jj*Z^pp; v2a = 0; v3a = 0;
+                     v1b = 0; v2b = X^ii*Y^jj*Z^pp; v3b = 0;
+                     v1c = 0; v2c = 0; v3c = X^ii*Y^jj*Z^pp;
+                     
+
+                     % In this version, the field v is multiplied by Lx
+                     slocp = [s11a,s12a,s13a;s12a,s22a,s23a;s13a,s23a,s33a];
+                     sp = Q*slocp*Q';
+                     fpa = sp*exno;
+                     vlocp = Lx*[ v1a ; v2a ; v3a ];
+                     vpa = Q*vlocp;
+
+                     slocp = [s11b,s12b,s13b;s12b,s22b,s23b;s13b,s23b,s33b];
+                     sp = Q*slocp*Q';
+                     fpb = sp*exno;
+                     vlocp = Lx*[ v1b ; v2b ; v3b ];
+                     vpb = Q*vlocp;
+
+                     slocp = [s11c,s12c,s13c;s12c,s22c,s23c;s13c,s23c,s33c];
+                     sp = Q*slocp*Q';
+                     fpc = sp*exno;
+                     vlocp = Lx*[ v1c ; v2c ; v3c ];
+                     vpc = Q*vlocp;
+
+                     % increment the integrals
+                     Rhse( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) = ...
+                         Rhse( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) + ...
+                           S * wg * ( fer1'*vpa - fpa'*uer1 ); 
+                     Rhse( (nmax+1)^3 + (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) = ...
+                         Rhse( (nmax+1)^3 + (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) + ...
+                           S * wg * ( fer1'*vpb - fpb'*uer1 );
+                     Rhse( 2*(nmax+1)^3 + (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) = ...
+                         Rhse( 2*(nmax+1)^3 + (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) + ...
+                           S * wg * ( fer1'*vpc - fpc'*uer1 );
+                     
+                 end
+             end
+         end
+
+      end
+   end
+
+         
    for k = 0:ordp
       for l = 0:ordp
          
@@ -598,120 +763,150 @@ if usepolys == 1
          coefc = coefabc(2*(nmax+1)^3+1:end);
          
          Rhs(1+l+(ordp+1)*k) = 0;
-         for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
-            bonod = boundary2(i,:); exno = extnorm2(i,:)';
          
-            no1 = bonod(2); no2 = bonod(3); no3 = bonod(4);
-            x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
-            x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
-            x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
-            vecprod = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1),...
-                        -(x2-x1)*(z3-z1) + (x3-x1)*(z2-z1),...
-                        (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)];
-            S = .5*norm(vecprod);
-            
-            if order==1
-               Ng = max(1,ceil((ordp)/2)+1);
-            elseif order==2
-               Ng  = max(1,ceil((ordp+1)/2)+1); 
-               no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
-               x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
-               x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);
-               x6  = nodes2(no6,1); y6 = nodes2(no6,2); z6 = nodes2(no6,3);
-            end
-            [ Xg, Wg ] = gaussPt( Ng );
-                      
-            for j=1:size(Wg,1)
-               xg = Xg(j,:); wg = Wg(j);
-               
-               % Interpolations
-               if order==1
-                  uer1 = transpose( (1-xg(1)-xg(2))*urr1(i,1:3) + ... % [ux;uy] on the
-                                    xg(1)*urr1(i,4:6) + ...           % Gauss point
-                                    xg(2)*urr1(i,7:9) );        
-                  xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
-         
-               elseif order==2
-                  uer1 = transpose( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*urr1(i,1:3) + ...
-                         -xg(1)*(1-2*xg(1))*urr1(i,4:6) + ...           % [ux;uy] on the
-                         -xg(2)*(1-2*xg(2))*urr1(i,7:9) + ...          % Gauss point
-                         4*xg(1)*(1-xg(1)-xg(2))*urr1(i,10:12) + ...
-                         4*xg(1)*xg(2)*urr1(i,13:15) + ...
-                         4*xg(2)*(1-xg(1)-xg(2))*urr1(i,16:18) );                       
-                  xgr  = ( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*[x1;y1;z1] + ...
-                         -xg(1)*(1-2*xg(1))*[x2;y2;z2] + ...
-                         -xg(2)*(1-2*xg(2))*[x3;y3;z3] + ...
-                         4*xg(1)*(1-xg(1)-xg(2))*[x4;y4;z4] + ...
-                         4*xg(1)*xg(2)*[x5;y5;z5] + ...
-                         4*xg(2)*(1-xg(1)-xg(2))*[x6;y6;z6] ); 
-               end
-         
-               % Reference force from the BC's
-               if exno(1) == 1
-                  fer1 = [0;0;0];
-               elseif exno(1) == -1
-                  fer1 = [0;0;0];
-               elseif exno(2) == 1
-                  fer1 = [0;0;0];
-               elseif exno(2) == -1
-                  fer1 = [0;0;0];
-               elseif exno(3) == 1
-                  fer1 = [0;0;fscalar];
-               elseif exno(3) == -1
-                  fer1 = -[0;0;fscalar];
-               end
-         
-               ixigrec = Q'*[xgr(1);xgr(2);xgr(3)];
-               X = ixigrec(1)/Lx-X0; Y = ixigrec(2)/Lx-Y0; Z = (ixigrec(3)+Cte)/Lx;
-               
-                % Test fields
-               s11 = 0; s22 = 0; s33 = 0; s12 = 0; s13 = 0; s23 = 0;
-               v1 = 0; v2 = 0; v3 = 0;
-
-               for ii=0:nmax
-                   for jj=0:nmax
-                       for pp=0:nmax
-                           aijp = coefa( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
-                           bijp = coefb( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
-                           cijp = coefc( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
-                           s11 = s11 + (lam+2*mu)*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
-                                      + lam*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
-                                      + lam*cijp*pp*X^ii*Y^jj*Z^(pp-1);
-                           s22 = s22 + lam*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
-                                     + (lam+2*mu)*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
-                                     + lam*cijp*pp*X^ii*Y^jj*Z^(pp-1);
-                           s33 = s33 + lam*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
-                                     + lam*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
-                                     + (lam+2*mu)*cijp*pp*X^ii*Y^jj*Z^(pp-1);
-                           s12 = s12 + mu*aijp*jj*X^ii*Y^(jj-1)*Z^pp ...
-                                     + mu*bijp*ii*X^(ii-1)*Y^jj*Z^pp;
-                           s13 = s13 + mu*aijp*pp*X^ii*Y^jj*Z^(pp-1) ...
-                                     + mu*cijp*ii*X^(ii-1)*Y^jj*Z^pp;
-                           s23 = s23 + mu*bijp*pp*X^ii*Y^jj*Z^(pp-1) ...
-                                     + mu*cijp*jj*X^ii*Y^(jj-1)*Z^pp;
-                                 
-                           v1 = v1 + aijp*X^ii*Y^jj*Z^pp;
-                           v2 = v2 + bijp*X^ii*Y^jj*Z^pp;
-                           v3 = v3 + cijp*X^ii*Y^jj*Z^pp;
-                       end
-                   end
-               end
-               
-               % In this version, the field v is multiplied by Lx
-               slocp = [s11,s12,s13;s12,s22,s23;s13,s23,s33];
-               sp = Q*slocp*Q';
-               fp = sp*exno;
-
-               vlocp = Lx*[ v1 ; v2 ; v3 ];
-               vp = Q*vlocp;
-               
-               Rhs(1+l+(ordp+1)*k) = Rhs(1+l+(ordp+1)*k) + ...
-                     S * wg * ( fer1'*vp - fp'*uer1 ); % increment the integral
-            end
+         for ii=0:nmax
+             for jj=0:nmax
+                 for pp=0:nmax
+                     aijp = coefa( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+                     bijp = coefb( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+                     cijp = coefc( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+                     
+                     Rhs(1+l+(ordp+1)*k) = Rhs(1+l+(ordp+1)*k) + ...
+                         aijp * Rhse( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) + ...
+                         bijp * Rhse( (nmax+1)^3 + (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) + ...
+                         cijp * Rhse( 2*(nmax+1)^3 + (nmax+1)^2*ii + (nmax+1)*jj + pp+1 ) ;
+                         
+                 end
+             end
          end
 
       end
    end
+
+%% Old way
+%    for k = 0:ordp
+%       for l = 0:ordp
+%          
+%          coefabc = coef(:,(kmax+1)*k+l+1);
+%          coefa = coefabc(1:(nmax+1)^3);
+%          coefb = coefabc((nmax+1)^3+1:2*(nmax+1)^3);
+%          coefc = coefabc(2*(nmax+1)^3+1:end);
+%          
+%          Rhs(1+l+(ordp+1)*k) = 0;
+%          for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
+%             bonod = boundary2(i,:); exno = extnorm2(i,:)';
+%          
+%             no1 = bonod(2); no2 = bonod(3); no3 = bonod(4);
+%             x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
+%             x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
+%             x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
+%             vecprod = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1),...
+%                         -(x2-x1)*(z3-z1) + (x3-x1)*(z2-z1),...
+%                         (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)];
+%             S = .5*norm(vecprod);
+%             
+%             if order==1
+%                Ng = max(1,ceil((ordp)/2)+1);
+%             elseif order==2
+%                Ng  = max(1,ceil((ordp+1)/2)+1); 
+%                no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
+%                x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
+%                x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);
+%                x6  = nodes2(no6,1); y6 = nodes2(no6,2); z6 = nodes2(no6,3);
+%             end
+%             [ Xg, Wg ] = gaussPt( Ng );
+%                       
+%             for j=1:size(Wg,1)
+%                xg = Xg(j,:); wg = Wg(j);
+%                
+%                % Interpolations
+%                if order==1
+%                   uer1 = transpose( (1-xg(1)-xg(2))*urr1(i,1:3) + ... % [ux;uy] on the
+%                                     xg(1)*urr1(i,4:6) + ...           % Gauss point
+%                                     xg(2)*urr1(i,7:9) );        
+%                   xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
+%          
+%                elseif order==2
+%                   uer1 = transpose( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*urr1(i,1:3) + ...
+%                          -xg(1)*(1-2*xg(1))*urr1(i,4:6) + ...           % [ux;uy] on the
+%                          -xg(2)*(1-2*xg(2))*urr1(i,7:9) + ...          % Gauss point
+%                          4*xg(1)*(1-xg(1)-xg(2))*urr1(i,10:12) + ...
+%                          4*xg(1)*xg(2)*urr1(i,13:15) + ...
+%                          4*xg(2)*(1-xg(1)-xg(2))*urr1(i,16:18) );                       
+%                   xgr  = ( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*[x1;y1;z1] + ...
+%                          -xg(1)*(1-2*xg(1))*[x2;y2;z2] + ...
+%                          -xg(2)*(1-2*xg(2))*[x3;y3;z3] + ...
+%                          4*xg(1)*(1-xg(1)-xg(2))*[x4;y4;z4] + ...
+%                          4*xg(1)*xg(2)*[x5;y5;z5] + ...
+%                          4*xg(2)*(1-xg(1)-xg(2))*[x6;y6;z6] ); 
+%                end
+%          
+%                % Reference force from the BC's
+%                if exno(1) == 1
+%                   fer1 = [0;0;0];
+%                elseif exno(1) == -1
+%                   fer1 = [0;0;0];
+%                elseif exno(2) == 1
+%                   fer1 = [0;0;0];
+%                elseif exno(2) == -1
+%                   fer1 = [0;0;0];
+%                elseif exno(3) == 1
+%                   fer1 = [0;0;fscalar];
+%                elseif exno(3) == -1
+%                   fer1 = -[0;0;fscalar];
+%                end
+%          
+%                ixigrec = Q'*[xgr(1);xgr(2);xgr(3)];
+%                X = ixigrec(1)/Lx-X0; Y = ixigrec(2)/Lx-Y0; Z = (ixigrec(3)+Cte)/Lx;
+%                
+%                 % Test fields
+%                s11 = 0; s22 = 0; s33 = 0; s12 = 0; s13 = 0; s23 = 0;
+%                v1 = 0; v2 = 0; v3 = 0;
+% 
+%                for ii=0:nmax
+%                    for jj=0:nmax
+%                        for pp=0:nmax
+%                            aijp = coefa( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+%                            bijp = coefb( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+%                            cijp = coefc( (nmax+1)^2*ii + (nmax+1)*jj + pp+1 );
+%                            s11 = s11 + (lam+2*mu)*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
+%                                       + lam*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
+%                                       + lam*cijp*pp*X^ii*Y^jj*Z^(pp-1);
+%                            s22 = s22 + lam*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
+%                                      + (lam+2*mu)*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
+%                                      + lam*cijp*pp*X^ii*Y^jj*Z^(pp-1);
+%                            s33 = s33 + lam*aijp*ii*X^(ii-1)*Y^jj*Z^pp ...
+%                                      + lam*bijp*jj*X^ii*Y^(jj-1)*Z^pp ...
+%                                      + (lam+2*mu)*cijp*pp*X^ii*Y^jj*Z^(pp-1);
+%                            s12 = s12 + mu*aijp*jj*X^ii*Y^(jj-1)*Z^pp ...
+%                                      + mu*bijp*ii*X^(ii-1)*Y^jj*Z^pp;
+%                            s13 = s13 + mu*aijp*pp*X^ii*Y^jj*Z^(pp-1) ...
+%                                      + mu*cijp*ii*X^(ii-1)*Y^jj*Z^pp;
+%                            s23 = s23 + mu*bijp*pp*X^ii*Y^jj*Z^(pp-1) ...
+%                                      + mu*cijp*jj*X^ii*Y^(jj-1)*Z^pp;
+%                                  
+%                            v1 = v1 + aijp*X^ii*Y^jj*Z^pp;
+%                            v2 = v2 + bijp*X^ii*Y^jj*Z^pp;
+%                            v3 = v3 + cijp*X^ii*Y^jj*Z^pp;
+%                        end
+%                    end
+%                end
+%                
+%                % In this version, the field v is multiplied by Lx
+%                slocp = [s11,s12,s13;s12,s22,s23;s13,s23,s33];
+%                sp = Q*slocp*Q';
+%                fp = sp*exno;
+% 
+%                vlocp = Lx*[ v1 ; v2 ; v3 ];
+%                vp = Q*vlocp;
+%                
+%                Rhs(1+l+(ordp+1)*k) = Rhs(1+l+(ordp+1)*k) + ...
+%                      S * wg * ( fer1'*vp - fp'*uer1 ); % increment the integral
+%             end
+%          end
+% 
+%       end
+%    end
 
    %% Build the Lhs : /!\ you must have the same odd numerotation as previously
    L1x = min(Xs)-X0; L2x = max(Xs)-X0;
@@ -745,16 +940,16 @@ if usepolys == 1
    end
    solup = solup'; % prepare for plot
    % Center of the Circle
-   Cc = centCrack; Cc = Q'*Cc; Rad = 2; zed = max(max(solup));
+%    Cc = centCrack; Cc = Q'*Cc; Rad = 2; zed = max(max(solup));
    
    figure;
    hold on;
    surf(X,Y,solup);
    shading interp;
    colorbar();
-   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
-   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-                                  'Color', 'black',  'LineWidth', 3 );
+%    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+%    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                                   'Color', 'black',  'LineWidth', 3 );
 %   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
    axis('equal');
    
@@ -768,9 +963,9 @@ if usepolys == 1
    surf(X(7:end-6),Y(7:end-6),solup(7:end-6,7:end-6)); % Again
    shading interp;
    colorbar();
-   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
-   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-                                  'Color', 'black',  'LineWidth', 3 );
+%    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+%    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                                   'Color', 'black',  'LineWidth', 3 );
    axis('equal');
    
    disp([ 'Polynomial method ', num2str(toc) ]);
@@ -799,9 +994,9 @@ if usepolys == 1
      surf(Xp,Yp,uplo1);
      shading interp;
      colorbar();
-     zed = max(max(uplo));
-     plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-                              'Color', 'black',  'LineWidth', 3 );
+%      zed = max(max(uplo));
+%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                               'Color', 'black',  'LineWidth', 3 );
      axis('equal');
 %      
 %      udiff = solup2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));

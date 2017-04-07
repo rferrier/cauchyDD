@@ -23,15 +23,17 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 3 : meshes are conformal, store the u field
                % If 4 : meshes are conformal, read the u field
 
-usefourier = 0;
-usepolys   = 1;
+usefourier = 1;
+usepolys   = 0;
 plotref    = 1;
-comperror  = 0;
+comperror  = 1;
 
-%cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-%uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
 cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+% cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+% uncracked_mesh = 'meshes/rg3dm/platem.msh';
+% cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
+% uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -812,16 +814,16 @@ if usefourier == 1
       four_error = norm( solu2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
       
       % DEBUG plots
-%      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
-%      figure;
-%      hold on;
-%      surf(Xp,Yp,uplo1);
-%      shading interp;
-%      colorbar();
+     uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
+     figure;
+     hold on;
+     surf(Xp,Yp,uplo1);
+     shading interp;
+     colorbar();
 %      zed = max(max(uplo));
 %      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
 %                               'Color', 'black',  'LineWidth', 3 );
-%      axis('equal');
+     axis('equal');
 %      
 %      udiff = solu2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));
 %      figure;
@@ -839,6 +841,7 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Polynomial interpolation
+Lx = Lx/2; % This ensures that we work in ~ [-1; 1]
 if usepolys == 1
    tic
    
@@ -1387,9 +1390,9 @@ if usepolys == 1
    surf(X,Y,solup);   % The /Lx is arnaking very much
    shading interp;
    colorbar();
-   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
-   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-                                  'Color', 'black',  'LineWidth', 3 );
+%    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+%    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                                   'Color', 'black',  'LineWidth', 3 );
 %   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
    axis('equal');
    
@@ -1405,9 +1408,9 @@ if usepolys == 1
    surf(X(7:end-6),Y(7:end-6),solup(7:end-6,7:end-6)); % Again
    shading interp;
    colorbar();
-   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
-   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-                                  'Color', 'black',  'LineWidth', 3 );
+%    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+%    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                                   'Color', 'black',  'LineWidth', 3 );
    axis('equal');
    
    disp([ 'Polynomial method ', num2str(toc) ]);
