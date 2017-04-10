@@ -16,22 +16,22 @@ fscalar = 250;    % N.mm-1 : Loading on the plate
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
-nbase     = 1; % Number of Fourier basis functions
-ordp      = 5; % Order of polynom
+nbase     = 2; % Number of Fourier basis functions
+ordp      = 10; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
                % If 4 : meshes are conformal, read the u field
 
-usefourier = 1;
-usepolys   = 0;
+usefourier = 0;
+usepolys   = 1;
 plotref    = 1;
 comperror  = 1;
 
-cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-% cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-% uncracked_mesh = 'meshes/rg3dm/platem.msh';
+% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+% uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+uncracked_mesh = 'meshes/rg3dm/platem.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
@@ -714,7 +714,8 @@ if usefourier == 1
                   
                % Fourier coefficients
                if sx==1 && sy==1
-                  fournpp(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+                  % Don't worry about the 4 warning : NAN gets overwritten
+                  fournpp(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp; 
                elseif sx==1 && sy==-1
                   fournpm(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
                elseif sx==-1 && sy==1
@@ -789,9 +790,9 @@ if usefourier == 1
    shading interp;
    colorbar();
 %   drawCircle ( Cc(1), Cc(2), 2, 'Color', 'black', 'LineWidth', 3 );
-   teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
-   plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-                                  'Color', 'black',  'LineWidth', 3 );
+%    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+%    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+%                                   'Color', 'black',  'LineWidth', 3 );
    disp([ 'Fourier method ', num2str(toc) ]);
    axis('equal');
    
@@ -860,6 +861,7 @@ if usepolys == 1
    mu = E/(2*(1+nu)) ;
    
    coef = cell(ordp+1); % coefficients of the polynoms
+   res  = cell(ordp+1); % residual
    
    for k = 0:ordp
       for l = 0:ordp
@@ -872,7 +874,7 @@ if usepolys == 1
          
          neq = 1;  % index of the no of the equation
          % div sigma.x
-         for i=1:floor((k-1)/2)
+         for i=0:floor((k-1)/2)
             for j=1:floor(l/2)
                inda = (j+1) + (floor(l/2)+1)*i; % index of aij in coef
                indb = (j+1) + (floor((l+1)/2)+1)*i; % index of bij in coef
@@ -903,7 +905,7 @@ if usepolys == 1
          end
          % div sigma.y
          for i=1:floor(k/2)
-            for j=1:floor((l-1)/2)
+            for j=0:floor((l-1)/2)
                inda = (j+1) + (floor(l/2)+1)*i; % index of aij in coef
                indb = (j+1) + (floor((l+1)/2)+1)*i; % index of bij in coef
                indc = (j+1) + (floor(l/2)+1)*i; % index of cij in coef
@@ -959,8 +961,8 @@ if usepolys == 1
          for i=1:floor(k/2)
             Lhsca( neq, 1 + (floor(l/2)+1)*i ) = (lam+mu)*(2*i)*(k+1-2*i);
             Lhscb( neq, 1 + (floor((l+1)/2)+1)*i ) = (lam+mu)*(l+1)*(2*i);
-            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = (lam+2*mu)*(2*i)*(2*i+1);%c0i
-            Lhscc( neq, 1 + (floor(l/2)+1)*(i-1) ) = mu*(k-2*i+2)*(k-2*i+1);%c0i-1
+            Lhscc( neq, 1 + (floor(l/2)+1)*i ) = (lam+2*mu)*(2*i)*(2*i+1);%ci0
+            Lhscc( neq, 1 + (floor(l/2)+1)*(i-1) ) = mu*(k-2*i+2)*(k-2*i+1);%ci-1,0
             neq = neq+1;
          end
          % arbitrary equations
@@ -1059,6 +1061,9 @@ if usepolys == 1
          Rhsto2 = [ zeros(size(Mm,1), 1) ; Rhsco ];
          Solpro2 = Lhsto2\Rhsto2;
          coef{ k+1, l+1 } = Solpro2(1:sze);
+         
+         % Check the residual
+         res{ k+1, l+1 } = norm( Rhsco-Lhsco*Solpro2(1:sze) )^2 / norm(Rhsco)^2;
       
       end
    end
@@ -1212,17 +1217,15 @@ if usepolys == 1
                            lam*(l+1-2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) + ...
                            (lam+2*mu)*(2*ii+2*jj+1)*coefc( 1+jj+ii*(floor(l/2)+1) ) ) ...
                            * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s13 = s13 + mu*(k-2*ii)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
-                     s23 = s23 + mu*(l-2*jj)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
                   end
                end
                
                for ii=0:floor((k+1)/2)
-                  for jj=0:floor(l/2)
+                  for jj=0:floor((l-1)/2)
                      s12 = s12 + mu*(l-2*jj)*coefa( 1+jj+ii*(floor(l/2)+1) ) * X^(k+1-2*ii)*Y^(l-2*jj-1)*Z^(2*ii+2*jj);
                   end
                end
-               for ii=0:floor(k/2)
+               for ii=0:floor((k-1)/2)
                   for jj=0:floor((l+1)/2)
                      s12 = s12 + mu*(k-2*ii)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-1-2*ii)*Y^(l-2*jj+1)*Z^(2*ii+2*jj);
                   end
@@ -1260,12 +1263,16 @@ if usepolys == 1
                      s23 = s23 + mu*(2*ii+2*jj)*coefb( 1+jj+ii*(floor((l+1)/2)+1) ) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
                   end
                end
-%               for ii=0:floor(k/2)   % Fusionned with stuff up there
-%                  for jj=0:floor(l/2)
-%                     s13 = s13 + mu*(k-2*ii)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
-%                     s23 = s23 + mu*(l-2*jj)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
-%                  end
-%               end
+               for ii=0:floor((k-1)/2)
+                  for jj=0:floor(l/2)
+                     s13 = s13 + mu*(k-2*ii)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
+                  end
+               end
+               for ii=0:floor(k/2)
+                  for jj=0:floor((l-1)/2)
+                     s23 = s23 + mu*(l-2*jj)*coefc( 1+jj+ii*(floor(l/2)+1) ) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
+                  end
+               end
                
                slocp = 1/Lx*[s11,s12,s13;s12,s22,s23;s13,s23,s33]; % 1/Lx because of the homotecy (fog)' = g'*f'og
                sp = Q*slocp*Q';
@@ -1434,16 +1441,16 @@ if usepolys == 1
       poly_error = norm( solup2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
       
       % DEBUG plots
-%      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
-%      figure;
-%      hold on;
-%      surf(Xp,Yp,uplo1);
-%      shading interp;
-%      colorbar();
-%      zed = max(max(uplo));
-%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
+      figure;
+      hold on;
+      surf(Xp,Yp,uplo1);
+      shading interp;
+      colorbar();
+%       zed = max(max(uplo));
+%       plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
 %                               'Color', 'black',  'LineWidth', 3 );
-%      axis('equal');
+      axis('equal');
 %      
 %      udiff = solup2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));
 %      figure;
