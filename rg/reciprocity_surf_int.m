@@ -17,7 +17,7 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 10; % Order of polynom
+ordp      = 2; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -28,10 +28,10 @@ usepolys   = 1;
 plotref    = 1;
 comperror  = 1;
 
-% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-% uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-uncracked_mesh = 'meshes/rg3dm/platem.msh';
+ cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+ uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+%cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+%uncracked_mesh = 'meshes/rg3dm/platem.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
@@ -1057,13 +1057,20 @@ if usepolys == 1
 %         Mm = [ diag(ka).^2,zab,zac ; zab',diag(kb).^2,zbc ; zac',zbc',diag(kc).^2 ];
          
          % Minimize under the constraints
-         Lhsto2 = [ Mm , Lhsco' ; Lhsco , zeros(size(Lhsco,1)) ];
-         Rhsto2 = [ zeros(size(Mm,1), 1) ; Rhsco ];
-         Solpro2 = Lhsto2\Rhsto2;
-         coef{ k+1, l+1 } = Solpro2(1:sze);
-         
-         % Check the residual
-         res{ k+1, l+1 } = norm( Rhsco-Lhsco*Solpro2(1:sze) )^2 / norm(Rhsco)^2;
+%         Lhsto2 = [ Mm , Lhsco' ; Lhsco , zeros(size(Lhsco,1)) ];
+%         Rhsto2 = [ zeros(size(Mm,1), 1) ; Rhsco ];
+%         Solpro2 = Lhsto2\Rhsto2;
+%         coef{ k+1, l+1 } = Solpro2(1:sze);
+
+          R = null(Lhsco);
+          c0 = Lhsco\Rhsco;
+          RTKR = R'*Mm*R;
+          alpha = -RTKR\R'*Mm*c0;
+          Solpro2 = c0 + R*alpha;
+          coef{ k+1, l+1 } = c0 + R*alpha;
+                  
+          % Check the residual
+          res{ k+1, l+1 } = norm( Rhsco-Lhsco*Solpro2(1:sze) )^2 / norm(Rhsco)^2;
       
       end
    end
@@ -1148,9 +1155,9 @@ if usepolys == 1
             S = .5*norm(vecprod);
             
             if order==1
-               Ng = max(1,ceil((ordp)/2)+1);
+               Ng = min( 8 , max(1, ceil((k+l-3)/2)) );
             elseif order==2
-               Ng  = max(1,ceil((ordp+1)/2)+1); 
+               Ng  = min( 8 , max(1, ceil((k+l-2)/2)) );
                no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
                x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
                x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);

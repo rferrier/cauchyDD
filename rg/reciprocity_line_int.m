@@ -896,9 +896,9 @@ if usepolys == 1
          len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
          
          if order==1
-            Ng = max(1, ceil((ordp-3)/2)); % Exact integration ceil((ordp+3)/2);
+            Ng = max(1, ceil((k-3)/2)); % Exact integration ceil((ordp+3)/2);
          elseif order==2
-            Ng  = max(1, ceil((ordp-2)/2)); no3 = bonod(4);
+            Ng  = max(1, ceil((k-2)/2)); no3 = bonod(4);
             x3  = nodes2(no3,1); y3 = nodes2(no3,2);
          end
          [ Xg, Wg ] = gaussPt1d( Ng );
