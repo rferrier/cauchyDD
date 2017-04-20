@@ -12,12 +12,12 @@ addpath(genpath('./tools'))
 % Parameters
 E       = 210000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
-fscalar = 250;    % N.mm-1 : Loading on the plate
+fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 2; % Order of polynom
+ordp      = 11; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -28,10 +28,10 @@ usepolys   = 1;
 plotref    = 1;
 comperror  = 1;
 
- cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
- uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-%cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-%uncracked_mesh = 'meshes/rg3dm/platem.msh';
+%  cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+%  uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+uncracked_mesh = 'meshes/rg3dm/platem.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
@@ -1155,9 +1155,9 @@ if usepolys == 1
             S = .5*norm(vecprod);
             
             if order==1
-               Ng = min( 8 , max(1, ceil((k+l-3)/2)) );
+               Ng = min( 12 , max(1, ceil((k+l+2)/2)) );
             elseif order==2
-               Ng  = min( 8 , max(1, ceil((k+l-2)/2)) );
+               Ng  = min( 12, max(1, ceil((k+l+3)/2)) );
                no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
                x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
                x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);

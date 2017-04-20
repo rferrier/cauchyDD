@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 % Parameters
 E       = 210000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
-fscalar = 250;    % N.mm-1 : Loading on the plate
+fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
 
-ordp      = 6; % Order of polynom
+ordp      = 10; % Order of polynom
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -25,9 +25,14 @@ plotref    = 1;
 comperror  = 1;
 
 % Load the polynom's matrix
-load('../analytique/conditions12.mat');
+load('../analytique/conditions20.mat','-ascii');
+Expression1 = spconvert(conditions20);
 M = Expression1;
-nmax = 12;
+% load('../analytique/conditions.mat');
+% Expression1 = sparse(Expression1);
+% M = Expression1;
+
+nmax = 20;
 ncoef = 3*(nmax+1)^3;
 neq = 3*((nmax+1)^3+(nmax+1)^2);
 
@@ -36,12 +41,12 @@ if 2*ordp > nmax
     warning('Interpolation order is too high wrt computed polynoms');
 end
 
-cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+% uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10.msh';
-% cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-% uncracked_mesh = 'meshes/rg3dm/platem.msh';
+cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+uncracked_mesh = 'meshes/rg3dm/platem.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -584,11 +589,29 @@ if usepolys == 1
    M(toremove,:) = []; b(toremove,:) = [];
     
    % Find the coefficients thanks to the Kernel.
-   R = null(M);
+   %R = null(full(M));
+   % First, find the kernel of M
+   epsi=1.e-14; % criterion for the kernel
+   [Ll, Uu, Pp, Qq, Rr] = lu (M);  % P * (R \ M) * Q = L * U
+   if (norm(diag(Ll)-1,'inf')~=0), warning('diag L has 0 values'); end
+   if (size(Uu,1)~=size(Uu,2)), warning('U is not squared'); end
+   % Find the kernel of U 
+   z1 = find(abs(diag(Uu))<=epsi); 
+   z1p = setdiff([1:size(Uu,1)]',z1);
+   % z1p id invertible, 
+   % Schur complement on z1
+   UU = Uu(z1p,z1p)\Uu(z1p,z1);
+   U2 = Uu(z1,z1)-Uu(z1,z1p)*UU;
+   N2 = null(full(U2));
+   Rk  = zeros(size(Uu,1),size(N2,2));
+   Rk(z1,:) = N2;
+   Rk(z1p,:) = -UU*N2;
+   Rk = Qq*Rk; % operate the permutations
+   
    c0 = M\b;
-   RTKR = R'*Kr*R;
-   alpha = -RTKR\R'*Kr*c0;
-   coef = c0 + R*alpha;
+   RTKR = Rk'*Kr*Rk;
+   alpha = -RTKR\Rk'*Kr*c0;
+   coef = c0 + Rk*alpha;
     
    % Double Kernel
 %    Mm = M(1:3*(nmax+1),:);
@@ -634,9 +657,9 @@ if usepolys == 1
       S = .5*norm(vecprod);
 
       if order==1
-         Ng = max(1,ceil((ordp)/2)+1);
+         Ng = min( 12, max(1, ceil((2*ordp+2)/2)) );
       elseif order==2
-         Ng  = max(1,ceil((ordp+1)/2)+1); 
+         Ng  = min( 12, max(1, ceil((2*ordp+3)/2)) ); 
          no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
          x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
          x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);
