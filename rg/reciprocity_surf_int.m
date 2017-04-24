@@ -23,15 +23,15 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 3 : meshes are conformal, store the u field
                % If 4 : meshes are conformal, read the u field
 
-usefourier = 0;
-usepolys   = 1;
+usefourier = 1;
+usepolys   = 0;
 plotref    = 1;
-comperror  = 1;
+comperror  = 0;
 
-%  cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-%  uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-uncracked_mesh = 'meshes/rg3dm/platem.msh';
+cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+%cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+%uncracked_mesh = 'meshes/rg3dm/platem.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
@@ -740,13 +740,13 @@ if usefourier == 1
    
    for kp=2:nbase+1
       akan(kp,1) = real(fournpp(kp,1) + ...% fournpm(kp,1) +...
-                           fournmp(kp,1) );% + fournmm(kp,1));
+                           fournmp(kp,1) )/2;% + fournmm(kp,1));
       ckan(kp,1) = imag(fournpp(kp,1) -...%+ fournpm(kp,1) -...
-                           fournmp(kp,1) ) ;%- fournmm(kp,1));
+                           fournmp(kp,1) )/2 ;%- fournmm(kp,1));
                        
-      akan(1,kp) = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) );% +...
+      akan(1,kp) = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) )/2;% +...
                               %fournmp(kpx,kpy) + fournmm(kpx,kpy));
-      bkan(1,kp) = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) );% +...
+      bkan(1,kp) = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) )/2;% +...
                               %fournmp(kpx,kpy) - fournmm(kpx,kpy));
    end
          
@@ -754,13 +754,13 @@ if usefourier == 1
        for kpy=2:nbase+1
          % u = acoscos+bcossin+csincos+dsinsin
          akan(kpx,kpy)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
-                              fournmp(kpx,kpy) + fournmm(kpx,kpy));
+                              fournmp(kpx,kpy) + fournmm(kpx,kpy))/2;
          bkan(kpx,kpy)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
-                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
+                              fournmp(kpx,kpy) - fournmm(kpx,kpy))/2;
          ckan(kpx,kpy)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
-                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
+                              fournmp(kpx,kpy) - fournmm(kpx,kpy))/2;
          dkan(kpx,kpy)   = -real(fournpp(kpx,kpy) - fournpm(kpx,kpy) -...
-                               fournmp(kpx,kpy) + fournmm(kpx,kpy));
+                               fournmp(kpx,kpy) + fournmm(kpx,kpy))/2;
       end
    end
    
@@ -795,6 +795,10 @@ if usefourier == 1
 %                                   'Color', 'black',  'LineWidth', 3 );
    disp([ 'Fourier method ', num2str(toc) ]);
    axis('equal');
+   
+   csvwrite('fields/rg3d_four.csv',solu);
+   csvwrite('fields/rg3d_X.csv',X);
+   csvwrite('fields/rg3d_Y.csv',Y);
    
    if comperror == 1
       Xp = X; Yp = Y;
