@@ -13,6 +13,7 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
+jmax       = 10;     % Eigenvalues truncation number
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -44,7 +45,43 @@ Xmax = max(nodes(:,1)); Xmin = min(nodes(:,1)); Xmoy = (Xmax+Xmin)/2;
 Ymax = max(nodes(:,2)); Ymin = min(nodes(:,2)); Ymoy = (Ymax+Ymin)/2;
 L = Xmax-Xmin;
 
-f = volumicLoad( 3, nodes, elements, 2, [-fscalar*Xmoy,0;fscalar,0] );
+% Rigid body modes
+r1 = zeros(2*nnodes,1); r2 = r1; r3 = r1;
+ind = 2:2:2*nnodes;
+r1(ind-1,1) = 1; r2(ind,1) = 1;
+moyx = (Xmax-Xmin)/2;moyy = (Ymax-Ymin)/2;
+r3(ind-1,1) = -nodes(ind/2,2)+moyy;
+r3(ind,1) = nodes(ind/2,1)-moyx;
+R = [r1,r2,r3];
+
+% Polynomial, zero mean, loading
+% loadV = [ -fscalar/L*Xmoy,0; ...
+%           fscalar/L,0 ];
+% loadV = [fscalar/L*Xmoy - fscalar/L^2*(Xmax^3-Xmin^3) / (3*(Xmax-Xmin)) ,0,0; ...
+%          -fscalar/L,0,0; ...
+%          fscalar/(L^2),0,0];
+% loadV = [-fscalar/L^2*(Xmax^3-Xmin^3) / (3*(Xmax-Xmin)) ,0,0; ...
+%          0,0,0; ...
+%          fscalar/(L^2),0,0];
+loadV = [-fscalar/L^3*(Xmax^4-Xmin^4) / (4*(Xmax-Xmin)) ,0,0,0; ...
+         0,0,0,0; ...
+         0,0,0,0; ...
+         fscalar/L^3,0,0,0];
+f = volumicLoad( 3, nodes, elements, 2, loadV );
+
+% % N ponctual sources
+% f = zeros(2*nnodes+nbloq,1);
+% nnind = zeros(3,1);
+% for i=1:3
+%     n = randi(2*nnodes);
+%     f( n ) = 1;
+%     nnind(i) = n;
+% end
+% 
+% % Equilibrate f if needed
+% f(1:2*nnodes) = f(1:2*nnodes) - R*( (R'*R) \ (R'*f(1:2*nnodes)) );
+MustbeZero = norm(R'*f(1:2*nnodes))
+
 uin = K\f;
 u = uin(1:2*nnodes,1);
 f = Kinter*u;
@@ -103,15 +140,20 @@ for i=1:nboun
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Identify the volumic effort
+%% Identify the volumic forces
 % Build the polynomial test functions.
-load('conditions30_2d.mat');%,'ascii');
-M = spconvert(conditions30_2d); clear('conditions30_2d');
-nmax = 30;
+load('conditions10_2d.mat','-ascii');
+M = spconvert(conditions10_2d); clear('conditions10_2d');
+nmax = 10;
 ncoef =2*(nmax+1)^2; neq = ncoef;
 
 % Suppress zeros rows
-toremove = find( norm(M,'inf','rows') == 0 );
+toremove = [];
+for k=1:size(M,1)
+  if norm(M(k,:)) == 0
+     toremove(end+1) = k;
+  end
+end
 M(toremove,:) = [];
 
 coef   = null(full(M));
@@ -146,11 +188,11 @@ for j=1:nelemu % Compute the integrals
       X = xgr(1)/L; Y = xgr(2)/L;
       
       for i=1:nftest
+         coefa = coef(1:(nmax+1)^2,i);
+         coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,i);
          for ii=0:nmax
             for jj=0:nmax
-               coefa = coef(1:(nmax+1)^2,i);
-               coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,i);
-               % Distinguish x and y components 
+               % Distinguish x and y components
                aij = coefa( (nmax+1)*ii + jj+1 );
                bij = coefb( (nmax+1)*ii + jj+1 );
                Lhs(i,2*j-1) = Lhs(i,2*j-1) + S * wg * aij*X^ii*Y^jj; % increment the integral
@@ -273,25 +315,105 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Solve the linear system and recover the volumic loading
-Solu = (Lhs'*Lhs)\Lhs'*Rhs;
+A = Lhs'*Lhs; b = -Lhs'*Rhs; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%PB with (-)
 
-% Redistribute the identified loading on the nodes (for visu)
-Sno = zeros(2*nnodesu,1);
+%% Build the force energy matrix
+% L = eye(size(A));
+% Matrix such that Red*fe = fn with fe, per elem force and fn per node
+% force.
+Red = zeros(2*nnodesu,2*nelemu);
 for i=1:size(elementsu,1)
-   Xloc = nodes(elementsu(i,:),:);    % Extract and adapt coords
+   Xloc = nodes(elementsu(i,:),:);    % Extract coords
    nno = size(Xloc,1);
 
    ne = size(elementsu,2);
-   Se = []; maps = []; %TODEBUG
    for j=1:ne
-      Se = [ Se, Solu(2*i-1)/ntoelem(elementsu(i,j),1), ...
-                 Solu(2*i)/ntoelem(elementsu(i,j),1) ]; % Pass to nodes
-      maps = [maps,2*elementsu(i,j)-1,2*elementsu(i,j)];
+      nod = elementsu(i,j);
+      Red( 2*nod-1, 2*i-1 ) = Red( 2*nod-1, 2*i-1 ) + 1/ntoelemu(nod,1);
+      Red( 2*nod, 2*i ) = Red( 2*nod, 2*i ) + 1/ntoelemu(nod,1);
    end
- 
-   Sno(maps,1) = Sno(maps,1) + Se';
 end
 
+[K1,~,~,~,~] = Krig2 (nodesu,elementsu,mat,orderu,boundaryu,dirichlet);
+KtRed = K1\[Red ; zeros(3,size(Red,2)) ]; %size(KtRed)
+KtRed = KtRed( 1:2*nnodesu, : );
+L = Red'*KtRed;
+
+% [Q,Theta,P] = svd(A);
+% A = Q*Theta*P'; L = V*aiS*P'
+[Q,V,P,Theta,aiS] = gsvd( A, L );
+[theta,Ind] = sort( diag(Theta),'descend' );
+Q = Q(:,Ind); P = P(:,Ind);
+Theta = diag(theta);
+
+% Plot the Picard stuff
+imax = min( find(theta<1e-12) );
+tplo = theta(1:imax); bplo = Q'*b; bplo = bplo(1:imax);
+rplo = (Q'*b)./theta; rplo = rplo(1:imax);
+figure
+hold on;
+plot(log10(abs(tplo)),'Color','blue');
+plot(log10(abs(bplo)),'Color','red');
+plot(log10(abs( rplo )),'Color','black');
+
+% Filter eigenvalues
+ThetaT = Theta( 1:jmax , 1:jmax );
+bT     = Q'*b; bT = bT(1:jmax);
+
+% Solu = Q*(Theta\(Q'*b));
+Solu = (P*P')\P(:,1:jmax) * (ThetaT\bT);
+
+% % Redistribute the identified loading on the nodes (for visu on GMSH)
+% Sno = zeros(2*nnodesu,1);
+% for i=1:size(elementsu,1)
+%    Xloc = nodes(elementsu(i,:),:);    % Extract coords
+%    nno = size(Xloc,1);
+% 
+%    ne = size(elementsu,2);
+%    Se = []; maps = [];
+%    for j=1:ne
+%       Se = [ Se, Solu(2*i-1)/ntoelemu(elementsu(i,j),1), ...
+%                  Solu(2*i)/ntoelemu(elementsu(i,j),1) ]; % Pass to nodes
+%       maps = [maps,2*elementsu(i,j)-1,2*elementsu(i,j)];
+%    end
+%  
+%    Sno(maps,1) = Sno(maps,1) + Se';
+% end
+Sno = Red*Solu;
 % Output
 Si = reshape(Sno,2,[])';  Sx = Si(:,1);  Sy = Si(:,2);
 plotGMSH({Sx,'F_x';Sy,'F_y';Sno,'F_vect'}, elementsu, nodesu, 'output/identification');
+
+% local visu
+Seli = reshape(Solu,2,[])';  Selx = Seli(:,1);  Sely = Seli(:,2);
+figure;
+patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Selx,'FaceColor','flat');
+colorbar;
+figure;
+patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Sely,'FaceColor','flat');
+colorbar;
+
+% Per node visu
+figure;
+patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Sy,'FaceColor','interp');
+colorbar;
+
+% % Reference visu (force on the displacement basis, it's ugly)
+% fxy = reshape(f,2,[])';  fx = fxy(:,1);  fy = fxy(:,2);
+% figure;
+% patch('Faces',elements(:,1:3),'Vertices',nodes,'FaceVertexCData',fx,'FaceColor','interp');
+% colorbar;
+% figure;
+% patch('Faces',elements(:,1:3),'Vertices',nodes,'FaceVertexCData',fy,'FaceColor','interp');
+% colorbar;
+
+% On line visu
+Y = Ymin:L/100:Ymax; X = Xmoy*ones(1,size(Y,2)); XY = [X;Y];
+Sline = passMesh2D(nodesu, elementsu, XY', [], Sno);
+Slinexy = reshape(Sline,2,[])';  Slinex = Slinexy(:,1);  Sliney = Slinexy(:,2);
+
+ref = loadV(1,1) + loadV(2,1)*Y + loadV(3,1)*Y.^2 + loadV(4,1)*Y.^3;
+figure;
+hold on;
+plot(Y,Sliney);
+plot(Y,ref,'Color','red')
