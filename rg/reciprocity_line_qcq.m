@@ -13,7 +13,8 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmax       = 10;     % Eigenvalues truncation number
+jmax       = 15;     % Eigenvalues truncation number
+energy     = 0;      % Use the energy matrix in the GSVD
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -43,43 +44,47 @@ Kinter = K( 1:2*nnodes, 1:2*nnodes );
 
 Xmax = max(nodes(:,1)); Xmin = min(nodes(:,1)); Xmoy = (Xmax+Xmin)/2;
 Ymax = max(nodes(:,2)); Ymin = min(nodes(:,2)); Ymoy = (Ymax+Ymin)/2;
-L = Xmax-Xmin;
+Lx = Xmax-Xmin; Ly = Ymax-Ymin;
 
 % Rigid body modes
 r1 = zeros(2*nnodes,1); r2 = r1; r3 = r1;
 ind = 2:2:2*nnodes;
 r1(ind-1,1) = 1; r2(ind,1) = 1;
-moyx = (Xmax-Xmin)/2;moyy = (Ymax-Ymin)/2;
+moyx = (Xmax-Xmin)/2; moyy = (Ymax-Ymin)/2;
 r3(ind-1,1) = -nodes(ind/2,2)+moyy;
 r3(ind,1) = nodes(ind/2,1)-moyx;
 R = [r1,r2,r3];
 
 % Polynomial, zero mean, loading
-% loadV = [ -fscalar/L*Xmoy,0; ...
-%           fscalar/L,0 ];
-% loadV = [fscalar/L*Xmoy - fscalar/L^2*(Xmax^3-Xmin^3) / (3*(Xmax-Xmin)) ,0,0; ...
-%          -fscalar/L,0,0; ...
-%          fscalar/(L^2),0,0];
-% loadV = [-fscalar/L^2*(Xmax^3-Xmin^3) / (3*(Xmax-Xmin)) ,0,0; ...
-%          0,0,0; ...
-%          fscalar/(L^2),0,0];
-loadV = [-fscalar/L^3*(Xmax^4-Xmin^4) / (4*(Xmax-Xmin)) ,0,0,0; ...
+% loadV = [ -fscalar/Ly*Ymoy,0,0,0; ...
+%           fscalar/Ly,0,0,0;
+%           0,0,0,0; ...
+%           0,0,0,0];
+% loadV = [fscalar/Ly*Ymoy - fscalar/Ly^2*(Ymax^3-Ymin^3) / (3*(Ymax-Ymin)) ,0,0,0; ...
+%          -fscalar/Ly,0,0,0; ...
+%          fscalar/(Ly^2),0,0,0
+%          0,0,0,0];
+% loadV = [-fscalar/Ly^2*(Ymax^3-Ymin^3) / (3*(Ymax-Ymin)) ,0,0,0; ...
+%          0,0,0,0; ...
+%          fscalar/(Ly^2),0,0,0
+%          0,0,0,0];
+loadV = [-fscalar/Ly^3*(Ymax^4-Ymin^4) / (4*(Ymax-Ymin)) ,0,0,0; ...
          0,0,0,0; ...
          0,0,0,0; ...
-         fscalar/L^3,0,0,0];
-f = volumicLoad( 3, nodes, elements, 2, loadV );
+         fscalar/Ly^3,0,0,0];
+f = volumicLoad( 3, nodes, elements, 2, loadV ); 
 
 % % N ponctual sources
 % f = zeros(2*nnodes+nbloq,1);
-% nnind = zeros(3,1);
-% for i=1:3
+nnind = zeros(1,1);
+% for i=1:1
 %     n = randi(2*nnodes);
 %     f( n ) = 1;
 %     nnind(i) = n;
 % end
-% 
 % % Equilibrate f if needed
 % f(1:2*nnodes) = f(1:2*nnodes) - R*( (R'*R) \ (R'*f(1:2*nnodes)) );
+
 MustbeZero = norm(R'*f(1:2*nnodes))
 
 uin = K\f;
@@ -185,7 +190,7 @@ for j=1:nelemu % Compute the integrals
       % Interpolation
       xgr  = (1-xg(1)-xg(2))*[x1;y1] + xg(1)*[x2;y2] + xg(2)*[x3;y3] ; ... % abscissae
 
-      X = xgr(1)/L; Y = xgr(2)/L;
+      X = xgr(1)/Lx; Y = xgr(2)/Lx;
       
       for i=1:nftest
          coefa = coef(1:(nmax+1)^2,i);
@@ -250,7 +255,7 @@ for k=1:nftest
          
 %         ixigrec = Q'*[xgr(1);xgr(2)];
 %         X = (ixigrec(1)-offset)/L-.5; Y = (ixigrec(2)+Cte2)/L;
-         X = xgr(1)/L; Y = xgr(2)/L; % Use the standard basis
+         X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
          
          % Build the test field
          vloc1 = 0; vloc2 = 0;
@@ -303,7 +308,7 @@ for k=1:nftest
          vloc = [ vloc1 ; vloc2 ];
          vpa = vloc;
 
-         sloc = 1/L*[sloc11,sloc12;sloc12,sloc22];
+         sloc = 1/Lx*[sloc11,sloc12;sloc12,sloc22];
          spa = sloc;
          fpa = spa*exno;
 
@@ -318,7 +323,7 @@ end
 A = Lhs'*Lhs; b = -Lhs'*Rhs; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%PB with (-)
 
 %% Build the force energy matrix
-% L = eye(size(A));
+
 % Matrix such that Red*fe = fn with fe, per elem force and fn per node
 % force.
 Red = zeros(2*nnodesu,2*nelemu);
@@ -334,22 +339,69 @@ for i=1:size(elementsu,1)
    end
 end
 
-[K1,~,~,~,~] = Krig2 (nodesu,elementsu,mat,orderu,boundaryu,dirichlet);
-KtRed = K1\[Red ; zeros(3,size(Red,2)) ]; %size(KtRed)
-KtRed = KtRed( 1:2*nnodesu, : );
-L = Red'*KtRed;
+if energy == 0
+   L = eye(size(A));
+else
+%     % Rigid body modes
+%     r1u = zeros(2*nnodesu,1); r2u = r1u; r3u = r1u;
+%     ind = 2:2:2*nnodesu;
+%     r1u(ind-1,1) = 1; r2u(ind,1) = 1;
+%     moyx = (Xmax-Xmin)/2;moyy = (Ymax-Ymin)/2;
+%     r3u(ind-1,1) = -nodesu(ind/2,2)+moyy;
+%     r3u(ind,1) = nodesu(ind/2,1)-moyx;
+%     Ru = [r1u,r2u,r3u];
+%     Ru = Red'*Ru; % Pass to elements
+    
+    % Energy inner product : Ep = 1/2 fe'*L*fe
+    [K1,~,~,~,~] = Krig2 (nodesu,elementsu,mat,orderu,boundaryu,dirichlet);
+    KtRed = K1\[ Red ; zeros(3,size(Red,2)) ]; %size(KtRed)
+    KtRed = KtRed( 1:2*nnodesu, : );
+    L = Red'*KtRed;
+    
+%     L1 = [L,Ru;Ru',zeros(3)];
+end
+
+% % Rigid body modes
+% r1u = zeros(2*nnodesu,1); r2u = r1u; r3u = r1u;
+% ind = 2:2:2*nnodesu;
+% r1u(ind-1,1) = 1; r2u(ind,1) = 1;
+% moyx = (Xmax-Xmin)/2;moyy = (Ymax-Ymin)/2;
+% r3u(ind-1,1) = -nodesu(ind/2,2)+moyy;
+% r3u(ind,1) = nodesu(ind/2,1)-moyx;
+% Ru = [r1u,r2u,r3u];
+    
+% A = Red*A*Red'; L = Red*L*Red'; b = Red*b;% Pass everything on the nodes
+% L1 = [L,1e-7*Ru;1e-7*Ru',zeros(3)];
+% A1 = [A,zeros(size(A,1),3) ; zeros(3,size(A,1)),eye(3)];
+% b1 = [b;zeros(3,1)];
 
 % [Q,Theta,P] = svd(A);
-% A = Q*Theta*P'; L = V*aiS*P'
-[Q,V,P,Theta,aiS] = gsvd( A, L );
-[theta,Ind] = sort( diag(Theta),'descend' );
+% A = Q*Theta*V'; L = P*aiS*V'
+[Q,P,V,Theta,aiS] = gsvd( A, L );
+%[Vpp,vpp] = eig(A,L); %Vpp = Vpp*(Vpp'*L*Vpp)^(-1/2);
+
+thetas = diag(Theta) ./ diag(aiS);
+% figure; plot(log10(diag(Theta)));
+[thetas,Ind] = sort( thetas,'descend' );
 Q = Q(:,Ind); P = P(:,Ind);
-Theta = diag(theta);
+Thetas = diag(thetas); 
+Theta = Theta(Ind,Ind); aiS = aiS(Ind,Ind); V = V(:,Ind);
+
+% [theta,Ind] = sort( diag(Theta),'descend' );
+% Q = Q(:,Ind); P = P(:,Ind);
+% Theta = diag(theta); aiS = aiS(Ind,Ind); V = V(:,Ind);
 
 % Plot the Picard stuff
-imax = min( find(theta<1e-12) );
-tplo = theta(1:imax); bplo = Q'*b; bplo = bplo(1:imax);
-rplo = (Q'*b)./theta; rplo = rplo(1:imax);
+imax = min( find(thetas/thetas(1)<1e-16) );
+if size(imax,1) == 0
+    imax = size(thetas,1);
+end
+
+% tplo = theta(1:imax); bplo = Q'*b; bplo = bplo(1:imax);
+% rplo = (Q'*b)./theta; rplo = rplo(1:imax);
+% splo = diag(aiS); splo = splo(1:imax);
+tplo = thetas(1:imax); bplo = Q'*b; bplo = bplo(1:imax);
+rplo = (Q'*b)./thetas; rplo = rplo(1:imax);
 figure
 hold on;
 plot(log10(abs(tplo)),'Color','blue');
@@ -357,12 +409,15 @@ plot(log10(abs(bplo)),'Color','red');
 plot(log10(abs( rplo )),'Color','black');
 
 % Filter eigenvalues
-ThetaT = Theta( 1:jmax , 1:jmax );
+% ThetaT = Theta( 1:jmax , 1:jmax );
+% bT     = Q'*b; bT = bT(1:jmax);
+ThetaT = Thetas( 1:jmax , 1:jmax );
 bT     = Q'*b; bT = bT(1:jmax);
 
 % Solu = Q*(Theta\(Q'*b));
-Solu = (P*P')\P(:,1:jmax) * (ThetaT\bT);
-
+% Solu = (V*V')\V(:,1:jmax) * (ThetaT\bT); % (P*P') = eye( whatsoever )
+Solu = P(:,1:jmax) * (ThetaT\bT); % (P*P') = eye( whatsoever )   (V*V')^(-1/2)*
+% Solu = Red'*Solu;
 % % Redistribute the identified loading on the nodes (for visu on GMSH)
 % Sno = zeros(2*nnodesu,1);
 % for i=1:size(elementsu,1)
@@ -387,16 +442,24 @@ plotGMSH({Sx,'F_x';Sy,'F_y';Sno,'F_vect'}, elementsu, nodesu, 'output/identifica
 % local visu
 Seli = reshape(Solu,2,[])';  Selx = Seli(:,1);  Sely = Seli(:,2);
 figure;
+hold on
 patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Selx,'FaceColor','flat');
-colorbar;
+colorbar; axis equal;
+if nnind > 0 && mod(nnind,2) == 1
+    x = nodes(ceil(nnind/2),1); y = nodes(ceil(nnind/2),2); plot(x,y,'+');
+end
 figure;
+hold on
 patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Sely,'FaceColor','flat');
-colorbar;
+colorbar; axis equal;
+if nnind > 0 && mod(nnind,2) == 0
+    x = nodes(ceil(nnind/2),1); y = nodes(ceil(nnind/2),2); plot(x,y,'+');
+end
 
 % Per node visu
-figure;
-patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Sy,'FaceColor','interp');
-colorbar;
+% figure;
+% patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Sy,'FaceColor','interp');
+% colorbar;
 
 % % Reference visu (force on the displacement basis, it's ugly)
 % fxy = reshape(f,2,[])';  fx = fxy(:,1);  fy = fxy(:,2);
@@ -408,7 +471,7 @@ colorbar;
 % colorbar;
 
 % On line visu
-Y = Ymin:L/100:Ymax; X = Xmoy*ones(1,size(Y,2)); XY = [X;Y];
+Y = Ymin:Ly/100:Ymax; X = Xmoy*ones(1,size(Y,2)); XY = [X;Y];
 Sline = passMesh2D(nodesu, elementsu, XY', [], Sno);
 Slinexy = reshape(Sline,2,[])';  Slinex = Slinexy(:,1);  Sliney = Slinexy(:,2);
 
