@@ -19,8 +19,8 @@ mu         = 0;%1e-5;%5e-3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
 br         = .0;      % Noise level
 
-usefourier = 0;
-usepolys   = 1;
+usefourier = 1;
+usepolys   = 0;
 
 nbase = 2; % Number of Fourier basis functions
 ordp = 8;  % Number of Polynomial basis functions
@@ -585,9 +585,9 @@ Vp1 = [20;-Cte]; Vp2 = [-20;-Cte];
 Vm1 = [20;-Cte2]; Vm2 = [-20;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
 
-plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',1);
-plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',1);
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',2);
+plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',3);
+plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',3);
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',4);
 axis('equal');
 
 %% And now, the crack itself
