@@ -20,7 +20,7 @@ neumann   = [2,1,fscalar,0,fscalar;
              4,1,fscalar,0,-fscalar];
 
 % Import the mesh
-[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/platet.msh' );
+[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/platee.msh' );
 nnodes = size(nodes,1);
 
 % find the nodes in the corners and suppress the element :
@@ -160,7 +160,7 @@ Korth2 = Ikgg*Kgj*Il*Kjr;
 %Vdp = Vdp(:,Ind);
 
 [Vp,vp] = eig(K1k);
-[Vd,vd] = eig(K2k);
+[Vd,vd] = eig(full(K2k));
 vp = diag(abs(vp)); vd = diag(abs(vd));
 [vp,Ind] = sort(vp,'descend');
 Vp = Vp(:,Ind);
@@ -176,7 +176,7 @@ Vd = Vd(:,Ind);
 %Vdp = Vdp(:,Ind);
 
 [Vpp,vpp] = eig(K1k,S1); Vpp = Vpp*(Vpp'*S1*Vpp)^(-1/2);
-[Vdp,vdp] = eig(K2k,D2); Vdp = Vdp*(Vdp'*D2*Vdp)^(-1/2);
+[Vdp,vdp] = eig(full(K2k),D2); Vdp = Vdp*(Vdp'*D2*Vdp)^(-1/2);
 vpp = diag(abs(vpp)); vdp = diag(abs(vdp));
 [vpp,Ind] = sort(vpp,'descend');
 Vpp = Vpp(:,Ind);
@@ -234,6 +234,16 @@ eidp = real(Vdp)'*(d);
 %plot(log10(vdp),'Color','cyan');
 %legend('Korth primal','Korth precond','Korth dual','Korth precond');
 
+% %% Iterative resolutions
+% [x,flag,relres,iter] = pcg(K1k,b,1e-15,20);
+% figure; plot(x); relres
+% [x,flag,relres,iter] = symmlq(K1k,b,1e-15,20);
+% figure; plot(x); relres
+% [x,flag,relres,iter] = gmres(K1k,b,[],1e-15,20);
+% figure; plot(x); relres
+% x = K1k\b;
+% figure; plot(x); norm(K1k*x-b)
+% bug
 %% Primal noprec
 chib = eib./vp; chiD = chib; niter = size(chiD,1);
 %[indm2,pol] = findPicard2(log10(abs(chiD)), 3, 1);

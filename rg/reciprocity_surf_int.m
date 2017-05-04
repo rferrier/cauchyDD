@@ -15,27 +15,28 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
+br      = .01;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 11; % Order of polynom
-loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
+ordp      = 8; % Order of polynom
+loadfield = 4; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
                % If 4 : meshes are conformal, read the u field
 
-usefourier = 1;
-usepolys   = 0;
+usefourier = 0;
+usepolys   = 1;
 plotref    = 1;
-comperror  = 0;
+comperror  = 1;
 
-cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
-uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-%cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-%uncracked_mesh = 'meshes/rg3dm/platem.msh';
+% cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
+% uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
+cracked_mesh = 'meshes/rg3dm/platem6_c.msh';
+uncracked_mesh = 'meshes/rg3dm/platem6.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
-centCrack = [4;3;1]; % Point on the crack (for reference)
+centCrack = [4;3;3]; % Point on the crack (for reference)
 
 if loadfield ~= 1 && loadfield ~= 4
    tic
@@ -117,6 +118,14 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
                3*b2node52-2 ; 3*b2node52-1 ; 3*b2node52 ;...
                3*b2node62-2 ; 3*b2node62-1 ; 3*b2node62 ];
                
+% Add the noise
+if loadfield ~= 1 && loadfield ~= 4
+    u1n = u1; u2n = u2;
+    % br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+    noise = load('noises/rg3de6.mat'); br1 = noise.br1; br2 = noise.br2;
+    u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
+end
+           
 if loadfield == 0
    %% Pass f and u on the uncracked mesh
    UFr = passMesh3D (nodes, elements, nodes2, elements2, [u1,u2,f1,f2], boundary2);
@@ -408,6 +417,10 @@ v = [normal(2)*t(3) - t(2)*normal(3)
      normal(3)*t(1) - t(3)*normal(1)
      normal(1)*t(2) - t(1)*normal(2)]; % v = n^t
 Q = [ t , v , normal ];
+% if Q(3,1)<0, Q = Q'; end
+alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
+% Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
+Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
 
 %% Then the constant
 
@@ -556,7 +569,7 @@ Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
 
 % Reference : we know that the point P belongs to the plane.
-Pt = centCrack; QPt = Q'*Pt; CteR = -QPt(3);
+Pt = centCrack; QPt = Qref'*Pt; CteR = -QPt(3);
 
 %% And now, the crack itself
 % Compute L ( (not so) provisionnal formula assuming that we have a particular case)
@@ -806,9 +819,9 @@ if usefourier == 1
       X = transpose(reshape(X',[],1)); Y = transpose(reshape(Y,[],1));
       
       Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
-      XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
-      XYZ2 = Q*[X;Y;Z2];
-      Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
+      XYZ1 = Qref*[X;Y;Z1]; % Use the physical base for abscissa
+      XYZ2 = Qref*[X;Y;Z2];
+      Uxyz = transpose( Qref'*[ux,uy,uz]' ); % Use the normal base for U
       Uxyz = reshape(Uxyz',[],1);% Re-stick the components together
 
       uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
@@ -817,18 +830,18 @@ if usefourier == 1
 
       solu2 = reshape(solu,[],1);
       four_error = norm( solu2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
-      
-      % DEBUG plots
-     uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
-     figure;
-     hold on;
-     surf(Xp,Yp,uplo1);
-     shading interp;
-     colorbar();
-%      zed = max(max(uplo));
-%      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-%                               'Color', 'black',  'LineWidth', 3 );
-     axis('equal');
+      bug
+%       % DEBUG plots
+%      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
+%      figure;
+%      hold on;
+%      surf(Xp,Yp,uplo1);
+%      shading interp;
+%      colorbar();
+% %      zed = max(max(uplo));
+% %      plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+% %                               'Color', 'black',  'LineWidth', 3 );
+%      axis('equal');
 %      
 %      udiff = solu2-uplo(3:3:end); udiff = reshape(udiff,[],size(Yp,2));
 %      figure;
@@ -1420,16 +1433,16 @@ if usepolys == 1
    
 %    mean(mean(solup))
    
-   % "Zoom"
-   figure;
-   hold on;
-   surf(X(7:end-6),Y(7:end-6),solup(7:end-6,7:end-6)); % Again
-   shading interp;
-   colorbar();
-%    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
-%    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
-%                                   'Color', 'black',  'LineWidth', 3 );
-   axis('equal');
+%    % "Zoom"
+%    figure;
+%    hold on;
+%    surf(X(7:end-6),Y(7:end-6),solup(7:end-6,7:end-6)); % Again
+%    shading interp;
+%    colorbar();
+% %    teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+% %    plot3( ixe, igrec, zed*ones(1,size(ixe,2)) , ...
+% %                                   'Color', 'black',  'LineWidth', 3 );
+%    axis('equal');
    
    disp([ 'Polynomial method ', num2str(toc) ]);
    
@@ -1439,9 +1452,9 @@ if usepolys == 1
       X = transpose(reshape(X',[],1)); Y = transpose(reshape(Y,[],1));
       
       Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
-      XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
-      XYZ2 = Q*[X;Y;Z2];
-      Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
+      XYZ1 = Qref*[X;Y;Z1]; % Use the physical base for abscissa
+      XYZ2 = Qref*[X;Y;Z2];
+      Uxyz = transpose( Qref'*[ux,uy,uz]' ); % Use the normal base for U
       Uxyz = reshape(Uxyz',[],1);% Re-stick the components together
 
       uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
@@ -1482,7 +1495,7 @@ end
 figure;
 hold on;
 nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = 4;
+Y = min(Ys):nys:max(Ys); X = -4;
 
 if usefourier == 1
    solu = 0;
@@ -1513,9 +1526,9 @@ end
 if plotref == 1
    X = X*ones(size(Y));
    Z1 = (-CteR-1e-8)*ones(size(X)); Z2 = (-CteR+1e-8)*ones(size(X));
-   XYZ1 = Q*[X;Y;Z1]; % Use the physical base for abscissa
-   XYZ2 = Q*[X;Y;Z2];
-   Uxyz = transpose( Q'*[ux,uy,uz]' ); % Use the normal base for U
+   XYZ1 = Qref*[X;Y;Z1]; % Use the physical base for abscissa
+   XYZ2 = Qref*[X;Y;Z2];
+   Uxyz = transpose( Qref'*[ux,uy,uz]' ); % Use the normal base for U
    Uxyz = reshape(Uxyz',[],1); % Re-stick the components together
    
    uplo = passMesh3D(nodes, elements, [XYZ1';XYZ2'], [], Uxyz);
