@@ -184,7 +184,7 @@ for i = 1:2*nsub
    nodesc    = newnode{i};
    ret  = patch('Faces',elementsc(:,1:3),'Vertices',nodesc);
    col1 = rand(); col2 = rand(); col3 = rand(); coto = col1+col2+col3;
-   set (ret, 'FaceColor', [col1/coto,col2/coto,col3/coto]);
+   set (ret, 'FaceColor', [col1,col2,col3]);
 end
 axis('equal');
 

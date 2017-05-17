@@ -2,6 +2,8 @@
 % Détection de source par écart à la réciprocité
 % Intégrations par PG
 
+tic
+
 close all;
 clear all;
 
@@ -144,6 +146,8 @@ for i=1:nboun
    end
 end
 
+disp([ 'Direct problem solved and data management ', num2str(toc) ]);
+tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Identify the volumic forces
 % Build the polynomial test functions.
@@ -208,7 +212,8 @@ for j=1:nelemu % Compute the integrals
 
    end
 end
-
+disp([ 'Left hand side generated ', num2str(toc) ]);
+tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the RG
 Rhs  = zeros(nftest,1);
@@ -231,7 +236,7 @@ for k=1:nftest
          Ng = 1; % Max (anyway, it's inexact)
       elseif order==2
          Ng  = 1; no3 = bonod(4);
-         x3  = nodes2(no3,1); y3 = nodes2(no3,2);
+         x3  = nodes(no3,1); y3 = nodes(no3,2);
       end
       [ Xg, Wg ] = gaussPt1d( Ng );
                 
@@ -317,7 +322,8 @@ for k=1:nftest
    end
    
 end
-
+disp([ 'Right hand side generated ', num2str(toc) ]);
+tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Solve the linear system and recover the volumic loading
 A = Lhs'*Lhs; b = -Lhs'*Rhs; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%PB with (-)
@@ -375,22 +381,28 @@ end
 % A1 = [A,zeros(size(A,1),3) ; zeros(3,size(A,1)),eye(3)];
 % b1 = [b;zeros(3,1)];
 
-% [Q,Theta,P] = svd(A);
-% A = Q*Theta*V'; L = P*aiS*V'
-[Q,P,V,Theta,aiS] = gsvd( A, L );
-%[Vpp,vpp] = eig(A,L); %Vpp = Vpp*(Vpp'*L*Vpp)^(-1/2);
-
-thetas = diag(Theta) ./ diag(aiS);
+[Q,Theta,P] = svd(A);
+thetas = diag(Theta);
 % figure; plot(log10(diag(Theta)));
 [thetas,Ind] = sort( thetas,'descend' );
 Q = Q(:,Ind); P = P(:,Ind);
 Thetas = diag(thetas); 
-Theta = Theta(Ind,Ind); aiS = aiS(Ind,Ind); V = V(:,Ind);
+Theta = Theta(Ind,Ind);
+
+%% A = Q*Theta*V'; L = P*aiS*V'
+%[Q,P,V,Theta,aiS] = gsvd( A, L );
+%%[Vpp,vpp] = eig(A,L); %Vpp = Vpp*(Vpp'*L*Vpp)^(-1/2);
+%thetas = diag(Theta) ./ diag(aiS);
+%% figure; plot(log10(diag(Theta)));
+%[thetas,Ind] = sort( thetas,'descend' );
+%Q = Q(:,Ind); P = P(:,Ind);
+%Thetas = diag(thetas); 
+%Theta = Theta(Ind,Ind); aiS = aiS(Ind,Ind); V = V(:,Ind);
 
 % [theta,Ind] = sort( diag(Theta),'descend' );
 % Q = Q(:,Ind); P = P(:,Ind);
 % Theta = diag(theta); aiS = aiS(Ind,Ind); V = V(:,Ind);
-
+disp([ 'Rectangular system pinversed ', num2str(toc) ]);
 % Plot the Picard stuff
 imax = min( find(thetas/thetas(1)<1e-16) );
 if size(imax,1) == 0

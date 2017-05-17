@@ -85,13 +85,13 @@ uin = K\f2;
 u2 = uin(1:2*nnodes,1);
 f2 = Kinter*u2;
 
-ui = reshape(u1,2,[])';  ux = ui(:,1);  uy = ui(:,2);
+ui = reshape(u2,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 
 % Compute stress :
-sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
+sigma = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
 
 % Output :
-plotGMSH({ux,'U_x';uy,'U_y';u1,'U_vect';sigma,'stress'}, elements, nodes, 'reference');
+plotGMSH({ux,'U_x';uy,'U_y';u2,'U_vect';sigma,'stress'}, elements, nodes, 'reference');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain /!\ MUST BE THE SAME !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! (except for the crack)
