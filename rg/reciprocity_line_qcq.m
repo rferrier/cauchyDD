@@ -334,7 +334,7 @@ A = Lhs'*Lhs; b = -Lhs'*Rhs; %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%PB with (-)
 % force.
 Red = zeros(2*nnodesu,2*nelemu);
 for i=1:size(elementsu,1)
-   Xloc = nodes(elementsu(i,:),:);    % Extract coords %%%%%PB : nodesu and not nodes !!!!!!!!!!!!!!!!!!!!!!!!
+   Xloc = nodesu(elementsu(i,:),:);
    nno = size(Xloc,1);
 
    ne = size(elementsu,2);
