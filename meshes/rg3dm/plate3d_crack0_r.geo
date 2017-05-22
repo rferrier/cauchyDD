@@ -15,6 +15,7 @@ da    = pi/15; // angle of the cracks
 H     = 2;  //  height of plate 2-6
 L     = 7;  //  width of plate
 E     = 10; //E     = 7;
+eps   = .4;  //refining width
 
 // Discretization parameters
 lc1 = .5; // element size at the border
@@ -30,6 +31,16 @@ Point(5) = {0.0,0.0,H,lc1};
 Point(6) = {L,0.0,H,lc1};
 Point(7) = {L,E,H,lc2};
 Point(8) = {0.0,E,H,lc2};
+
+// Refining points
+Point(101) = {eps,eps,eps,lc2};
+Point(102) = {L-eps,eps,eps,lc2};
+Point(103) = {L-eps,E-eps,eps,lc2};
+Point(104) = {eps,E-eps,eps,lc2};
+Point(105) = {eps,eps,H-eps,lc2};
+Point(106) = {L-eps,eps,H-eps,lc2};
+Point(107) = {L-eps,E-eps,H-eps,lc2};
+Point(108) = {eps,E-eps,H-eps,lc2};
 
 // Aretes
 Line(1) = {1,2};
@@ -47,6 +58,22 @@ Line(10) = {2,6};
 Line(11) = {3,7};
 Line(12) = {4,8};
 
+// refining aretes
+Line(101) = {101,102};
+Line(102) = {102,103};
+Line(103) = {103,104};
+Line(104) = {104,101};
+
+Line(105) = {106,105};
+Line(106) = {107,106};
+Line(107) = {108,107};
+Line(108) = {105,108};
+
+Line(109) = {101,105};
+Line(110) = {102,106};
+Line(111) = {103,107};
+Line(112) = {104,108};
+
 // External faces
 Line Loop(101) = {1,2,3,4};
 Plane Surface(1) = {101};
@@ -60,6 +87,20 @@ Line Loop(105) = {3,12,7,-11};
 Plane Surface(5) = {105};
 Line Loop(106) = {4,9,8,-12};
 Plane Surface(6) = {106};
+
+// Refining faces
+Line Loop(1101) = {101,102,103,104};
+Plane Surface(101) = {1101};
+Line Loop(1102) = {105,106,107,108};
+Plane Surface(102) = {1102};
+Line Loop(1103) = {101,110,105,-109};
+Plane Surface(103) = {1103};
+Line Loop(1104) = {102,111,106,-110};
+Plane Surface(104) = {1104};
+Line Loop(1105) = {103,112,107,-111};
+Plane Surface(105) = {1105};
+Line Loop(1106) = {104,109,108,-112};
+Plane Surface(106) = {1106};
 
 // Crack construction
 Point(9) = {a,b,H/2,lc1};
@@ -95,6 +136,12 @@ Volume(9) = {1001};
 
 Surface{7} In Volume{9};
 Surface{8} In Volume{9};
+Surface{101} In Volume{9};
+Surface{102} In Volume{9};
+Surface{103} In Volume{9};
+Surface{104} In Volume{9};
+Surface{105} In Volume{9};
+Surface{106} In Volume{9};
 
 Physical Surface(1) = {1};
 Physical Surface(2) = {2};
