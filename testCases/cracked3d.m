@@ -13,8 +13,8 @@ fscalar  = 250;    % N.mm-2 : Loading
 mat      = [0, E, nu];
 regmu    = 0;      % Regularization parameter
 br       = .0;
-niter_up = 2;      % Number of iterations
-niter_do = 2;
+niter_up = 4;      % Number of iterations
+niter_do = 4;
 
 cracked_mesh   = 'meshes/rg3dm/platemSPc.msh';
 uncracked_mesh = 'meshes/rg3dm/platemSPu.msh';
@@ -229,9 +229,39 @@ for i=1:size(elements_up,1)
    end
 end
 
+for i=1:size(elements_do,1)
+   no1 = elements_do(i,1); no2 = elements_do(i,2);
+   no3 = elements_do(i,3); no4 = elements_do(i,4);
+   
+   zed1 = -nodes_do(no1,1)*sin(alpha) + nodes_do(no1,3)*cos(alpha);
+   zed2 = -nodes_do(no2,1)*sin(alpha) + nodes_do(no2,3)*cos(alpha);
+   zed3 = -nodes_do(no3,1)*sin(alpha) + nodes_do(no3,3)*cos(alpha);
+   zed4 = -nodes_do(no4,1)*sin(alpha) + nodes_do(no4,3)*cos(alpha);
+   
+   score = [];
+   if zed1+epsi > crit
+      score(end+1) = no1;
+   end
+   if zed2+epsi > crit
+      score(end+1) = no2;
+   end
+   if zed3+epsi > crit
+      score(end+1) = no3;
+   end
+   if zed4+epsi > crit
+      score(end+1) = no4;
+   end
+   
+   if size(score,2) == 3
+      boundary_do(end+1,:) = [8,score];
+   end
+end
+
 %% Extract the boundary 8 (missing boundary)
 bounindex_up = find( boundary_up(:,1)==8 );
 patch2_up    = boundary_up(bounindex_up,2:end);
+bounindex_do = find( boundary_do(:,1)==8 );
+patch2_do    = boundary_do(bounindex_do,2:end);
 
 boundaryp_up = suppressBound( boundary_up, 'extreme', 8, nodes_up, 1e-5 );
 boundaryp_do = suppressBound( boundary_do, 'extreme', 8, nodes_do, 1e-5 );
@@ -242,14 +272,6 @@ disp([ 'Mesh adaptated ', num2str(toc) ]);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Build the operators & such
-
-%dirichletr_up = [6,1,0;6,2,0;6,3,0;
-%                 5,1,0;5,2,0;5,3,0;
-%                 3,1,0;3,2,0;3,3,0;
-%                 2,1,0;2,2,0;2,3,0];
-
-%% Dual problems
-% First problem
 tic
 
 dirichlet1d_up = [6,1,0;6,2,0;6,3,0;
@@ -306,10 +328,10 @@ indexCdo = sum(Cmdo'); indexado = find(indexCdo);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% CG resolution
 
-% First, plot the reference
-ret = patch('Faces',patch2_up,'Vertices',nodes_up, ... 
-            'FaceVertexCData',u1_up(3:3:end),'FaceColor','interp');
-colorbar;
+%% First, plot the reference
+%ret = patch('Faces',patch2_up,'Vertices',nodes_up, ... 
+%            'FaceVertexCData',u1_up(3:3:end),'FaceColor','interp');
+%colorbar;
 
 niter = niter_up;
 error    = zeros(niter+1,1);
@@ -321,9 +343,9 @@ d     = zeros( 3*nnodes_up, niter+1 );
 Ad    = zeros( 3*nnodes_up, niter+1 );
 Res   = zeros( 3*nnodes_up, niter+1 );
 Zed   = zeros( 3*nnodes_up, niter+1 );
-alpha = zeros( niter+1, 1 );
-beta  = zeros( niter+1, 1 );
-alpha2 = zeros( niter+1, 1 );
+%alpha = zeros( niter+1, 1 );
+%beta  = zeros( niter+1, 1 );
+%alpha2 = zeros( niter+1, 1 );
 
 %% Perform A x0 :
 % Solve 1
@@ -366,12 +388,12 @@ for iter = 1:niter
     %% Optimal step
     % Solve 1
     f1 = [d(:,iter); zeros(nbloq1d_up,1)];
-    uin1 = K1d_up\f1;
+    uin1 = K1d_up\f1; norm(K1d_up*uin1-f1)/norm(f1);
     u1i = uin1(1:3*nnodes_up,1);
     u1 = Cm*Cm'*u1i;
     % Solve 2
     f2 = [d(:,iter); zeros(nbloq2d_up,1)];
-    uin2 = K2d_up\f2;
+    uin2 = K2d_up\f2; norm(K2d_up*uin2-f2)/norm(f2);
     u2i = uin2(1:3*nnodes_up,1);
     u2 = Cm*Cm'*u2i;
     %
@@ -410,12 +432,12 @@ end
 
 disp([ 'Inverse problem solved ', num2str(toc) ]);
 
-% Convergence curve
-figure;
-hold on;
-%plot(error,'Color','blue'); % The error is wrong
-plot(residual,'Color','black');
-legend('residual');
+%% Convergence curve
+%figure;
+%hold on;
+%%plot(error,'Color','blue'); % The error is wrong
+%plot(residual,'Color','black');
+%legend('residual');
 
 % L-curve
 figure;
@@ -426,14 +448,204 @@ f_upD = [ zeros(3*nnodes_up,1) ; C1d_up'*C1d_up*C1d_up'*u1_up ];
 f_upN = [Itere; zeros(nbloq1d_up,1)];
 u_up  = K1d_up\(f_upN+f_upD);
 
-error_up = norm( u_up(indexa) - u1_up(indexa) );
+error_up = norm( u_up(indexa) - u1_up(indexa) ) / norm( u1_up(indexa) );
+
+%figure;
+%ret = patch('Faces',patch2_up,'Vertices',nodes_up, ... 
+%            'FaceVertexCData',f_upN(3:3:end),'FaceColor','interp');
+%colorbar;
+
+%figure;
+%ret = patch('Faces',patch2_up,'Vertices',nodes_up, ... 
+%            'FaceVertexCData',u_up(3:3:end),'FaceColor','interp');
+%colorbar;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% CG resolution (down)
+
+%% First, plot the reference
+%ret = patch('Faces',patch2_do,'Vertices',nodes_do, ... 
+%            'FaceVertexCData',u1_do(3:3:end),'FaceColor','interp');
+%colorbar;
+
+niter      = niter_do;
+errordo    = zeros(niter+1,1);
+residualdo = zeros(niter+1,1);
+regularido = zeros(niter+1,1);
+
+Iteredo = zeros( 3*nnodes_do, 1 );
+d       = zeros( 3*nnodes_do, niter+1 );
+Ad      = zeros( 3*nnodes_do, niter+1 );
+Res     = zeros( 3*nnodes_do, niter+1 );
+Zed     = zeros( 3*nnodes_do, niter+1 );
+%alpha   = zeros( niter+1, 1 );
+%beta    = zeros( niter+1, 1 );
+%alpha2   = zeros( niter+1, 1 );
+
+%% Perform A x0 :
+% Solve 1
+f1 = [Iteredo; zeros(nbloq1d_do,1)];
+uin1 = K1d_do\f1;
+u1i = uin1(1:3*nnodes_do,1);
+u1 = Cmdo*Cmdo'*u1i;
+% Solve 2
+f2 = [Iteredo; zeros(nbloq2d_do,1)];
+uin2 = K2d_do\f2;
+u2i = uin2(1:3*nnodes_do,1);
+u2 = Cmdo*Cmdo'*u2i;
+%
+Axz = u2-u1;
+
+%%%%
+%% Compute Rhs :
+% Solve 1
+f1 = [ zeros(3*nnodes_do,1) ; C1d_do'*Crdo*Crdo'*u1_do ];
+uin1 = K1d_do\f1; resno = norm(K1d_do*uin1-f1)/norm(f1);
+u1i = uin1(1:3*nnodes_do);
+u1 = Cmdo*Cmdo'*u1i;
+% Solve 2
+f2 = f2ddo;
+uin2 = K2d_do\f2; resno = norm(K1d_do*uin1-f1)/norm(f1);
+u2i = uin2(1:3*nnodes_do);
+u2 = Cmdo*Cmdo'*u2i;
+%
+b = u1-u2;
+%%
+Res(:,1) = b - Axz;
+Zed(:,1) = Res(:,1);
+d(:,1) = Zed(:,1);
+
+residualdo(1) = norm(Res( :,1));
+%errordo(1)    = norm(Itere(indexado) - f1_do(indexado)) / norm(f1_do(indexado));
+regularido(1) = norm(Iteredo);
+
+for iter = 1:niter
+    %% Optimal step
+    % Solve 1
+    f1 = [d(:,iter); zeros(nbloq1d_do,1)];
+    uin1 = K1d_do\f1;
+    u1i = uin1(1:3*nnodes_do,1);
+    u1 = Cmdo*Cmdo'*u1i;
+    % Solve 2
+    f2 = [d(:,iter); zeros(nbloq2d_do,1)];
+    uin2 = K2d_do\f2;
+    u2i = uin2(1:3*nnodes_do,1);
+    u2 = Cmdo*Cmdo'*u2i;
+    %
+    Ad(:,iter) = u2-u1;
+    
+    den = (d(:,iter)'*Ad(:,iter));
+    d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
+    num = Res(:,iter)'*d(:,iter);
+    
+    Iteredo       = Iteredo + d(:,iter)*num;%/den;
+    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
+    
+    Zed(:,iter+1) = Res(:,iter+1);
+    
+    residualdo(iter+1) = norm(Res(:,iter+1));
+    %errordo(iter+1)    = norm(Itere(indexa) - f1_do(indexa)) / norm(f1_do(indexa));
+%    regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+    regularido(iter+1) = norm(Iteredo);
+
+%    % First Reorthogonalize the residual (as we use it next), in sense of M
+%    for jter=1:iter-1
+%        betac = Zed(:,iter+1)'*Res(:,jter) / (Zed(:,jter)'*Res(:,jter));
+%        Zed(:,iter+1) = Zed(:,iter+1) - Zed(:,jter) * betac;
+%    end
+    
+    %% Orthogonalization
+    d(:,iter+1) = Zed(:,iter+1);
+    
+    for jter=1:iter % No need to reorthogonalize (see above)
+        betaij = ( Zed(:,iter+1)'*Ad(:,jter) );%/...
+            %( d(:,jter)'*Ad(:,jter) );
+        d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
+    end
+    
+end
+
+disp([ 'Inverse problem solved ', num2str(toc) ]);
+
+%% Convergence curve
+%figure;
+%hold on;
+%%plot(error,'Color','blue'); % The error is wrong
+%plot(residualdo,'Color','black');
+%legend('residual');
+
+% L-curve
+figure;
+loglog( residualdo(2:end) , regularido(2:end) );
+
+% Final problem
+f_doD = [ zeros(3*nnodes_do,1) ; C1d_do'*C1d_do*C1d_do'*u1_do ];
+f_doN = [Iteredo; zeros(nbloq1d_do,1)];
+u_do  = K1d_do\(f_doN+f_doD);
+
+error_do = norm( u_do(indexa) - u1_do(indexa) ) / norm( u1_do(indexa) );
+
+%figure;
+%ret = patch('Faces',patch2_do,'Vertices',nodes_do, ... 
+%            'FaceVertexCData',f_doN(3:3:end),'FaceColor','interp');
+%colorbar;
+
+%figure;
+%ret = patch('Faces',patch2_do,'Vertices',nodes_do, ... 
+%            'FaceVertexCData',u_do(3:3:end),'FaceColor','interp');
+%colorbar;
+
+%%%%%%%%%%%%%%%%%%
+%% Change the coordinates
+Q = [ cos(alpha), 0, sin(alpha)
+      0, 1, 0
+      -sin(alpha), 0, cos(alpha) ];
+      
+nodes2_up = transpose(Q*nodes_up');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Soustract fields
+
+u1_doonup = passMesh3D ( nodes_do, elements_do,...
+                        nodes_up, elements_up, u1_do(1:3*nnodes_do) );
+u1_diff = u1_up(1:3*nnodes_up)-u1_doonup;
+
+u_doonup = passMesh3D ( nodes_do, elements_do,...
+                        nodes_up, elements_up, u_do(1:3*nnodes_do) );
+u_diff = u_up(1:3*nnodes_up)-u_doonup;
+
+ui = reshape(u_diff,3,[])'; ui = transpose(Q*ui');
+u_diff = u_diff-u_diff;
+u_diff(1:3:end-2) = ui(:,1); u_diff(2:3:end-1) = ui(:,2); u_diff(3:3:end) = ui(:,3);
+
+ui = reshape(u1_diff,3,[])'; ui = transpose(Q*ui');
+u1_diff = u1_diff-u1_diff;
+u1_diff(1:3:end-2) = ui(:,1); u1_diff(2:3:end-1) = ui(:,2); u1_diff(3:3:end) = ui(:,3);
 
 figure;
-ret = patch('Faces',patch2_up,'Vertices',nodes_up, ... 
-            'FaceVertexCData',f_upN(3:3:end),'FaceColor','interp');
+ret = patch('Faces',patch2_up,'Vertices',nodes2_up, ... 
+            'FaceVertexCData',u1_diff(3:3:end),'FaceColor','interp');
 colorbar;
 
 figure;
-ret = patch('Faces',patch2_up,'Vertices',nodes_up, ... 
-            'FaceVertexCData',u_up(3:3:end),'FaceColor','interp');
+ret = patch('Faces',patch2_up,'Vertices',nodes2_up, ... 
+            'FaceVertexCData',u_diff(3:3:end),'FaceColor','interp');
 colorbar;
+
+Y = 0:.1:10; Y = Y';
+X = 4*ones(101,1); Z = (1+1e-8)*ones(101,1);
+
+u_lin = passMesh3D ( nodes_up, elements_up,...
+                     [X,Y,Z], [], u_diff );
+
+u1_lin = passMesh3D ( nodes_up, elements_up,...
+                     [X,Y,Z], [], u1_diff );
+figure;
+hold on;
+plot(Y,u_lin(3:3:end),'Color','blue');
+plot(Y,u1_lin(3:3:end),'Color','black');
+legend('identified gap','reference');
+
+error_tot = .5*(error_up+error_do);
+
+csvwrite('fields/sp3d.csv',[Y,u_lin(3:3:end),u1_lin(3:3:end)]);

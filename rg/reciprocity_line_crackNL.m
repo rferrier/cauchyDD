@@ -15,9 +15,10 @@ fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
 jmax       = 20;     % Eigenvalues truncation number
-niter      = 30;    % Number of regularization iterations
-Lreg       = 1/10;  % Regularization ceil
-ncrack     = 2;    % nb of cracks
+niter      = 23;    %26-49 Number of regularization iterations
+Lreg       = 1/7;%1/7-1/15  % Regularization threshold
+ncrack     = 1;    % nb of cracks
+Rreg       = .1;   % Regularization radius
 
 recompute = 0; % Recompute A and b
 threshold = 0; % If threshold = 1, eliminate elts with < Lreg, else, eliminate the Lreg last elements.
@@ -59,6 +60,11 @@ while j <= nseg % Remove redundancy (I don't use unique because of inverted valu
    j = j+1;
 end
 
+% Build the shortcut list of ccordinates of segment elements
+coorseg = [ nodesu(segel(:,1),1), nodesu(segel(:,1),2), ...
+            nodesu(segel(:,2),1), nodesu(segel(:,2),2), ...
+            (nodesu(segel(:,1),1)+nodesu(segel(:,2),1))/2, ...
+            (nodesu(segel(:,1),2)+nodesu(segel(:,2),2))/2 ];
 
 if recompute == 1
    % Boundary conditions
@@ -472,18 +478,55 @@ nogap2  = ones(nseg,1);
 nogap1s = ones(nseg,1);
 nogap2s = ones(nseg,1);
 
+oldauthorized = 1:nseg;
+
 for i = 1:niter
 
    if threshold == 1
       criterion = nogap1s;
       authorized = find(criterion==1);
    else
-      criterion = nogap1.+nogap2;
+      % Build the non-local criterion
+      criterion1 = nogap1.+nogap2;
+      criterion  = criterion1;
+
+      for j1=1:size(oldauthorized,1)
+         j = oldauthorized(j1);
+         coor1 = coorseg(j,:);
+         for k1=1:size(oldauthorized,1)
+            k = oldauthorized(k1);
+            coor2 = coorseg(k,:);
+            d = norm( [coor1(5)-coor2(5),coor1(6)-coor2(6)] ); % Distance between centers
+            
+            if d == 0
+               continue; % Avoid 0/0
+            end
+            
+            if d < Rreg
+               l1 = norm( [coor1(1)-coor1(3),coor1(2)-coor1(4)] );
+               l2 = norm( [coor2(1)-coor2(3),coor2(2)-coor2(4)] );
+               cosa = [coor1(1)-coor1(3),coor1(2)-coor1(4)] * ...
+                      [coor2(1)-coor2(3);coor2(2)-coor2(4)] / ...
+                      l1/l2; % Cos between the 2 segments
+                
+               cosb = [coor1(1)-coor1(3),coor1(2)-coor1(4)] * ...
+                      [coor1(5)-coor2(5);coor1(6)-coor2(6)] / ...
+                      l1 / norm( [coor1(5)-coor2(5),coor1(6)-coor2(6)] ); 
+                      % Cos(angle) of 1 segment wrt the other one's orientation
+                      
+              criterion(j) = criterion(j) + abs(cosa)^2 * abs(cosb)^2 *...
+                                criterion1(k) * (Rreg-d)/Rreg;% * l2/l1;% * 
+            end
+         end
+      end
+
       if i == 1
          authorized = find(criterion>=-1); % Take everybody at the first iteration
       else
          [criterion,num] = sort( criterion,'descend' );
          Ntot = size(authorized,1)/2; % Previous size
+%         Nlim = Ntot - ceil( Lreg*Ntot );
+%         Nlim = ceil( Ntot - Lreg*Ntot );
          Nlim = ceil( (1-Lreg)*Ntot );
 %         criterion = criterion(1:Nlim);
          criterion(Nlim+1:end) = -2;
@@ -682,7 +725,34 @@ plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'Li
 if ncrack == 2
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-nogapp1 = abs(nogap1+nogap2)-min(abs(nogap1+nogap2)); maxn1 = max(nogapp1);
+nogapp1 = criterion; maxn1 = max(nogapp1);
+%      for i=1:nseg
+for j=1:size(oldauthorized,1)
+   i = oldauthorized(j);
+   no1 = segel(i,1); no2 = segel(i,2);
+   x1 = nodesu(no1,1); y1 = nodesu(no1,2);
+   x2 = nodesu(no2,1); y2 = nodesu(no2,2);
+   
+   x = nogapp1(i)/maxn1;
+   rgb = rgbmap(x);
+   plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
+end
+%axis equal;
+axis([0 1 0 1]);
+colormap("default")
+h = colorbar();
+ytick = get (h, "ytick");
+set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
+
+% Segments visu
+figure;
+hold on;
+plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
+if ncrack == 2
+   plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
+end
+%nogapp1 = abs(nogap1+nogap2); maxn1 = max(nogapp1);
+nogapp1 = criterion1; maxn1 = max(criterion1);
 %      for i=1:nseg
 for j=1:size(oldauthorized,1)
    i = oldauthorized(j);
