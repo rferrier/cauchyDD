@@ -1,6 +1,6 @@
-% 09/05/2017
+% 23/05/2017
 % Détection de fissure quelconque par écart à la réciprocité
-% Régularisation non-linéaire
+% Régularisation non-linéaire topologique
 
 tic
 close all;
@@ -13,17 +13,26 @@ E          = 210000; % MPa : Young modulus
 nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
-br         = .0;      % Noise level
+br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
-niter      = 2;    %26-49 Number of regularization iterations
-Lreg       = 1/7;   %1/7-1/15  % Regularization threshold
-ncrack     = 1;    % nb of cracks
-Rreg       = .1;   % Regularization radius
-crit       = 0; % 0 : no zone effect, 1 : length based criterion, (2 : connectivity-based)
-co         = [1,1,0,0]; % Coefficients for each RG
+%niter      = 4;    %26-49 Number of regularization iterations
+ncrack     = 9;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack
+co         = [1,1,1,0]; % Coefficients for each RG test-case
+recompute  = 0; % Recompute A and b
 
-recompute = 0; % Recompute A and b
-threshold = 0; % If threshold = 1, eliminate elts with < Lreg, else, eliminate the Lreg last elements.
+% List of the operations :
+% 1 : Computation without any suppression
+% 2 : 2 elts per node algorithm
+% 3 : Building of chains and suppression of monoms
+% 4 : Proximity-based suppression of shortest chains
+%operations = [1,2,3,4,4,4,4,4];
+%regD       = [0,0,0,.1,.2,.3,.4,.5];   
+% Minimal distance between 2 chains (0 means only one) 
+
+operations = [1,2,3,4,4,4,4];
+regD       = [0,0,0,.2,.4,.6,.8];
+
+niter = size(operations,2);
 
 %% In order to build the (Petrov-Galerkin) Left Hand Side
 [ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
@@ -81,8 +90,18 @@ if recompute == 1
    % First, import the mesh
    if ncrack == 2
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc2.msh' );
-   else
+   elseif ncrack == 1
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 3
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc3.msh' );
+   elseif ncrack == 5
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 7
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 9
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
+   else
+      warning('This test-case was not meshed')
    end
    
    nnodes = size(nodes,1);
@@ -178,12 +197,14 @@ if recompute == 1
    fr4(indexbound2) = f4(indexbound);
    
    % Add the noise
-   %u1n = u1; u2n = u2;
-   %br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
-   %% noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
-   %u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
+   u1n = u1; u2n = u2; u3n = u3; u4n = u4;
+   br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
+   br3 = randn(2*nnodes,1); br4 = randn(2*nnodes,1);
+   % noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
+   u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
+   u3 = ( 1 + br*br3 ) .* u3; u4 = ( 1 + br*br4 ) .* u4;   
    
-   plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
+%   plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
    
    %% Preliminary stuff : find the volumic elements corresponding to the boundaries
    nboun2 = size(boundary2,1); nelem2 = size(elements2,1);
@@ -502,8 +523,19 @@ else
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 2
       Anb = load('fields/matrix2.mat');
-      % The mesh is still needed
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc2.msh' );
+   elseif ncrack == 3
+      Anb = load('fields/matrix3.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc3.msh' );
+   elseif ncrack == 5
+      Anb = load('fields/matrix5.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 7
+      Anb = load('fields/matrix7.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 9
+      Anb = load('fields/matrix9.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
    end
    Lhs = Anb.Lhs; Rhs1 = Anb.Rhs1; Rhs2 = Anb.Rhs2;
    Rhs3 = Anb.Rhs3; Rhs4 = Anb.Rhs4;
@@ -526,9 +558,6 @@ res3 = zeros(niter,1); res4 = zeros(niter,1);
 nogap1  = ones(nseg,1); nogap2  = ones(nseg,1);
 nogap3  = ones(nseg,1); nogap4  = ones(nseg,1);
 
-nogap1s = ones(nseg,1); nogap2s = ones(nseg,1);
-nogap3s = ones(nseg,1); nogap4s = ones(nseg,1);
-
 oldauthorized = 1:nseg;
 
 ind1 = zeros(niter,1); % Stores the stopping index
@@ -538,84 +567,257 @@ ind4 = zeros(niter,1);
 
 for i = 1:niter
 
-   if threshold == 1
-      criterion = nogap1s;
-      authorized = find(criterion==1);
-   else
-      % Build the non-local criterion
-      criterion1 = co(1)*nogap1 + co(2)*nogap2 + co(3)*nogap3 + co(4)*nogap4;
-      criterion  = criterion1;
+   % Build the non-local criterion
+   criterion1 = co(1)*nogap1 + co(2)*nogap2 + co(3)*nogap3 + co(4)*nogap4;
+   criterion  = criterion1;
 
-      if crit == 1
-         for j1=1:size(oldauthorized,1)
-            j = oldauthorized(j1);
-            coor1 = coorseg(j,:);
-            for k1=1:size(oldauthorized,1)
-               k = oldauthorized(k1);
-               coor2 = coorseg(k,:);
-               d = norm( [coor1(5)-coor2(5),coor1(6)-coor2(6)] ); % Distance between centers
+   if operations(i) == 1
+      authorized = find(criterion>=-1); % Take everybody at the first iteration
+   elseif operations(i) == 2 % Keep only chains and identify them
+      forbitten = [];
+      for j=1:size(nodesu,1)
+         segs = find( segel == j );
+         segs = mod(segs-1,nseg)+1; % Because of the 2 columns
+         
+         if size(segs,1) > 1
+            m1 = max(criterion(segs));
+            s1 = segs ( find( criterion(segs) == m1 ) ); s1 = s1(1); % Case there are 2 equal values
+            segs2 = setdiff(segs,s1);
+            m2 = max(criterion(segs2));
+            s2 = segs2 ( find( criterion(segs2) == m2 ) ); s2 = s2(1);
+            
+            forbitten = [forbitten ; setdiff(segs,[s1;s2]) ];
+         end
+      end
+      authorized = setdiff( (1:nseg)', forbitten);
+      
+      % Identify the chains
+      chains = {};
+      toexplore = authorized;  % Next elements that remain to explore
+      sanity1 = 0;
+      while size(toexplore)>0 && sanity1 < 100
+         active = toexplore(1);
+         curchain = active; % Current chain to explore
+         
+         sanity2 = 0;
+         while size(active) > 0 && sanity2 < 100
+            % Find the neighours of active elements
+            active2 = [];
+            for j=1:size(active,2)
+               act = active(j);
+               no1 = segel(act,1); no2 = segel(act,2);
+               segs1 = find( segel(toexplore,:) == no1 );
+               segs1 = mod(segs1-1,size(toexplore,1))+1;
+               seg1  = toexplore(segs1);
+               seg1 = setdiff(seg1,act); % We're looking only for the other one
+               segs2 = find( segel(toexplore,:) == no2 );
+               segs2 = mod(segs2-1,size(toexplore,1))+1;
+               seg2  = toexplore(segs2);
+               seg2 = setdiff(seg2,act); %
                
-               if d == 0
-                  continue; % Avoid 0/0
+               if size(seg1) > 0 % There must be an other segment AND it mussn't be in curchain
+                  if size(find(curchain==seg1),2) == 0
+                     % Last condition : inner product (angle)
+                     noa = segel(act,:);
+                     nos = segel(seg1,:);
+                     nC1 = intersect(noa, nos); nC2 = setdiff(noa, nC1); nC3 = setdiff(nos, nC1);
+                     C1 = nodesu(nC1,:); C2 = nodesu(nC2,:); C3 = nodesu(nC3,:);
+                     C1C2 = C2-C1; C1C3 = C3-C1;
+                     if C1C2*C1C3' < 0
+                        active2(end+1) = seg1;
+                     end
+                  end
                end
-               
-               if d < Rreg
-                  l1 = norm( [coor1(1)-coor1(3),coor1(2)-coor1(4)] );
-                  l2 = norm( [coor2(1)-coor2(3),coor2(2)-coor2(4)] );
-                  cosa = [coor1(1)-coor1(3),coor1(2)-coor1(4)] * ...
-                         [coor2(1)-coor2(3);coor2(2)-coor2(4)] / ...
-                         l1/l2; % Cos between the 2 segments
-                   
-                  cosb = [coor1(1)-coor1(3),coor1(2)-coor1(4)] * ...
-                         [coor1(5)-coor2(5);coor1(6)-coor2(6)] / ...
-                         l1 / norm( [coor1(5)-coor2(5),coor1(6)-coor2(6)] ); 
-                         % Cos(angle) of 1 segment wrt the other one's orientation
-                         
-%                 criterion(j) = criterion(j) + abs(cosa) * (2*abs(cosb)-1) *...
-%                                   criterion1(k) * (Rreg-d)/Rreg;% * l2/l1;% * 
-                 criterion(j) = criterion(j) + abs(cosa)^2 * abs(cosb)^2 *...
-                                   criterion1(k) * (Rreg-d)/Rreg;% * l2/l1;% * 
+               if size(seg2) > 0
+                  if size(find(curchain==seg2),2) == 0
+                     noa = segel(act,:);
+                     nos = segel(seg2,:);
+                     nC1 = intersect(noa, nos); nC2 = setdiff(noa, nC1); nC3 = setdiff(nos, nC1);
+                     C1 = nodesu(nC1,:); C2 = nodesu(nC2,:); C3 = nodesu(nC3,:);
+                     C1C2 = C2-C1; C1C3 = C3-C1;
+                     if C1C2*C1C3' < 0
+                        active2(end+1) = seg2;
+                     end
+                  end
                end
             end
+            curchain = [curchain,active2];
+            active = active2;
+            sanity2 = sanity2 + 1;
          end
-%      elseif crit == 2 % For each node, authorize only 2 segments
-      end
+         chains{end+1} = curchain;
+         toexplore = setdiff( toexplore, curchain );
+         sanity1 = sanity1+1;
 
-      if i == 1
-         authorized = find(criterion>=-1); % Take everybody at the first iteration
-      else
-         if crit == 0 || crit == 1
-            [criterion,num] = sort( criterion,'descend' );
-            Ntot = size(authorized,1)/2; % Previous size
-   %         Nlim = Ntot - ceil( Lreg*Ntot );
-   %         Nlim = ceil( Ntot - Lreg*Ntot );
-            Nlim = ceil( (1-Lreg)*Ntot );
-   %         criterion = criterion(1:Nlim);
-            criterion(Nlim+1:end) = -2;
-            criterion(num) = criterion; % Use the regular indices
-            authorized = find(criterion>=-1);
-         else % if crit == 2
-            forbitten = [];
-            for j=1:size(nodesu,1)
-               segs = find( segel == j );
-               segs = mod(segs-1,nseg)+1; % Because of the 2 columns
-               
-               if size(segs,1) > 1
-                  m1 = max(criterion(segs));
-                  s1 = segs ( find( criterion(segs) == m1 ) ); s1 = s1(1); % Case there are 2 equal values
-                  segs2 = setdiff(segs,s1);
-                  m2 = max(criterion(segs2));
-                  s2 = segs2 ( find( criterion(segs2) == m2 ) ); s2 = s2(1);
-                  
-                  forbitten = [forbitten ; setdiff(segs,[s1;s2]) ];
-%                  if size(segs,1) > 2
-%                     bug;
+      end
+      
+   elseif operations(i) == 3 % Identify the chains and kill monoms
+      forbitten = [];
+      authorized = oldauthorized;
+%      chains = {};
+%      
+%      toexplore = authorized;  % Next elements that remain to explore
+%      sanity1 = 0;
+%      while size(toexplore)>0 && sanity1 < 100
+%         active = toexplore(1);
+%         curchain = active; % Current chain to explore
+%         
+%         sanity2 = 0;
+%         while size(active) > 0 && sanity2 < 100
+%            % Find the neighours of active elements
+%            active2 = [];
+%            for j=1:size(active,2)
+%               act = active(j);
+%               no1 = segel(act,1); no2 = segel(act,2);
+%               segs1 = find( segel(toexplore,:) == no1 );
+%               segs1 = mod(segs1-1,size(toexplore,1))+1;
+%               seg1  = toexplore(segs1);
+%               seg1 = setdiff(seg1,act); % We're looking only for the other one
+%               segs2 = find( segel(toexplore,:) == no2 );
+%               segs2 = mod(segs2-1,size(toexplore,1))+1;
+%               seg2  = toexplore(segs2);
+%               seg2 = setdiff(seg2,act); %
+%               
+%               if size(seg1) > 0 % There must be an other segment AND it mussn't be in curchain
+%                  if size(find(curchain==seg1),2) == 0
+%                     % Last condition : inner product (angle)
+%                     noa = segel(act,:);
+%                     nos = segel(seg1,:);
+%                     nC1 = intersect(noa, nos); nC2 = setdiff(noa, nC1); nC3 = setdiff(nos, nC1);
+%                     C1 = nodesu(nC1,:); C2 = nodesu(nC2,:); C3 = nodesu(nC3,:);
+%                     C1C2 = C2-C1; C1C3 = C3-C1;
+%                     if C1C2*C1C3' < 0
+%                        active2(end+1) = seg1;
+%                     end
 %                  end
-               end
-            end
-            authorized = setdiff( (1:nseg)', forbitten);
+%               end
+%               if size(seg2) > 0
+%                  if size(find(curchain==seg2),2) == 0
+%                     noa = segel(act,:);
+%                     nos = segel(seg2,:);
+%                     nC1 = intersect(noa, nos); nC2 = setdiff(noa, nC1); nC3 = setdiff(nos, nC1);
+%                     C1 = nodesu(nC1,:); C2 = nodesu(nC2,:); C3 = nodesu(nC3,:);
+%                     C1C2 = C2-C1; C1C3 = C3-C1;
+%                     if C1C2*C1C3' < 0
+%                        active2(end+1) = seg2;
+%                     end
+%                  end
+%               end
+%            end
+%            curchain = [curchain,active2];
+%            active = active2;
+%            sanity2 = sanity2 + 1;
+%         end
+%         chains{end+1} = curchain;
+%         toexplore = setdiff( toexplore, curchain );
+%         sanity1 = sanity1+1;
+%
+%      end
+      
+      % Suppress chains of size 1
+      toremove = [];
+      for j=1:size(chains,2)
+         curchain = chains{j};
+         if size(curchain,2) == 1
+            forbitten(end+1) = curchain;
+            toremove(end+1) = j;
          end
       end
+      chains(toremove) = [];%
+
+%      for j1=1:size(authorized,1)
+%         j = authorized(j1);
+%         no1 = segel(j,1); no2 = segel(j,2);
+%         segs1 = find( segel(authorized,:) == no1 );% segs1 = mod(segs1-1,size(authorized,1))+1;
+%         segs2 = find( segel(authorized,:) == no2 );% segs2 = mod(segs2-1,size(authorized,1))+1;
+%         
+%         if size(segs1) == 1 && size(segs2) == 1
+%            forbitten = [forbitten ; j ];
+%         end
+%      end
+      authorized = setdiff( authorized, forbitten);
+      
+   elseif operations(i) == 4 % Look for the largest chain
+      authorized = oldauthorized;
+      gaps = zeros( size(chains,2), 1);
+      
+      for j=1:size(chains,2)
+         curchain = chains{j};
+         for k = 1:size(curchain,2)
+            no = segel( curchain(k), : );
+            len = sqrt( (nodesu(no(1),1)-nodesu(no(2),1))^2 + ...
+                        (nodesu(no(1),2)-nodesu(no(2),2))^2 );
+            gaps(j) = gaps(j) + len*criterion( curchain(k) );
+         end
+      end
+      
+      if regD(i) == 0
+         [m,nimozq] = max(gaps);
+         % All the other chains are sealed (#totalitarism)
+         authorized = unique( chains{nimozq}' );
+      else % Each chain suppress smallest chains in its sourroundings
+      
+         % Preliminary : find the nodes of a chain
+         nodechain = cell( 1, size(chains,2) );
+         for j=1:size(chains,2)
+            curchain = chains{j};
+            curnodes = segel(curchain,:);
+            curnodes = unique( reshape(curnodes,[],1) );
+            nodechain{j} = curnodes;
+         end
+      
+         forbitten = [];
+         for j=1:size(chains,2)
+         
+            if gaps(j) == 0
+               continue;
+            end
+         
+            curchain = nodechain{j};
+            for k=1:size(chains,2) % Look for an other chain to kill
+               if j==k % Don't autokill
+                  continue;
+               end
+               if gaps(j) < gaps(k) % Small beast doesn't eat the bigger
+                  continue;
+               end
+               
+               secchain = nodechain{k};
+%               nbin = 0; % Count the number of nodes of the prey inside the
+                          % radius of at least one node of the predator
+               iskillable = 1;
+               for n=1:size(secchain,1)
+                  Cs = nodesu(secchain(n),:);
+                  iskillable = 0;
+                  for m=1:size(curchain,1)
+                     Cc = nodesu(curchain(m),:);
+                     if norm(Cs-Cc) < regD(i) % One more inside !
+%                        nbin = nbin + 1;
+                        iskillable = 1;
+                        break;
+                     end
+                  end
+                  if iskillable == 0 % One node isn't in the radius
+                     break;
+                  end
+               end
+%               nbin
+%               size(secchain,1)
+               if iskillable == 1 % Kill him
+                  forbitten = [ forbitten , chains{k} ];
+               end
+%               if nbin == size(secchain,1) % The prey is close to the predator
+%                  forbitten = [ forbitten , chains{k} ];
+%%               elseif nbin > size(secchain,1)
+%%                  disp('totoPaKontan');
+%               end
+               
+            end
+         end
+      end
+      authorized = setdiff( authorized, forbitten);
+   else
+      authorized = oldauthorized;
    end
    
    oldauthorized = authorized;
@@ -652,10 +854,10 @@ for i = 1:niter
    me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));   
 
    % Compute Picard stopping indices
-   ind1(i) = findPicard2 (log10(arplo1), 5, 1, 2);
-   ind2(i) = findPicard2 (log10(arplo2), 5, 1, 2);
-   ind3(i) = findPicard2 (log10(arplo3), 5, 1, 2);
-   ind4(i) = findPicard2 (log10(arplo4), 5, 1, 2);
+   ind1(i) = findPicard2 (log10(arplo1), 7, 1, 2);
+   ind2(i) = findPicard2 (log10(arplo2), 7, 1, 2);
+   ind3(i) = findPicard2 (log10(arplo3), 7, 1, 2);
+   ind4(i) = findPicard2 (log10(arplo4), 7, 1, 2);
    
    % Postpro
    if i>1
@@ -675,7 +877,7 @@ for i = 1:niter
       plot(log10(abs(rplo2)),'Color','blue');
       legend('Singular values','Rhs1','sol1','Rhs2','sol2');
       
-%      [indm,p] = findPicard2 (log10(abs(rplo4)), 5, 1, 2);
+%      [indm,p] = findPicard2 (log10(abs(rplo3)), 7, 1, 2);
 %      n = size(p,1);
 %      t = 1:.05:imax; tt = zeros(n,20*(imax-1)+1);
 %      for j=1:n
@@ -685,9 +887,9 @@ for i = 1:niter
 %      
 %      figure
 %      hold on;
-%      plot(log10(abs(rplo4)),'Color','black');
+%      plot(log10(abs(rplo3)),'Color','black');
 %      plot(t,px,'Color','red');
-%      legend('sol1','poly1');
+%      legend('sol3','poly3');
       
       figure
       hold on;
@@ -697,6 +899,14 @@ for i = 1:niter
       plot(log10(abs(bplo4)),'Color','magenta');
       plot(log10(abs(rplo4)),'Color','blue');
       legend('Singular values','Rhs3','sol3','Rhs4','sol4');
+
+%      figure
+%      hold on;
+%      plot(log10(abs(rplo1)),'Color','black');
+%      plot(log10(abs(rplo2)),'Color','blue');
+%      plot(log10(abs(rplo3)),'Color','red');
+%      plot(log10(abs(rplo4)),'Color','green');
+%      legend('sol1','sol2','sol3','sol4');
    end
    
    % Filter eigenvalues
@@ -745,98 +955,7 @@ for i = 1:niter
       nogap4(j) = norm( Solu4( [2*j-1,2*j] ) );
       nogap(j)  = sqrt(nogap1(j)^2*nogap2(j)^2);
    end
-   
-   % Thresholding the data
-   mxn1 = max(nogap1); mxn2 = max(nogap2);
-   nogap1s = min(1, floor(nogap1/(Lreg*mxn1)) );
-   nogap2s = min(1, floor(nogap2/(Lreg*mxn2)) );
 
-   if mod(i,300) == 0
-      % Segments visu
-%      figure;
-%      hold on;
-%      plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
-%      if ncrack == 2
-%         plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
-%      end
-%      nogapp1 = abs(nogap1)-min(abs(nogap1)); maxn1 = max(nogapp1);
-%%      for i=1:nseg
-%      for j=1:size(oldauthorized,1)
-%         i = oldauthorized(j);
-%         no1 = segel(i,1); no2 = segel(i,2);
-%         x1 = nodesu(no1,1); y1 = nodesu(no1,2);
-%         x2 = nodesu(no2,1); y2 = nodesu(no2,2);
-%         
-%         x = nogapp1(i)/maxn1;
-%         rgb = rgbmap(x);
-%         plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
-%      end
-%      %axis equal;
-%      axis([0 1 0 1]);
-%      colormap("default")
-%      h = colorbar();
-%      ytick = get (h, "ytick");
-%      set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
-      
-   %   figure;
-   %   hold on;
-   %   plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
-   %   nogapp2 = abs(nogap2)-min(abs(nogap2)); maxn2 = max(nogapp2);
-   %   for i=1:nseg
-   %      no1 = segel(i,1); no2 = segel(i,2);
-   %      x1 = nodesu(no1,1); y1 = nodesu(no1,2);
-   %      x2 = nodesu(no2,1); y2 = nodesu(no2,2);
-   %      
-   %      x = nogapp2(i)/maxn2;
-   %      rgb = rgbmap(x);
-   %      plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
-   %   end
-   %   %axis equal;
-   %   colormap("default")
-   %   h = colorbar();
-   %   ytick = get (h, "ytick");
-   %   set (h, "yticklabel", sprintf ( "%g|", maxn2*ytick+min(nogap2) ));
-      
-      
-   %   % Segments visu
-   %   figure;
-   %   hold on;
-   %   plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
-   %   nogapp1 = abs(nogap1s)-min(abs(nogap1s)); maxn1 = max(nogapp1);
-   %   for i=1:nseg
-   %      no1 = segel(i,1); no2 = segel(i,2);
-   %      x1 = nodesu(no1,1); y1 = nodesu(no1,2);
-   %      x2 = nodesu(no2,1); y2 = nodesu(no2,2);
-   %      
-   %      x = nogapp1(i)/maxn1;
-   %      rgb = rgbmap(x);
-   %      plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
-   %   end
-   %   %axis equal;
-   %   colormap("default")
-   %   h = colorbar();
-   %   ytick = get (h, "ytick");
-   %   set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
-      
-   %   figure;
-   %   hold on;
-   %   plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
-   %   nogapp2 = abs(nogap2s)-min(abs(nogap2s)); maxn2 = max(nogapp2);
-   %   for i=1:nseg
-   %      no1 = segel(i,1); no2 = segel(i,2);
-   %      x1 = nodesu(no1,1); y1 = nodesu(no1,2);
-   %      x2 = nodesu(no2,1); y2 = nodesu(no2,2);
-   %      
-   %      x = nogapp2(i)/maxn2;
-   %      rgb = rgbmap(x);
-   %      plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
-   %   end
-   %   %axis equal;
-   %   colormap("default")
-   %   h = colorbar();
-   %   ytick = get (h, "ytick");
-   %   set (h, "yticklabel", sprintf ( "%g|", maxn2*ytick+min(nogap2) ));
-   end
 end
 
 %% Segments visu
@@ -871,8 +990,11 @@ hold on;
 plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 if ncrack == 2
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
+elseif ncrack == 9
+   plot( [nodes(7,1),nodes(6,1)], [nodes(7,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-nogapp1 = criterion; maxn1 = max(nogapp1);
+nogapp1 = co(1)*nogap1 + co(2)*nogap2 + co(3)*nogap3 + co(4)*nogap4;
+maxn1 = max(nogapp1);
 %      for i=1:nseg
 for j=1:size(oldauthorized,1)
    i = oldauthorized(j);
@@ -918,11 +1040,11 @@ set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
 %ytick = get (h, "ytick");
 %set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
 
-figure;
-hold on;
-plot(res1);
-plot(res2,'Color','black');
-
+%figure;
+%hold on;
+%plot(res1);
+%plot(res2,'Color','black');
+%
 figure;
 hold on;
 plot(ind1);

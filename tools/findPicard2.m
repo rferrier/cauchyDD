@@ -19,10 +19,15 @@ function [indm,p] = findPicard2 (x, varargin)
      maxi = cell2mat(varargin(2));
  end
  
+ crit = 1;   % Criterion : 1=derivative, 2=minimum
+ if numel(varargin)>2
+     crit = cell2mat(varargin(3));
+ end
+ 
  t    = 1:npo;     % Dummy axis
  n  = floor(npo/d)+1;  % degree of polynoms
  indm = 0;
- 
+
  p = polyfit(t,x',n)';
  
  tt = zeros(n+1,npo);
@@ -38,21 +43,34 @@ function [indm,p] = findPicard2 (x, varargin)
     xprim = x; xprim(inferior) = [];
     n  = floor(size(xprim,1)/d)+1;  % reactualize degree of polynoms
     p = polyfit(tprim,xprim',n)';
-    px = p'*tt(1:n+1,:);  % interpolation
- end
- 
- % build the derivation matrix
- Md = zeros(n+1);
- for i=2:n+1
-    Md(i,i-1) = n-i+2;
- end
- 
- p1 = Md*p;  % Derivative
- px1 = p1'*tt(1:n+1,:); % interpolation of the derivative
+    
+    tt = zeros(n+1,npo);
+    for j=1:n+1
+       tt(j,:) = t.^(n+1-j);
+    end
 
- posit = find( px1>0 ); % Find the first point with px1>0
- if size(posit>0)
-    indm = posit(1);
+    px = p'*tt;  % interpolation
+ end
+ 
+ 
+ if crit == 1
+    % build the derivation matrix
+    Md = zeros(n+1);
+    for i=2:n+1
+       Md(i,i-1) = n-i+2;
+    end
+    
+    p1 = Md*p;  % Derivative
+    px1 = p1'*tt; % interpolation of the derivative
+   
+    posit = find( px1>0 ); % Find the first point with px1>0
+    if size(posit>0)
+       indm = posit(1);
+    end
+ elseif crit == 2
+    indm = find ( px == min(px) );
+ else
+    error('Third optional argument is not readable')
  end
  
 end
