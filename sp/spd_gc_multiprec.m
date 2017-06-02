@@ -1,5 +1,5 @@
 % 06/06/2016
-% Algo Steklov-Poincaré primal avec Gradient Conjugué
+% Algo Steklov-Poincarï¿½ primal avec Gradient Conjuguï¿½
 
 close all;
 clear all;
@@ -172,8 +172,8 @@ Zed2(:,1) = lamb2;
 d1(:,1) = Zed1(:,1);
 d2(:,1) = Zed2(:,1);
 
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 %%
@@ -219,8 +219,8 @@ for iter = 1:niter
     Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha;
     Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha;
      
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     %% Precond

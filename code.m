@@ -325,9 +325,10 @@ addpath(genpath('./tools'))
 E       = 200000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 Slim    = 250;    % MPa : elasticity limit
-alpha   = 30000; % MPa : Hardening coefficient 1000000
-fscalar = 700;    % N.mm-2 : Loading on the plate
-mat = [10, E, nu, Slim, alpha]; % Elasto-plastic with linear isotropic hardening
+alpha   = 30000;  % MPa : Isotropic hardening coefficient 1000000
+H       = 000;  % MPa : Cinematic hardening (not implemented
+fscalar = 400;    % N.mm-2 : Loading on the plate
+mat = [10, E, nu, Slim, alpha, H]; % Elasto-plastic with linear isotropic hardening
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -335,9 +336,9 @@ mat = [10, E, nu, Slim, alpha]; % Elasto-plastic with linear isotropic hardening
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
 %dirichlet = [ 1,1,0 ; 1,2,0 ];
-dirichlet = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 4,1,0 ];
+dirichlet = [ 0,1,0 ; 1,2,0 ];% 2,1,0 ; 4,1,0 ];
 %dirichlet = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ];
-%dirichlet = [ 0,1,0 ; 1,2,0 ; 3,2,0 ];
+%dirichlet = [ 0,1,0 ; 1,2,0 ; 3,2,0 ];% 2,1,0 ; 4,1,0 ];
 neumann   = [ 3,2,fscalar ];
 
 % First, import the mesh
@@ -351,7 +352,7 @@ f1 = loading(nbloq,nodes,boundary,neumann);
 %f1 = volumicLoad( nbloq, nodes, elements, 2, 30 );
 %udi = zeros( nnodes, 1 );
 %ind = 2:2:2*nnodes;
-%udi(ind,1) = 0.015;
+%udi(ind,1) = 0.02;
 %udi = keepField( udi, 3, boundary );
 %f1 = [ zeros(2*nnodes,1) ; C'*udi ];
 
@@ -360,14 +361,14 @@ f1 = loading(nbloq,nodes,boundary,neumann);
 %f = f1*T/T(end);
 
 % Cyclic loading
-T = 1:1:5;
-fa = f1*T/T(end); fb = f1*(1-T/T(end));
 T = 1:1:25;
-f = [fa,fb,-fa,-fb,fa];
+fa = f1*T/T(end); fb = f1*(1-T/T(end)); f = fa;
+%T = 1:1:100;
+%f = [fa,fb,-fa,-fb];%,fa];%,fb,-fa,-fb,fa];
 
 % Solve the problem :
 %uin = K\f;
-[uin,sigm,pe] = Elastoplast( mat, K, f, T, nodes, elements, order, 1e-6, 20, 1 );
+[uin,sigm,pe,lam] = Elastoplast( mat, K, f, T, nodes, elements, order, 1e-6, 10, 1, 0 );
 % Extract displacement :
 u = uin(1:2*nnodes,end);
 ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
@@ -398,5 +399,6 @@ plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress';p,'cumulated plasticity'},
           elements, nodes, 'output/elasto_plastic');
           
 % Plot traction curve at node 3
+%f = -[ lam(:,2:end) ; zeros( size(uin,1)-size(u,1) , size(T,2) ) ];
 up = uin(6,1:end); fp = [0,f(6,:)];
 plot(up, fp);

@@ -16,8 +16,8 @@ mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
 %niter      = 4;    %26-49 Number of regularization iterations
-ncrack     = 9;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack
-co         = [1,1,1,0]; % Coefficients for each RG test-case
+ncrack     = 5;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack
+co         = [1,1,0,0]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
 
 % List of the operations :
@@ -31,6 +31,8 @@ recompute  = 0; % Recompute A and b
 
 operations = [1,2,3,4,4,4,4];
 regD       = [0,0,0,.2,.4,.6,.8];
+%operations = [1,2,3];
+%regD       = [0,0,0];
 
 niter = size(operations,2);
 

@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 3;
+niter   = 5;
 precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
 mu      = 0.;    % Regularization parameter
 br      = 0.;     % noise
@@ -209,7 +209,7 @@ for iter = 1:niter
     Ad(:,[2*iter-1,2*iter]) = Ad(:,[2*iter-1,2*iter])*inv(sqD); %transpose( sqD\Ad(:,[2*iter-1,2*iter])' );
     num = Res(indexa,[2*iter-1,2*iter])'*Zed(indexa,[2*iter-1,2*iter]);
     num = inv(sqD)*num; % because of non-commutiativity
-    alpha = den\num
+    alpha = den\num;
 %    Itere = Itere + d(:,[2*iter-1,2*iter])*alpha;
 %    Res(:,[2*iter+1,2*iter+2]) = Res(:,[2*iter-1,2*iter]) - ...
 %                                    Ad(:,[2*iter-1,2*iter])*alpha;

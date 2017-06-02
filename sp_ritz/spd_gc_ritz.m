@@ -10,15 +10,15 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 15;
-precond = 2;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
+niter   = 18;
+precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
 br      = .0;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 0;      % inhomogeneous medium
+inhomog = 2;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -435,12 +435,12 @@ figure;
 %legend('error')%legend('error (log)','residual (log)')
 %figure;
 %L-curve :
-%hold on;
-%loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
-%%figure
-%loglog(resS(2:iter+1),regS(2:iter+1),'-+');
-%legend('L-curve','RL-curve')
+hold on;
+loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
 %figure
+loglog(resS(2:iter+1),regS(2:iter+1),'-+');
+legend('L-curve','RL-curve')
+figure
 %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
 %findCorner (resS(2:iter+1), regS(2:iter+1), 3)
 

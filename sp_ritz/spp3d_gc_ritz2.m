@@ -1,5 +1,5 @@
-% 31/05/2017
-% Algo Steklov-Poincaré primal avec Gradient Conjugué, cas 3D, chargement biface
+% 26/01/2017
+% Algo Steklov-Poincaré primal avec Gradient Conjugué, cas 3D
 
 close all;
 clear all;
@@ -7,19 +7,18 @@ clear all;
 addpath(genpath('./tools'))
 
 % Parameters
-E        = 70000;  % MPa : Young modulus
-nu       = 0.3;    % Poisson ratio
-fscalar  = 1;      % N.mm-1 : Loading on the plate
-fscalar2 = .1;     % Second loading
-niter    = 40;
-precond  = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
-mu       = 0.;     % Regularization parameter
-ratio    = 5e-200; % Maximal ratio (for eigenfilter)
-br       = 0.0;    % noise
-brt      = 0;      % "translation" noise
-epsilon  = 1e-200; % Convergence criterion for ritz value
-ntrunc   = 0;      % In case the algo finishes at niter
-inhomog  = 0;      % inhomogeneous medium
+E       = 70000;  % MPa : Young modulus
+nu      = 0.3;    % Poisson ratio
+fscalar = 1;      % N.mm-1 : Loading on the plate
+niter   = 20;
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+mu      = 0.;     % Regularization parameter
+ratio   = 5e-200; % Maximal ratio (for eigenfilter)
+br      = 0.1;    % noise
+brt     = 0;      % "translation" noise
+epsilon = 1e-200; % Convergence criterion for ritz value
+ntrunc  = 10;      % In case the algo finishes at niter
+inhomog = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
 methods = [2];
@@ -43,7 +42,7 @@ dirichlet = [3,1,0; 3,2,0 ; 3,3,0
              4,1,0; 4,2,0 ; 4,3,0
              5,1,0; 5,2,0 ; 5,3,0
              6,1,0; 6,2,0 ; 6,3,0 ];
-neumann   = [7,3,-fscalar ; 1,3,fscalar2];
+neumann   = [7,3,-fscalar, ];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/plate3d_charge2.msh' );
@@ -83,7 +82,7 @@ lagr = uin(3*nnodes+1:end,1);
 
 urefb = ( 1 + brt + br*noise ) .* uref;
 
-sigma  = stress3D(uref,mat,nodes,elements,order,1,ntoelem);
+sigma = stress3D(uref,mat,nodes,elements,order,1,ntoelem);
 plotGMSH3D({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'output/reference');
 
 % Extract the boundary 2
@@ -97,30 +96,6 @@ indexC= sum(Ckk'); indexa = find(indexC);
 
 % H1 norm
 Kreg = H1 (nodes, patch2, order); Kreg = Kreg(indexa,indexa);
-
-%% Link boundary elements of patch2 with the volumic elements
-nboun2 = size(patch2,1); nelem2 = size(elements,1);
-boun2vol2 = zeros( nboun2, 1 );
-for i=1:nboun2
-   % Volumic element
-   no1 = patch2(i,1); no2 = patch2(i,2);
-   no3 = patch2(i,3); % only with 3 nodes even if order > 1
-   cand1 = rem( find(elements==no1),nelem2 ); % find gives line + column*size
-   cand2 = rem( find(elements==no2),nelem2 );
-   cand3 = rem( find(elements==no3),nelem2 );
-%   cand2 = rem( find(elements2(cand1,:)==no2),size(cand1,1) );
-%   cand3 = rem( find(elements2(cand2,:)==no3),size(cand2,1) );
-   cand4 = intersect(cand1, cand2);
-   cand5 = intersect(cand4, cand3);
-   if cand5 == 0
-      cand5 = nelem2; % Ok, it's not optimized
-   end
-   boun2vol2(i) = cand5; % If everything went well, there is only one
-end
-sigmae  = stress3D(uref,mat,nodes,elements,order,0,ntoelem); % Per element stress
-sigmaeb = sigmae([ 6*boun2vol2-5 , 6*boun2vol2-4 , 6*boun2vol2-3 , ...
-                   6*boun2vol2-2 , 6*boun2vol2-1 , 6*boun2vol2 ]);
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Definition of the operators
 
@@ -146,8 +121,8 @@ dirichlet2 = [6,1,0;6,2,0;6,3,0;
               3,1,0;3,2,0;3,3,0;
               2,1,0;2,2,0;2,3,0];
 neumann2   = [7,3,-fscalar];
-neumann0   = [1,3,fscalar2];
-%neumann0   = [];
+neumannd   = [1,3,fscalar];
+neumann0   = [];
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes,elements,mat,order,boundaryp2,dirichlet2);
 if inhomog >= 1
    K2(1:3*nnodes, 1:3*nnodes) = Kinter;
@@ -230,7 +205,7 @@ if find(methods==1)
    uin1 = K1\f1;
    lagr1 = uin1(3*nnodes+1:end,1);
    lamb1 = -C12*C12'*C1*lagr1;
-   % Solve 2
+   % Solve 2 (zero 'cause no loading except on 7)
    f2 = loading3D(nbloq2,nodes,boundary,neumann0);
    uin2 = K2\f2;
    lagr2 = uin2(3*nnodes+1:end,1);
@@ -595,10 +570,8 @@ if methods == 2
    % First, plot the reference (sigma normal)
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
                'FaceVertexCData',sigma(3:6:end),'FaceColor','interp');
-%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
-%               'FaceVertexCData',sigmaeb(:,3),'FaceColor','flat');
    colorbar;
-   
+
    error    = zeros(niter+1,1);
    residual = zeros(niter+1,1);
    regulari = zeros(niter+1,1);
@@ -635,7 +608,7 @@ if methods == 2
    uin1 = K1d\f1;
    u1i = uin1(1:3*nnodes);
    u1 = C12*C12'*u1i;
-   % Solve 2
+   % Solve 2 (zero 'cause no loading except on 7)
    f2 = loading3D(nbloq2d,nodes,boundary,neumann0);
    uin2 = K2d\f2;
    u2i = uin2(1:3*nnodes);
@@ -945,19 +918,11 @@ if methods == 2
    sigmasol = stress3D(usol,mat,nodes,elements,order,1,ntoelem);
    plotGMSH3D({usol,'Vect_U';sigmasol,'stress'}, elements, nodes, 'output/solution');
    
-   sigmasole  = stress3D(usol,mat,nodes,elements,order,0,ntoelem); % Per element stress
-   sigmasoleb = sigmasole( [ 6*boun2vol2-5 , 6*boun2vol2-4 , 6*boun2vol2-3 , ...
-                             6*boun2vol2-2 , 6*boun2vol2-1 , 6*boun2vol2 ] );
-   
    % plot the solution (sigma normal)
    figure;
-%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
-%               'FaceVertexCData',sigmasoleb(:,3),'FaceColor','flat');
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
                'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
    colorbar;
-   
-   
    
    erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));
 end
@@ -965,13 +930,11 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conjugate Gradient for the problem : (D10-D20) x = D2-D1
 if methods==3
-
    % First, plot the reference (sigma normal)
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
                'FaceVertexCData',sigma(3:6:end),'FaceColor','interp');
    colorbar;
-
-
+   
    Itere = zeros( 3*nnodes, 2 );
    d     = zeros( 3*nnodes, 2*(niter+1) );  % 2 directions per step
    Ad    = zeros( 3*nnodes, 2*(niter+1) );
@@ -1009,13 +972,14 @@ if methods==3
    uin1 = K1d\f1;
    u1i = uin1(1:3*nnodes);
    u1 = C12*C12'*u1i;
-   % Solve 2
-   f2 = loading3D(nbloq2d,nodes,boundary,neumann0);
+   % Solve 2 (zero 'cause no loading except on 7)
+%   f2 = loading3D(nbloq2d,nodes,boundary,neumann0);
+   f2 = loading3D(nbloq2d,nodes,boundary,neumannd); % Dummy rhs
    uin2 = K2d\f2;
    u2i = uin2(1:3*nnodes);
    u2 = C22*C22'*u2i;
    %
-   b = [u1,u2];
+   b = [u1,u2]; %!!!!!!!!!! Problem because ZERO
    %%
    Res(:,[1,2]) = b - Axz;
    
@@ -1043,10 +1007,10 @@ if methods==3
    d(:,[1,2]) = Zed(:,[1,2]);
    
    residual(1) = norm( Res(indexa,1)-Res(indexa,2) );
-   error(1)    = norm(Itere(indexa,1)-Itere(indexa,2) - fref(indexa)) / ...
+   error(1)    = norm(Itere(indexa,1) - fref(indexa)) / ...
                                        norm(fref(indexa));
-   regulari(1) = sqrt( (Itere(:,1)'-Itere(:,2)')* ... 
-                        regul( Itere(:,1)-Itere(:,2) , nodes, boundary, 2) );
+   regulari(1) = sqrt( (Itere(:,1)')* ... 
+                        regul( Itere(:,1) , nodes, boundary, 2) );
    %%
    V  = zeros(3*nnodes, 2*niter);
    AV = zeros(3*nnodes, 2*niter);
@@ -1087,11 +1051,11 @@ if methods==3
        Res(:,[2*iter+1,2*iter+2]) = Res(:,[2*iter-1,2*iter]) - ...
                                        Ad(:,[2*iter-1,2*iter])*num;
        
-       residual(iter+1) = norm( Res(indexa,2*iter+1) - Res(indexa,2*iter+2) );
-       error(iter+1)    = norm(Itere(indexa,1) - Itere(indexa,2) - fref(indexa)) / ...
+       residual(iter+1) = norm( Res(indexa,2*iter+1) );
+       error(iter+1)    = norm(Itere(indexa,1) - fref(indexa)) / ...
                                        norm(fref(indexa));
-       regulari(iter+1) = sqrt( (Itere(:,1)' - Itere(:,2)')* ... 
-                             regul( Itere(:,1) - Itere(:,2) , nodes, boundary, 2) );
+       regulari(iter+1) = sqrt( (Itere(:,1)')* ... 
+                             regul( Itere(:,1) , nodes, boundary, 2) );
        
        if precond == 1
           f11 = [ zeros(3*nnodes,1) ; C1'*C12*C12'*Res(:,2*iter+1) ];
@@ -1179,16 +1143,16 @@ if methods==3
    Y = V*Q;
    
    % Compute the solution
-   chi = inv(Theta1)*Y'*( b(:,1)-b(:,2) );
+   chi = inv(Theta1)*Y'*( b(:,1) );
    if ntrunc > 0
       chi(ntrunc:end) = 0;
    end
    ItereR = Y*chi;
    
    % Build residual and such
-   regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*(b(:,1)-b(:,2));
+   regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
    for i = 1:2*iter+1
-      chiD   = inv(Theta1)*Y'*(b(:,1)-b(:,2)); chiD(i:end) = 0;
+      chiD   = inv(Theta1)*Y'*(b(:,1)); chiD(i:end) = 0;
       ItereD = Y*chiD;
       resD(i) = sqrt( sum( bt(i:end).^2) );  
       regD(i) = sqrt( ItereD'*regul(ItereD, nodes, boundary, 2) );
@@ -1215,7 +1179,7 @@ if methods==3
    figure;
    hold on;
    plot(log10(theta),'Color','blue')
-   plot(log10(abs(Y'*( b(:,1)-b(:,2) ))),'Color','red')
+   plot(log10(abs(Y'*( b(:,1) ))),'Color','red')
    plot(log10(abs(chiD)),'Color','black')
    plot(t,px,'Color','cyan')
    legend( 'Ritz Values','RHS values','solution coefficients', ...

@@ -2,6 +2,11 @@
 % Détection de fissure 3D plane par écart à la réciprocité
 % Intégrations par PG
 
+% Visualization problems :
+%  * X = \pm 4 on the line
+%  * Qref \neq Q
+%  * CteR \neq Cte1
+
 close all;
 clear all;
 
@@ -15,7 +20,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
-br      = .01;
+br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
 ordp      = 2; % Order of polynom
@@ -31,12 +36,12 @@ comperror  = 1;
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-cracked_mesh = 'meshes/rg3dm/platem6_c.msh';
-uncracked_mesh = 'meshes/rg3dm/platem6.msh';
-% cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
-% uncracked_mesh = 'meshes/rg3dm/platemu.msh';
+%cracked_mesh = 'meshes/rg3dm/platem6_c.msh';
+%uncracked_mesh = 'meshes/rg3dm/platem6.msh';
+ cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
+ uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
-centCrack = [4;3;3]; % Point on the crack (for reference)
+centCrack = [4;3;1]; % Point on the crack (for reference)
 
 if loadfield ~= 1 && loadfield ~= 4
    tic
@@ -121,8 +126,8 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
 % Add the noise
 if loadfield ~= 1 && loadfield ~= 4
     u1n = u1; u2n = u2;
-    % br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
-    noise = load('noises/rg3de6.mat'); br1 = noise.br1; br2 = noise.br2;
+    br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+%    noise = load('noises/rg3de6.mat'); br1 = noise.br1; br2 = noise.br2;
     u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
 end
            
@@ -420,7 +425,8 @@ Q = [ t , v , normal ];
 % if Q(3,1)<0, Q = Q'; end
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
-Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
+%Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
+Qref = Q;
 
 %% Then the constant
 
@@ -869,7 +875,7 @@ if usepolys == 1
    X0 = (max(Xs)+min(Xs))/2; Y0 = (max(Ys)+min(Ys))/2;
    Xso = Xs-X0; Yso = Ys-Y0;
 
-   nodes2b = transpose(Q*nodes2'); %[Xso',Yso',Zs'];
+   nodes2b = transpose(Q'*nodes2'); %[Xso',Yso',Zs'];
    [K2b,~,~,~,~] = Krig3D (nodes2b,elements2,mat,order2,boundary2,[]);
    Kinter2b = K2b( 1:3*nnodes2, 1:3*nnodes2 );
    
@@ -1100,7 +1106,7 @@ if usepolys == 1
          fpa  = zeros( 3, (floor((k+1)/2)+1)*(floor(l/2)+1) );
          fpb  = zeros( 3, (floor(k/2)+1)*(floor((l+1)/2)+1) );
          fpc  = zeros( 3, (floor(k/2)+1)*(floor(l/2)+1) );
-
+         
          for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
             bonod = boundary2(i,:); exno = extnorm2(i,:)';
          
@@ -1128,19 +1134,10 @@ if usepolys == 1
                xg = Xg(j,:); wg = Wg(j);
                
                % Interpolations
-               if order==1
-                  uer1 = transpose( (1-xg(1)-xg(2))*urr1(i,1:3) + ... % [ux;uy] on the
-                                    xg(1)*urr1(i,4:6) + ...           % Gauss point
-                                    xg(2)*urr1(i,7:9) );        
+               if order==1       
                   xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
          
-               elseif order==2
-                  uer1 = transpose( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*urr1(i,1:3) + ...
-                         -xg(1)*(1-2*xg(1))*urr1(i,4:6) + ...           % [ux;uy] on the
-                         -xg(2)*(1-2*xg(2))*urr1(i,7:9) + ...          % Gauss point
-                         4*xg(1)*(1-xg(1)-xg(2))*urr1(i,10:12) + ...
-                         4*xg(1)*xg(2)*urr1(i,13:15) + ...
-                         4*xg(2)*(1-xg(1)-xg(2))*urr1(i,16:18) );                       
+               elseif order==2                    
                   xgr  = ( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*[x1;y1;z1] + ...
                          -xg(1)*(1-2*xg(1))*[x2;y2;z2] + ...
                          -xg(2)*(1-2*xg(2))*[x3;y3;z3] + ...
@@ -1148,23 +1145,8 @@ if usepolys == 1
                          4*xg(1)*xg(2)*[x5;y5;z5] + ...
                          4*xg(2)*(1-xg(1)-xg(2))*[x6;y6;z6] ); 
                end
-         
-               % Reference force from the BC's
-               if exno(1) == 1
-                  fer1 = [0;0;0];
-               elseif exno(1) == -1
-                  fer1 = [0;0;0];
-               elseif exno(2) == 1
-                  fer1 = [0;0;0];
-               elseif exno(2) == -1
-                  fer1 = [0;0;0];
-               elseif exno(3) == 1
-                  fer1 = [0;0;fscalar];
-               elseif exno(3) == -1
-                  fer1 = -[0;0;fscalar];
-               end
-         
-               ixigrec = Q'*[xgr(1);xgr(2);xgr(3)];
+
+               ixigrec = Q'*xgr;
                X = ixigrec(1)/Lx-X0; Y = ixigrec(2)/Lx-Y0; Z = (ixigrec(3)+Cte)/Lx;
                
                for ii=0:floor(k/2)
@@ -1259,7 +1241,7 @@ if usepolys == 1
                      vlocpa = [ v1a ; 0 ; 0 ];
                      vpa( :, 1+jj+ii*(floor(l/2)+1) ) = Q*vlocpa;
                      Msa( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) =...
-                          Msa( 1+jj+ii*(floor(l/2)+1) ) + ...
+                          Msa( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) + ...
                           S * wg * ( fpa( :, 1+jj+ii*(floor(l/2)+1) )'*vpa( :, 1+jj+ii*(floor(l/2)+1) ) );
                   end
                end
@@ -1269,7 +1251,7 @@ if usepolys == 1
                      vlocpb = [ 0 ; v2b ; 0 ];
                      vpb( :, 1+jj+ii*(floor((l+1)/2)+1) ) = Q*vlocpb;
                      Msb( 1+jj+ii*(floor((l+1)/2)+1), 1+jj+ii*(floor((l+1)/2)+1) ) = ...
-                          Msb( 1+jj+ii*(floor((l+1)/2)+1) ) + ...
+                          Msb( 1+jj+ii*(floor((l+1)/2)+1), 1+jj+ii*(floor((l+1)/2)+1) ) + ...
                           S * wg * ( fpb( :, 1+jj+ii*(floor((l+1)/2)+1) )'*vpb( :, 1+jj+ii*(floor((l+1)/2)+1) ) );
                   end
                end
@@ -1279,7 +1261,7 @@ if usepolys == 1
                      vlocpc = [ 0 ; 0 ; v3c ];
                      vpc( :, 1+jj+ii*(floor(l/2)+1) ) = Q*vlocpc;
                      Msc( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) = ...
-                          Msc( 1+jj+ii*(floor(l/2)+1) ) + ...
+                          Msc( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) + ...
                           S * wg * ( fpc( :, 1+jj+ii*(floor(l/2)+1) )'*vpc( :, 1+jj+ii*(floor(l/2)+1) ) );
                   end
                end
@@ -1288,11 +1270,7 @@ if usepolys == 1
          end
          
          Ms = [ Msa,zab,zac ; zab',Msb,zbc ; zac',zbc',Msc ]*E;
-         
-         
-%         bug
-         
-         
+                  
          % Minimize under the constraints
 %         Lhsto2 = [ Mm , Lhsco' ; Lhsco , zeros(size(Lhsco,1)) ];
 %         Rhsto2 = [ zeros(size(Mm,1), 1) ; Rhsco ];
