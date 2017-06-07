@@ -1,4 +1,5 @@
-% 23/02/2017 : Couplage entre Cauchy et décomposition de domaines
+% 07/06/2017 : Couplage entre Cauchy et décomposition de domaines,
+% points multiples mieux gérés
 
 clear all;
 close all;
@@ -212,7 +213,7 @@ Kp2 = {}; nbloqp2 = {}; Ct2 = {};
 K = {}; f = {}; nbloq = {}; 
 Kp = {}; nbloqp = {}; Ct = {}; % trace operator on the boundary
 G = {}; R = {}; Gglob = zeros( 2*nnodes, 3*nsub ); % Gglob's size will decrease
-urb = {}; b1to2 = {};
+urb = {}; b1to2 = {}; cornoglob = {}; corno = {};
 
 % Connectivity tables between the subdomains and the rigid modes
 sdtorm = zeros(nsub,1); rmtosd = [];
@@ -237,11 +238,19 @@ for i = 1:2*nsub
    nno{i} = size(nodess,1);
    
    % Extract the local uref
-   [ b1to2{i}, b2to1 ] = superNodes( nodess, nodes, 1e-6 ); % Yeah, I'm a pig
+   [ b1to2i, b2to1 ] = superNodes( nodess, nodes, 1e-6 ); % Yeah, I'm a pig
+   b1to2{i} = b1to2i;
    urbi = zeros(2*nno{i});
    urbi( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = urefb( [2*b1to2{i}-1 ; 2*b1to2{i}] );
    urb{i} = urbi;
    
+   % Corners (ie nodes with DD and Cauchy)
+   boun3 = boundarys( find( boundarys(:,1)==3 ) , 2:3 );
+   boun3 = unique( [ boun3(:,1) ; boun3(:,2) ] );
+   corno{i} = [ intersect(boun3,bounsloc{2*i-1}) , ...
+                intersect(boun3,bounsloc{2*i}) ];
+   cornoglob{i} = b1to2i(corno{i});
+
    % Stiffness matrices
    [K{i},C,nbloq{i},node2c,c2node] =...
                  Krig2 (nodess,elementss,mat,order,boundarys,dirichlet,1);
@@ -386,19 +395,19 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% ( constraint - ) CG algorithm
-Lambda = zeros(2*nnodes,1);       % Iterate (on the global mesh for convenience)
-Res    = zeros(2*nnodes,niter+1);
-Rez    = zeros(2*nnodes,niter+1); % Residual without orthogonal projection
-Zed    = zeros(2*nnodes,niter+1);
-d      = zeros(2*nnodes,niter+1);
-Ad     = zeros(2*nnodes,niter+1);
-Az     = zeros(2*nnodes,niter+1); % Ad without the projection
+Lambda = zeros( 4*nnodes,1);       % Iterate (on the global mesh for convenience)
+Res    = zeros( 4*nnodes,niter+1 );
+Rez    = zeros( 4*nnodes,niter+1 ); % Residual without orthogonal projection
+Zed    = zeros( 4*nnodes,niter+1 );
+d      = zeros( 4*nnodes,niter+1 );
+Ad     = zeros( 4*nnodes,niter+1 );
+Az     = zeros( 4*nnodes,niter+1 ); % Ad without the projection
 resid  = zeros( niter+1,1 );
 error  = zeros( niter+1,1 );  % Useless for now (except for debug)
 
 tic
 % Compute Rhs
-b = zeros( 2*nnodes, 1 );
+b = zeros( 4*nnodes, 1 );
 for i = 1:2*nsub
    ui1 = K1{i}\f1{i};
    ui2 = K2{i}\f2{i};
@@ -423,23 +432,19 @@ for i = 1:2*nsub
           u2( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) - u1( [1:2:2*nno{i}-1, 2:2:2*nno{i}] );
           
    % Special for the interface nodes (the corners) everywhere else is 0
-   uc( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ]  ) = 0;%...
-%               .5 * u2( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) - ...
-%               .5 * u1( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) ;
-   uc( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ] ) = 0;%...
-%               .5 * u2( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) - ...
-%               .5 * u1( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) ;
+   uc( [ 2*cornoglob{i}-1, 2*cornoglob{i} ] ) = 0;
 
-   b = b+u-uc;
+   b(1:2*nnodes) = b(1:2*nnodes)+u;
+   b(2*nnodes+1:end) = b(2*nnodes+1:end) - uc;
 end
-plotGMSH({b,'be'}, elements, nodes(:,[1,2]), 'output/be');
+plotGMSH({b(1:2*nnodes),'be'}, elements, nodes(:,[1,2]), 'output/be');
 % initialize
 if norm(Gglob) ~= 0
-   Lambda = -Gglob*inv(Gglob'*Gglob)*eD;
+   Lambda = [ -Gglob*inv(Gglob'*Gglob)*eD ; zeros(2*nnodes,1) ] ;
 end
 
 % Compute Ax0
-Axz = zeros( 2*nnodes, 1 );
+Axz = zeros( 4*nnodes, 1 );
 for i = 1:2*nsub
    floc = zeros( 2*nno{i}, 1 );
 
@@ -450,7 +455,7 @@ for i = 1:2*nsub
    
    % Cauchy part
    floc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = ...
-                          Lambda( [2*b1to2{i}-1 ; 2*b1to2{i}] ) ;
+                          Lambda( 2*nnodes+[2*b1to2{i}-1 ; 2*b1to2{i}] ) ;
    
    floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
                sign * Lambda( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ] );
@@ -476,19 +481,16 @@ for i = 1:2*nsub
           
    % In order not to increment 2 times in the corners, we to the following :
    % Special for the interface nodes (the corners) everywhere else is 0
-   uc( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ]  ) = 0;%...
-%               .5 * u2( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) - ...
-%               .5 * u1( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) ;
-   uc( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ] ) = 0;%...
-%               .5 * u2( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) - ...
-%               .5 * u1( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) ;
+   uc( [ 2*cornoglob{i}-1, 2*cornoglob{i} ] ) = 0;
 
-   Axz = Axz + u + uc;
+   Axz(1:2*nnodes) = Axz(1:2*nnodes) + u;
+   Axz(2*nnodes+1:end) = Axz(2*nnodes+1:end) + uc;
 end
 
 Rez(:,1) = b - Axz;
 if norm(Gglob) ~= 0
-   Res(:,1) = P'*(b - Axz);
+   Res(:,1) = [ P'*(b(1:2*nnodes) - Axz(1:2*nnodes)) ; ...
+                (b(2*nnodes+1:end) - Axz(2*nnodes+1:end)) ];
 else
    Res(:,1) = b - Axz;
 end
@@ -534,7 +536,7 @@ else
 end
 
 if norm(Gglob) ~= 0
-   Zed(:,1) = P*Zed(:,1);
+   Zed(:,1) = [ P*Zed(1:2*nnodes,1) ; Zed(2*nnodes+1:end,1) ];
 else
    Zed(:,1) = Zed(:,1);
 end
@@ -548,7 +550,7 @@ iter = 0;  % in case niter=0
 for iter = 1:niter
 
    % Compute Ad
-   Ad(:,iter) = zeros( 2*nnodes, 1 );
+   Ad(:,iter) = zeros( 4*nnodes, 1 );
    for i = 1:2*nsub
       floc = zeros( 2*nno{i}, 1 );
 
@@ -560,7 +562,7 @@ for iter = 1:niter
       
       % Cauchy part
       floc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = floc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) + ...
-                             d( [2*b1to2{i}-1 ; 2*b1to2{i}], iter ) ;
+                             d( 2*nnodes+[2*b1to2{i}-1 ; 2*b1to2{i}], iter ) ;
       floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
                sign * d( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ], iter );
       floc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
@@ -583,22 +585,17 @@ for iter = 1:niter
       % Cauchy part
       uc( [2*b1to2{i}-1 ; 2*b1to2{i}] ) = ... %uc( [2*b1to2{i}-1 ; 2*b1to2{i}] ) + ...
           u2( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) - u1( [1:2:2*nno{i}-1, 2:2:2*nno{i}] );
-          
-      % Special for the interface nodes (the corners) everywhere else is 0
-      uc( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ]  ) = 0;%...
-%                  .5 * u2( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) - ...
-%                  .5 * u1( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) ;
-      uc( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ] ) = 0;...
-%                  .5 * u2( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) - ...
-%                  .5 * u1( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) ;
+      % Special for the interface nodes (the corners)
+      uc( [ 2*cornoglob{i}-1, 2*cornoglob{i} ] ) = 0;
 
-      Ad(:,iter) = Ad(:,iter) + u + uc;
+      Ad(1:2*nnodes,iter) = Ad(1:2*nnodes,iter) + u;
+      Ad(2*nnodes+1:end,iter) = Ad(2*nnodes+1:end,iter) + uc;
    end
    Az(:,iter) = Ad(:,iter);
    if norm(Gglob) ~= 0
-      Ad(:,iter) = P'*Ad(:,iter);
+      Res(:,1) = [ P'*(Ad(1:2*nnodes,iter)) ; Ad(2*nnodes+1:end,iter) ];
+%      Ad(:,iter) = P'*Ad(:,iter);
    end
-
    den = (d(:,iter)'*Ad(:,iter));
    d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
    Az(:,iter) = Az(:,iter)/sqrt(den);
@@ -645,15 +642,15 @@ for iter = 1:niter
    else
       Zed(:,iter+1) = Res(:,iter+1);
    end
-   
+%   norm( Zed(2*nnodes+1:end,iter+1) )
    if norm(Gglob) ~= 0
-      Zed(:,iter+1) = P*Zed(:,iter+1);
-      resid(iter+1) = norm( P*Res(:,iter+1) );
+      Zed(:,iter+1) = [ P*Zed(1:2*nnodes,iter+1) ; Zed(2*nnodes+1:end,iter+1) ];
+      resid(iter+1) = norm( [ P*Res(1:2*nnodes,iter+1) ; Res(2*nnodes+1:end,iter+1) ] );
    else
       Zed(:,iter+1) = Zed(:,iter+1);
       resid(iter+1) = norm(Res(:,iter+1));
    end
-   
+   bug
 %    % First Reorthogonalize the residual (as we use it next), in sense of M
 %    for jter=1:iter
 %        betac = Zed(:,iter+1)'*Res(:,jter) / (Zed(:,jter)'*Res(:,jter));
@@ -674,13 +671,13 @@ disp([ 'End of the CG ', num2str(toc) ]);
 figure; % plot the residual
 plot(log10(resid/resid(1)));
 
-plotGMSH({Lambda,'Lambda'}, elements, nodes(:,[1,2]), 'output/lambda');
+plotGMSH({Lambda(1:2*nnodes),'Lambda'}, elements, nodes(:,[1,2]), 'output/lambda');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the final solution and assemble it
 usol = zeros( 2*nnodes, 1 );
 
 if norm(Gglob) ~= 0
-   alphaD = inv(Gglob'*Gglob)*Gglob'*Rez(:,niter+1);
+   alphaD = [ inv(Gglob'*Gglob)*Gglob'*Rez(1:2*nnodes,niter+1) ; zeros(2*nnodes,1) ];
 end
 
 for i = 1:2*nsub
@@ -696,11 +693,14 @@ for i = 1:2*nsub
    floc = zeros( 2*size(newnode{i},1) + nbloq2{i}, 1 );
 
    floc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = ...
-                             Lambda( [2*b1to2{i}-1 ; 2*b1to2{i}] ) ;
+                             Lambda( 2*nnodes + [2*b1to2{i}-1 ; 2*b1to2{i}] ) ;
    floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
                sign * Lambda( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ] );
    floc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ] ) =...
                sign * Lambda( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ] );
+               
+   % In case Cauchy and DD contribue to these points
+%   floc( [ 2*corno{i}-1, 2*corno{i} ] ) = floc( [ 2*corno{i}-1, 2*corno{i} ] ) / 2;
 
 %   ui = K1{i}\(floc+f1{i});
    ui = K2{i}\(floc+f2{i});

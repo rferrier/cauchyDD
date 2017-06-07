@@ -81,7 +81,7 @@ dirichlet1 = [4,1,0;4,2,0;
               2,1,0;2,2,0;
               3,1,0;3,2,0];
 
-[K1,C1,nbloq1] = Krig (nodes1,elements,E,nu,order,boundary,dirichlet1);
+[K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes1,elements,E,nu,order,boundary,dirichlet1);
 Kinter = K1(1:2*nnodes, 1:2*nnodes); % Extract the inner matrix
 
 % upper problem
@@ -91,7 +91,7 @@ dirichlet2 = [4,1,0;4,2,0;
               1,1,0;1,2,0;
               2,1,0;2,2,0;
               3,1,0;3,2,0];
-[K2,C2,nbloq2] = Krig (nodes2,elements,E,nu,order,boundary,dirichlet2);
+[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes2,elements,E,nu,order,boundary,dirichlet2);
 
 %% Dual problem
 % lower problem
@@ -99,7 +99,7 @@ dirichlet1d = [4,1,0;4,2,0;
                1,1,0;1,2,0;
                2,1,0;2,2,0];
 
-[K1d,C1d,nbloq1d] = Krig (nodes1,elements,E,nu,order,boundary,dirichlet1d);
+[K1d,C1d,nbloq1d,node2c1d,c2node1d] = Krig (nodes1,elements,E,nu,order,boundary,dirichlet1d);
 f1in = volumicLoad( nbloq1d, nodes1, elements, 1, fscalar );
 
 % upper problem
@@ -107,7 +107,7 @@ dirichlet2d = [4,1,0;4,2,0;
                2,1,0;2,2,0;
                3,1,0;3,2,0];
 
-[K2d,C2d,nbloq2d] = Krig (nodes2,elements,E,nu,order,boundary,dirichlet2d);
+[K2d,C2d,nbloq2d,node2c2d,c2node2d] = Krig (nodes2,elements,E,nu,order,boundary,dirichlet2d);
 f2in = volumicLoad( nbloq2d, nodes2, elements, 1, fscalar );
 
 % Move reference solution on the second mesh
@@ -124,7 +124,7 @@ Zed  = zeros(2*nnodes,niter+1);
 d    = zeros(2*nnodes,niter+1);
 
 % Computation of the error
-f2n = dirichletRhs(Iter, 1, C2, boundary);
+f2n = dirichletRhs2(Iter, 1, c2node2, boundary, nnodes);
 % frni = projectField(fref, nodea, nodes2, 1e-5);
 % frn = dirichletRhs(frni, 1, C2, boundary);
 error(1) = sqrt( (f2n-frn)'*(f2n-frn)/(frn'*frn) );
@@ -162,16 +162,16 @@ Res(:,1) = b - Axz;
 if precond == 1
     % Solve lower primal
     ui2 = projectField( Res(:,1)/2, nodes2, nodes1, 1e-5 );
-    f1 = dirichletRhs(ui2, 3, C1, boundaryp1);
+    f1 = dirichletRhs2(ui2, 3, c2node1, boundaryp1, nnodes);
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lambda1i = lagr2forces( lagr1, C1, 3, boundaryp1 );
+    lambda1i = lagr2forces2( lagr1, c2node1, 3, boundaryp1, nnodes );
     lambda1 = projectField( lambda1i, nodes1, nodes2, 1e-5 );
     % Solve upper primal
-    f2 = dirichletRhs(Res(:,1)/2, 1, C2, boundaryp2);
+    f2 = dirichletRhs2(Res(:,1)/2, 1, c2node2, boundaryp2, nnodes);
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lambda2 = lagr2forces( lagr2, C2, 1, boundaryp2 );
+    lambda2 = lagr2forces2( lagr2, c2node2, 1, boundaryp2, nnodes );
     %
     Zed(:,1) = lambda1/2+lambda2/2;
 else
@@ -208,16 +208,16 @@ for iter = 1:niter
     if precond == 1
         % Solve lower primal
         ui2 = projectField( Res(:,iter+1)/2, nodes2, nodes1, 1e-5 );
-        f1 = dirichletRhs(ui2, 3, C1, boundaryp1);
+        f1 = dirichletRhs2(ui2, 3, c2node1, boundaryp1, nnodes);
         uin1 = K1\f1;
         lagr1 = uin1(2*nnodes+1:end,1);
-        lambda1i = lagr2forces( lagr1, C1, 3, boundaryp1 );
+        lambda1i = lagr2forces2( lagr1, c2node1, 3, boundaryp1, nnodes );
         lambda1 = projectField( lambda1i, nodes1, nodes2, 1e-5 );
         % Solve upper primal
-        f2 = dirichletRhs(Res(:,iter+1)/2, 1, C2, boundaryp2);
+        f2 = dirichletRhs2(Res(:,iter+1)/2, 1, c2node2, boundaryp2, nnodes);
         uin2 = K2\f2;
         lagr2 = uin2(2*nnodes+1:end,1);
-        lambda2 = lagr2forces( lagr2, C2, 1, boundaryp2 );
+        lambda2 = lagr2forces2( lagr2, c2node2, 1, boundaryp2, nnodes );
         %
         Zed(:,iter+1) = lambda1/2 + lambda2/2;
     else
@@ -231,7 +231,7 @@ for iter = 1:niter
     d(:,iter+1) = Zed(:,iter+1) + d(:,iter)*beta;
     
     % Computation of the error
-    f2n = dirichletRhs(Iter, 1, C2, boundary);
+    f2n = dirichletRhs2(Iter, 1, c2node2, boundary, nnodes);
     error(iter+1) = sqrt( (f2n-frn)'*(f2n-frn)/(frn'*frn) );
 end
 %% Post-processing

@@ -10,15 +10,15 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 18;
+niter   = 20;
 precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
-br      = .0;      % noise
+br      = .01;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -490,6 +490,17 @@ plot(uref(2*b2node2-1),'Color','green')
 legend('filtred solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
+[a,b] = min(error);
+erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));
+% Compute the energy error
+f2 = dirichletRhs2( usol-uref, 2, c2node2, boundaryp2, nnodes );
+uin2 = K2\f2;
+lagr2 = uin2(2*nnodes+1:end,1);
+lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
+%
+Su = lamb2;
+errorE = sqrt( ( transpose(usol-uref)*Su ) / (fref(indexa)'*uref(indexa)) );
+
 % Compute stress :
 sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');

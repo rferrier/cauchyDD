@@ -11,14 +11,14 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 15;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = .1;    % noise
+br      = .0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];

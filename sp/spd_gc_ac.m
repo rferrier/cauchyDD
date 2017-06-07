@@ -10,9 +10,9 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
+niter   = 20;
 precond = 1;      % 1 : Use a dual precond, 2 : use the H1/2 precond
-br      = 0.;     % noise
+br      = 0.1;     % noise
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -188,7 +188,7 @@ if precond == 1
     f2 = dirichletRhs2( Res(:,1)/2, 2, c2node2, boundaryp2, nnodes );
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
     %
     Zed(:,1) = lamb2;%/2+lamb2/2;
 elseif precond == 2
@@ -284,7 +284,7 @@ for iter = 1:niter
         f2 = dirichletRhs2( Res(:,iter+1)/2, 2, c2node2, boundaryp2, nnodes );
         uin2 = K2\f2;
         lagr2 = uin2(2*nnodes+1:end,1);
-        lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+        lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
         %
         Zed(:,iter+1) = lamb2;%/2+lamb2/2;
     elseif precond == 2

@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.01;      % noise
+br      = 0.;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [9];
+methods = [10];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -31,9 +31,9 @@ dirichlet   = [2,1,0; 2,2,0];
     readmesh( 'meshes/tube.msh' );
 nnodes = size(nodes,1);
 
-%noises = load('./noises/noisetube0.mat'); % Particular noise vector
-%noise  = noises.bruit1;
-noise  = randn(2*nnodes,1);
+noises = load('./noises/noisetube0.mat'); % Particular noise vector
+noise  = noises.bruit1;
+%noise  = randn(2*nnodes,1);
 
 % patch('Faces',elements,'Vertices',nodes,'FaceAlpha',0);
 % figure
@@ -1964,7 +1964,7 @@ if find(methods==9)
 end
 %%
 if find(methods==10)
-   niter   = 20;
+   niter   = 50;
    precond = 0;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value

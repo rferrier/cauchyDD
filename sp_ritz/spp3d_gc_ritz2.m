@@ -10,18 +10,18 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
+niter   = 25;
 precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = 0.1;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
-ntrunc  = 10;      % In case the algo finishes at niter
+ntrunc  = 21;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
-methods = [2];
+methods = [3];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
@@ -974,10 +974,14 @@ if methods==3
    u1 = C12*C12'*u1i;
    % Solve 2 (zero 'cause no loading except on 7)
 %   f2 = loading3D(nbloq2d,nodes,boundary,neumann0);
-   f2 = loading3D(nbloq2d,nodes,boundary,neumannd); % Dummy rhs
+%   f2 = loading3D(nbloq2d,nodes,boundary,neumannd); % Dummy rhs
+   f2 = zeros( 3*nnodes+nbloq2d, 1 );
+   f2(indexa,1) = randn( size(indexa,2), 1 );
    uin2 = K2d\f2;
    u2i = uin2(1:3*nnodes);
    u2 = C22*C22'*u2i;
+%   u2 = zeros( 3*nnodes, 1 );
+%   u2(indexa,1) = norm(u1)*randn( size(indexa,2), 1 );
    %
    b = [u1,u2]; %!!!!!!!!!! Problem because ZERO
    %%
