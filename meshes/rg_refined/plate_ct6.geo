@@ -1,6 +1,6 @@
 
 // Geometric parameters
-H   = 5;  //  height of plate
+H   = 10;  //  height of plate
 L   = 10;  //  width of plate
 eps = L/30; // refined boundary
 

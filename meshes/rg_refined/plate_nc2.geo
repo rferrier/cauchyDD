@@ -8,13 +8,13 @@ eps = L/30; // refined boundary
 
 //x5 = 2*L/5; y5 = 2*H/2;
 //x6 = 3*L/4; y6 = H/4;
-x5 = 4*L/7; y5 = 4*H/7;
-x6 = 3*L/4; y6 = H/4;
+x5 = 3*L/5; y5 = H/2;
+x6 = 5*L/6; y6 = H/6;
 //x5 = L/5; y5 = 2*H/3;
 //x6 = L/2; y6 = 3*H/4;
 
-x7 = L/4; y7 = H/2;
-x8 = 4*L/7; y8 = 5*H/6;
+x7 = L/6; y7 = H/2;
+x8 = 3*L/7; y8 = 5*H/6;
 
 // Discretization parameters
 lc1 = .05;  // element size at the interior

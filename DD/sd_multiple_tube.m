@@ -12,7 +12,7 @@ fscalar = 250;    % N.mm-2 : Loading on the plate
 mat = [0, E, nu];
 br      = 0.;      % noise
 
-nsub    = 2; % nb subdomains = 2*nsub
+nsub    = 3; % nb subdomains = 2*nsub
 niter   = 20;
 precond = 0;
 
@@ -194,7 +194,7 @@ axis('equal');
 % Stiffness, rigid modes & Co
 K = {}; f = {}; nbloq = {}; G = {}; R = {};
 Kp = {}; nbloqp = {}; Ct = {}; % trace operator on the boundary
-Gglob = zeros( 2*nnodes, 3*nsub ); % Gglob's size will decrease
+Gglob = zeros( 2*nnodes, 6*nsub ); % Gglob's size will decrease
 
 % Connectivity tables between the subdomains and the rigid modes
 sdtorm = zeros(nsub,1); rmtosd = [];
@@ -279,11 +279,17 @@ for i = 1:2*nsub
 
       Gloc = zeros( 2*nnodess, 3 ); % local rigid modes            
 %      % Lower boundary
+%      norm( Gglob( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ], 3*j-2:3*j ) )
+%      norm( Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : ) )
+%      newbouns{el2bound(i,1)}
       Gglob( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ], 3*j-2:3*j ) = ...
              sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
       Gloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : ) = ...
                   sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
       % Upper boundary
+%      norm( Gglob( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ], 3*j-2:3*j ) )
+%      norm( Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : ) )
+%      newbouns{el2bound(i,2)}
       Gglob( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ], 3*j-2:3*j ) = ...
              sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
       Gloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : ) = ...

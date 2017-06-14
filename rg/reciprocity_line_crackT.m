@@ -16,8 +16,13 @@ mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
 %niter      = 4;    %26-49 Number of regularization iterations
-ncrack     = 5;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack
-co         = [1,1,0,0]; % Coefficients for each RG test-case
+ncrack     = 10001;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+                    % 51  : refined postpro mesh
+                    % 101 : direct & integrals refined, basic crack
+                    % 103 : idem for the small crack
+                    % 1001 : more test-functions
+                    % 10001 : analysis on a mesh marking the crack
+co         = [1,1,1,1]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
 
 % List of the operations :
@@ -29,15 +34,29 @@ recompute  = 0; % Recompute A and b
 %regD       = [0,0,0,.1,.2,.3,.4,.5];   
 % Minimal distance between 2 chains (0 means only one) 
 
-operations = [1,2,3,4,4,4,4];
-regD       = [0,0,0,.2,.4,.6,.8];
-%operations = [1,2,3];
-%regD       = [0,0,0];
+%operations = [1,2,3,4,4,4,4];
+%regD       = [0,0,0,.2,.4,.6,.8];
+
+operations = [1,2,3,4,4,4,4,4,4,4,4];
+regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
+
+%operations = [1,2,3,4];
+%regD       = [0,0,0,0];
+%operations = [1,2];
+%regD       = [0,0];
+%operations = 1;
+%regD       = 0;
 
 niter = size(operations,2);
 
 %% In order to build the (Petrov-Galerkin) Left Hand Side
-[ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
+if ncrack == 10001
+   [ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_ncu.msh' );
+elseif ncrack < 50 || ncrack > 99
+   [ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
+else
+   [ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu_r.msh' );
+end
 nnodesu = size(nodesu,1);
 
 nelemu = size(elementsu,1); nn = size(elementsu,2); %nn=3
@@ -102,6 +121,22 @@ if recompute == 1
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 9
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
+   elseif ncrack == 11
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc11.msh' );
+   elseif ncrack == 51
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 101
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r.msh' );
+   elseif ncrack == 103
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_3.msh' );
+   elseif ncrack == 111
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_11.msh' );
+   elseif ncrack == 109
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_9.msh' );
+   elseif ncrack == 1001
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 10001
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    else
       warning('This test-case was not meshed')
    end
@@ -155,7 +190,11 @@ if recompute == 1
    plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    % Import the uncracked domain
-   [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nn.msh' );
+   if ncrack < 100 || ncrack > 999
+      [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nn.msh' );
+   else
+      [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nn_r.msh' );
+   end
    
    nnodes2 = size(nodes2,1);
    [K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet);
@@ -272,8 +311,14 @@ if recompute == 1
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Identify the crack
    % Build the polynomial test functions.
-   load('conditions10_2d.mat','-ascii');
-   M = spconvert(conditions10_2d); clear('conditions10_2d');
+   if ncrack<1000 || ncrack > 9999
+      load('conditions10_2d.mat','-ascii');
+      M = spconvert(conditions10_2d); clear('conditions10_2d');
+   else
+      load('conditions20_2d.mat','-ascii');
+      M = spconvert(conditions20_2d); clear('conditions20_2d');
+   end
+   
    nmax = 10;
    ncoef =2*(nmax+1)^2; neq = ncoef;
    
@@ -538,6 +583,30 @@ else
    elseif ncrack == 9
       Anb = load('fields/matrix9.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
+   elseif ncrack == 11
+      Anb = load('fields/matrix11.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc11.msh' );
+   elseif ncrack == 51
+      Anb = load('fields/matrix51.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 101
+      Anb = load('fields/matrix101.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r.msh' );
+   elseif ncrack == 103
+      Anb = load('fields/matrix103.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_3.msh' );
+   elseif ncrack == 109
+      Anb = load('fields/matrix109.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_9.msh' );
+   elseif ncrack == 111
+      Anb = load('fields/matrix111.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_11.msh' );
+   elseif ncrack == 1001
+      Anb = load('fields/matrix1001.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+   elseif ncrack == 10001
+      Anb = load('fields/matrix10001.mat');
+      [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    end
    Lhs = Anb.Lhs; Rhs1 = Anb.Rhs1; Rhs2 = Anb.Rhs2;
    Rhs3 = Anb.Rhs3; Rhs4 = Anb.Rhs4;
@@ -597,12 +666,12 @@ for i = 1:niter
       chains = {};
       toexplore = authorized;  % Next elements that remain to explore
       sanity1 = 0;
-      while size(toexplore)>0 && sanity1 < 100
+      while size(toexplore)>0 && sanity1 < 1000
          active = toexplore(1);
          curchain = active; % Current chain to explore
          
          sanity2 = 0;
-         while size(active) > 0 && sanity2 < 100
+         while size(active) > 0 && sanity2 < 1000
             % Find the neighours of active elements
             active2 = [];
             for j=1:size(active,2)
@@ -653,71 +722,13 @@ for i = 1:niter
 
       end
       
-   elseif operations(i) == 3 % Identify the chains and kill monoms
+   elseif operations(i) == 3 % Kill monoms
       forbitten = [];
       authorized = oldauthorized;
-%      chains = {};
-%      
-%      toexplore = authorized;  % Next elements that remain to explore
-%      sanity1 = 0;
-%      while size(toexplore)>0 && sanity1 < 100
-%         active = toexplore(1);
-%         curchain = active; % Current chain to explore
-%         
-%         sanity2 = 0;
-%         while size(active) > 0 && sanity2 < 100
-%            % Find the neighours of active elements
-%            active2 = [];
-%            for j=1:size(active,2)
-%               act = active(j);
-%               no1 = segel(act,1); no2 = segel(act,2);
-%               segs1 = find( segel(toexplore,:) == no1 );
-%               segs1 = mod(segs1-1,size(toexplore,1))+1;
-%               seg1  = toexplore(segs1);
-%               seg1 = setdiff(seg1,act); % We're looking only for the other one
-%               segs2 = find( segel(toexplore,:) == no2 );
-%               segs2 = mod(segs2-1,size(toexplore,1))+1;
-%               seg2  = toexplore(segs2);
-%               seg2 = setdiff(seg2,act); %
-%               
-%               if size(seg1) > 0 % There must be an other segment AND it mussn't be in curchain
-%                  if size(find(curchain==seg1),2) == 0
-%                     % Last condition : inner product (angle)
-%                     noa = segel(act,:);
-%                     nos = segel(seg1,:);
-%                     nC1 = intersect(noa, nos); nC2 = setdiff(noa, nC1); nC3 = setdiff(nos, nC1);
-%                     C1 = nodesu(nC1,:); C2 = nodesu(nC2,:); C3 = nodesu(nC3,:);
-%                     C1C2 = C2-C1; C1C3 = C3-C1;
-%                     if C1C2*C1C3' < 0
-%                        active2(end+1) = seg1;
-%                     end
-%                  end
-%               end
-%               if size(seg2) > 0
-%                  if size(find(curchain==seg2),2) == 0
-%                     noa = segel(act,:);
-%                     nos = segel(seg2,:);
-%                     nC1 = intersect(noa, nos); nC2 = setdiff(noa, nC1); nC3 = setdiff(nos, nC1);
-%                     C1 = nodesu(nC1,:); C2 = nodesu(nC2,:); C3 = nodesu(nC3,:);
-%                     C1C2 = C2-C1; C1C3 = C3-C1;
-%                     if C1C2*C1C3' < 0
-%                        active2(end+1) = seg2;
-%                     end
-%                  end
-%               end
-%            end
-%            curchain = [curchain,active2];
-%            active = active2;
-%            sanity2 = sanity2 + 1;
-%         end
-%         chains{end+1} = curchain;
-%         toexplore = setdiff( toexplore, curchain );
-%         sanity1 = sanity1+1;
-%
-%      end
       
       % Suppress chains of size 1
       toremove = [];
+%      size(chains,2)
       for j=1:size(chains,2)
          curchain = chains{j};
          if size(curchain,2) == 1
@@ -726,7 +737,7 @@ for i = 1:niter
          end
       end
       chains(toremove) = [];%
-
+%      size(chains,2)
 %      for j1=1:size(authorized,1)
 %         j = authorized(j1);
 %         no1 = segel(j,1); no2 = segel(j,2);
@@ -855,19 +866,19 @@ for i = 1:niter
    me3 = mean(abs(rplo3))/1e5; arplo3 = max(me3,abs(rplo3));
    me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));   
 
-   % Compute Picard stopping indices
+   % Compute Picard stopping indices (induces singular matrix warning...)
    ind1(i) = findPicard2 (log10(arplo1), 7, 1, 2);
    ind2(i) = findPicard2 (log10(arplo2), 7, 1, 2);
    ind3(i) = findPicard2 (log10(arplo3), 7, 1, 2);
    ind4(i) = findPicard2 (log10(arplo4), 7, 1, 2);
    
    % Postpro
-   if i>1
-      ind1(i) = min(ind1(i),ind1(i-1));
-      ind2(i) = min(ind2(i),ind2(i-1));
-      ind3(i) = min(ind3(i),ind3(i-1));
-      ind4(i) = min(ind4(i),ind4(i-1));
-   end
+%   if i>1
+%      ind1(i) = min(ind1(i),ind1(i-1));
+%      ind2(i) = min(ind2(i),ind2(i-1));
+%      ind3(i) = min(ind3(i),ind3(i-1));
+%      ind4(i) = min(ind4(i),ind4(i-1));
+%   end
    
    if i==1
       figure
@@ -892,7 +903,7 @@ for i = 1:niter
 %      plot(log10(abs(rplo3)),'Color','black');
 %      plot(t,px,'Color','red');
 %      legend('sol3','poly3');
-      
+
       figure
       hold on;
       plot(log10(abs(tplo)),'Color','green');
@@ -992,8 +1003,11 @@ hold on;
 plot( [nodes(5,1),nodes(6,1)], [nodes(5,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 if ncrack == 2
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
-elseif ncrack == 9
+elseif ncrack == 9 || ncrack == 109 || ncrack == 11 || ncrack == 111
    plot( [nodes(7,1),nodes(6,1)], [nodes(7,2),nodes(6,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
+end
+if ncrack == 11 || ncrack == 111
+   plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
 nogapp1 = co(1)*nogap1 + co(2)*nogap2 + co(3)*nogap3 + co(4)*nogap4;
 maxn1 = max(nogapp1);

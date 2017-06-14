@@ -344,16 +344,18 @@ for i = 1:2*nsub
       % No data boundary
       Gglob( [ 2*b2node3g-1, 2*b2node3g ], 3*j-2:3*j ) = ...
                                    Rloc( [ 2*b2node3s-1, 2*b2node3s ], : );
+%      Gloc( [ 2*b2node3s-1, 2*b2node3s ], : ) = ...  % It's not changing a lot...
+%                                   Rloc( [ 2*b2node3s-1, 2*b2node3s ], : );
 %     % Lower boundary
       Gglob( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ], 3*j-2:3*j ) = ...
              sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
       Gloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : ) = ...
-                  sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
+                  Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );  % Sign is not important in Gloc
       % Upper boundary
       Gglob( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ], 3*j-2:3*j ) = ...
              sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
       Gloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : ) = ...
-                  sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
+                  Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
                   
       G{i} = Gloc;
       j = j+1;

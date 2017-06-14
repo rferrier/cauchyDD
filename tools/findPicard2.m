@@ -37,11 +37,12 @@ function [indm,p] = findPicard2 (x, varargin)
 
  px = p'*tt;  % interpolation
 
+ inferior = [];
  if maxi == 1  % suppress the inferior values
     inferior = find( x<px' );
     tprim = t; tprim(inferior) = [];
     xprim = x; xprim(inferior) = [];
-    n  = floor(size(xprim,1)/d)+1;  % reactualize degree of polynoms
+    n  = min( max(2,floor(size(xprim,1)/d+1)), size(xprim,1) );  % reactualize degree of polynoms
     p = polyfit(tprim,xprim',n)';
     
     tt = zeros(n+1,npo);
@@ -68,7 +69,9 @@ function [indm,p] = findPicard2 (x, varargin)
        indm = posit(1);
     end
  elseif crit == 2
-    indm = find ( px == min(px) );
+    px(inferior) = max(px)+1; % Makes sure inverior values von't be selected
+    [px,indm] = min(px);
+%    indm = find ( px == min(px) );
  else
     error('Third optional argument is not readable')
  end
