@@ -23,8 +23,8 @@ regmu   = 0;      % Regularization parameter
 br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 1; % Order of polynom
-ordpD     = 2; % Order of the differential H1 post-regularization whatsoever.
+ordp      = 2; % Order of polynom
+ordpD     = 3; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -33,7 +33,7 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
 usefourier = 0;
 usepolys   = 1;
 plotref    = 1;
-comperror  = 1;
+comperror  = 0;
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
@@ -41,6 +41,8 @@ comperror  = 1;
 %uncracked_mesh = 'meshes/rg3dm/platem6.msh';
  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
+%  cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+%  uncracked_mesh = 'meshes/rg3dm/platem.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
@@ -1645,8 +1647,6 @@ if usepolys == 1
 % %                                   'Color', 'black',  'LineWidth', 3 );
 %    axis('equal');
    
-   disp([ 'Polynomial method ', num2str(toc) ]);
-   
    if comperror == 1
       Xp = X; Yp = Y;
       X = X'*ones(size(Yp)); Y = Y'*ones(size(Xp));
@@ -1690,22 +1690,58 @@ if usepolys == 1
       
    end
    
-   % Find the coefficients on the rest of the base, that minimize the derivative.
-   LhsD = zeros((ordpD+1)^2); % Will be truncated later : for now, it containsall the coeffs from 0 to 20
+   %% Find the coefficients on the rest of the base, that minimize the derivative.
+   
+   % First, build a basis that is orthogonal (in sense of Legendre) to the first vectors
+   
+   % Use the Legendre Basis (Choeleski decomposition)
+   for i=0:ordpD
+      for j=0:ordpD
+         for k=0:ordpD
+            for l=0:ordpD
+               ordx = i+k+1;
+               ordy = j+l+1;
+               LhsO(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                    Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+                    % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
+            end
+         end
+      end
+   end
+   [PassD, ~] = eig(LhsO); % This matrix gives the Legendre basis%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%CHOELESKI
+   
+   LhsD = zeros((ordpD+1)^2); % Will be truncated later : for now, it contains all the coeffs from 0 to ordpD
    RhsD = zeros((ordpD+1)^2,1);
    for i=0:ordpD
       for j=0:ordpD
          for k=0:ordpD
             for l=0:ordpD
-               if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && i+k>1
-                  LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-                        i*k*(L2x^(i+k-1)-L1x^(i+k-1))*(L2y^(j+l+1)-L1y^(j+l+1))/((i+k-1)*(j+l+1));
+                
+               for ii=0:ordpD
+                  for jj=0:ordpD
+                     for kk=0:ordpD
+                        for ll=0:ordpD
+                           if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && kk+ii>1
+                              LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                                    LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) + ...
+                                    PassD(jj+1+(ordpD+1)*ii, j+1+(ordpD+1)*i) * ...
+                                    PassD(ll+1+(ordpD+1)*kk, l+1+(ordpD+1)*k) * ...
+                                    kk*ii*(L2x^(kk+ii-1)-L1x^(kk+ii-1))*(L2y^(ll+jj+1)-L1y^(ll+jj+1))/...
+                                                         ((kk+ii-1)*(ll+jj+1));
+                           end
+                           if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && ll+jj>1
+                              LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                                    LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) +...
+                                    PassD(jj+1+(ordpD+1)*ii, j+1+(ordpD+1)*i) * ...
+                                    PassD(ll+1+(ordpD+1)*kk, l+1+(ordpD+1)*k) * ...
+                                    ll*jj*(L2x^(kk+ii+1)-L1x^(kk+ii+1))*(L2y^(ll+jj-1)-L1y^(ll+jj-1))/...
+                                                         ((kk+ii+1)*(ll+jj-1));
+                           end
+                        end
+                     end
+                  end
                end
-               if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && j+l>1
-                  LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-                        LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) +...
-                        j*l*(L2x^(i+k+1)-L1x^(i+k+1))*(L2y^(j+l-1)-L1y^(j+l-1))/((i+k+1)*(j+l-1));
-               end
+               
             end
          end
       end
@@ -1715,14 +1751,22 @@ if usepolys == 1
       for j=0:ordp
          for k=0:ordpD
             for l=0:ordpD
-               if (k>ordp || l>ordp) && i+k>1
-                  RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+i+(ordp+1)*j) * ...
-                        i*k*(L2x^(i+k-1)-L1x^(i+k-1))*(L2y^(j+l+1)-L1y^(j+l+1))/((i+k-1)*(j+l+1));
+
+               for ii=0:ordpD
+                  for jj=0:ordpD
+                     if (k>ordp || l>ordp) && i+ii>1
+                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+i+(ordp+1)*j) * ...
+                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+                              i*ii*(L2x^(i+ii-1)-L1x^(i+ii-1))*(L2y^(j+jj+1)-L1y^(j+jj+1))/((i+ii-1)*(j+jj+1));
+                     end
+                     if (k>ordp || l>ordp) && j+jj>1
+                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+i+(ordp+1)*j) * ...
+                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+                              j*jj*(L2x^(i+ii+1)-L1x^(i+ii+1))*(L2y^(j+jj-1)-L1y^(j+jj-1))/((i+ii+1)*(j+jj-1));
+                     end
+                  end
                end
-               if (k>ordp || l>ordp) && j+l>1
-                  RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+i+(ordp+1)*j) * ...
-                        j*l*(L2x^(i+k+1)-L1x^(i+k+1))*(L2y^(j+l-1)-L1y^(j+l-1))/((i+k+1)*(j+l-1));
-               end
+               
             end
          end
       end
@@ -1746,14 +1790,21 @@ if usepolys == 1
    solupp = solup'; % Because of the transpose
    for k=0:ordpD
       for l=0:ordpD
-         solupp = solupp + McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+%          solupp = solupp + McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+         for ii=0:ordpD
+            for jj=0:ordpD
+               solupp = solupp + PassD(jj+1+(ordp+1)*ii, l+1+(ordpD+1)*k) * ...
+                       McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
+            end
+         end
+                     
       end
    end
    solupp = solupp';
    
    figure;
    hold on;
-   surf(X,Y,solup);
+   surf(X,Y,solupp);
    shading interp;
    colorbar();
    axis('equal');
@@ -1761,7 +1812,7 @@ if usepolys == 1
 %   csvwrite('fields/rg3d_polyp.csv',solupp);
 %   csvwrite('fields/rg3d_X.csv',X);
 %   csvwrite('fields/rg3d_Y.csv',Y);
-   
+   disp([ 'Polynomial method ', num2str(toc) ]);
 end
 
 % Plot on the line X = 4
@@ -1793,6 +1844,20 @@ if usepolys == 1
    end
    
    plot( Y, solup, 'Color', 'black' );
+   
+   solupp = solup;
+   for k=0:ordpD
+      for l=0:ordpD
+%          solupp = solupp + McCoefD(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+         for ii=0:ordpD
+            for jj=0:ordpD
+               solupp = solupp + PassD(jj+1+(ordp+1)*ii, l+1+(ordpD+1)*k) * ...
+                       McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
+            end
+         end
+      end
+   end
+   plot( Y, solupp, 'Color', 'green' );
 end
 
 % And the reference
