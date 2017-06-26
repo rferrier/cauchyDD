@@ -41,6 +41,8 @@ comperror  = 1;
 %uncracked_mesh = 'meshes/rg3dm/platem6.msh';
  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
+% cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
+% uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -1074,203 +1076,203 @@ if usepolys == 1
          Mm = [ diag(ka),zab,zac ; zab',diag(kb),zbc ; zac',zbc',diag(kc) ]*E; %*E^2
 %         Mm = [ diag(ka).^2,zab,zac ; zab',diag(kb).^2,zbc ; zac',zbc',diag(kc).^2 ];
          
-         % Computation via Gauss Points
-         Msa = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1) );
-         Msb = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1) );
-         Msc = zeros( (floor(k/2)+1)*(floor(l/2)+1) );
-               
-         s11a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
-         s22a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
-         s33a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
-         s12a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
-         s13a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
-         s23a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
-               
-         s11b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
-         s22b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
-         s33b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
-         s12b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
-         s13b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
-         s23b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
-               
-         s11c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
-         s22c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
-         s33c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
-         s12c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
-         s13c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
-         s23c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
-         
-         vpa  = zeros( 3, (floor((k+1)/2)+1)*(floor(l/2)+1) );
-         vpb  = zeros( 3, (floor(k/2)+1)*(floor((l+1)/2)+1) );
-         vpc  = zeros( 3, (floor(k/2)+1)*(floor(l/2)+1) );
-         
-         fpa  = zeros( 3, (floor((k+1)/2)+1)*(floor(l/2)+1) );
-         fpb  = zeros( 3, (floor(k/2)+1)*(floor((l+1)/2)+1) );
-         fpc  = zeros( 3, (floor(k/2)+1)*(floor(l/2)+1) );
-         
-         for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
-            bonod = boundary2(i,:); exno = extnorm2(i,:)';
-         
-            no1 = bonod(2); no2 = bonod(3); no3 = bonod(4);
-            x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
-            x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
-            x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
-            vecprod = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1),...
-                        -(x2-x1)*(z3-z1) + (x3-x1)*(z2-z1),...
-                        (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)];
-            S = .5*norm(vecprod);
-            
-            if order==1
-               Ng = min( 12 , max(1, ceil((k+l+2)/2)) );
-            elseif order==2
-               Ng  = min( 12, max(1, ceil((k+l+3)/2)) );
-               no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
-               x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
-               x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);
-               x6  = nodes2(no6,1); y6 = nodes2(no6,2); z6 = nodes2(no6,3);
-            end
-            [ Xg, Wg ] = gaussPt( Ng );
-                      
-            for j=1:size(Wg,1)
-               xg = Xg(j,:); wg = Wg(j);
-               
-               % Interpolations
-               if order==1       
-                  xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
-         
-               elseif order==2                    
-                  xgr  = ( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*[x1;y1;z1] + ...
-                         -xg(1)*(1-2*xg(1))*[x2;y2;z2] + ...
-                         -xg(2)*(1-2*xg(2))*[x3;y3;z3] + ...
-                         4*xg(1)*(1-xg(1)-xg(2))*[x4;y4;z4] + ...
-                         4*xg(1)*xg(2)*[x5;y5;z5] + ...
-                         4*xg(2)*(1-xg(1)-xg(2))*[x6;y6;z6] ); 
-               end
-
-               ixigrec = Q'*xgr;
-               X = ixigrec(1)/Lx-X0; Y = ixigrec(2)/Lx-Y0; Z = (ixigrec(3)+Cte)/Lx;
-               
-               for ii=0:floor(k/2)
-                  for jj=0:floor(l/2)
-                     s11a( 1+jj+ii*(floor(l/2)+1) )     = (lam+2*mu)*(k+1-2*ii) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s11b( 1+jj+ii*(floor((l+1)/2)+1) ) = lam*(l+1-2*jj) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s11c( 1+jj+ii*(floor(l/2)+1) )     = lam*(2*ii+2*jj+1) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-
-                     s22a( 1+jj+ii*(floor(l/2)+1) )     = lam*(k+1-2*ii) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s22b( 1+jj+ii*(floor((l+1)/2)+1) ) = (lam+2*mu)*(l+1-2*jj) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s22c( 1+jj+ii*(floor(l/2)+1) )     = lam*(2*ii+2*jj+1) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-
-                     s33a( 1+jj+ii*(floor(l/2)+1) )     = lam*(k+1-2*ii) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s33b( 1+jj+ii*(floor((l+1)/2)+1) ) = lam*(l+1-2*jj) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     s33c( 1+jj+ii*(floor(l/2)+1) )     = (lam+2*mu)*(2*ii+2*jj+1) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                  end
-               end
-
-               for ii=0:floor((k+1)/2)
-                  for jj=0:floor((l-1)/2)
-                     s12a( 1+jj+ii*(floor(l/2)+1) ) = mu*(l-2*jj) * X^(k+1-2*ii)*Y^(l-2*jj-1)*Z^(2*ii+2*jj);
-                  end
-               end
-               for ii=0:floor((k-1)/2)
-                  for jj=0:floor((l+1)/2)
-                     s12b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(k-2*ii) * X^(k-1-2*ii)*Y^(l-2*jj+1)*Z^(2*ii+2*jj);
-                  end
-               end
-               
-               jj = 0;
-               for ii=1:floor((k+1)/2)
-                  s13a( 1+jj+ii*(floor(l/2)+1) ) = mu*(2*ii+2*jj) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
-               end
-               for ii=1:floor(k/2)
-                  s23b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(2*ii+2*jj) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
-               end
-               ii = 0;
-               for jj=1:floor(l/2)
-                  s13a( 1+jj+ii*(floor(l/2)+1) ) = mu*(2*ii+2*jj) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
-               end
-
-               for jj=1:floor((l+1)/2)
-                  s23b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(2*ii+2*jj) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
-               end
-
-               for ii=1:floor((k+1)/2)
-                  for jj=1:floor(l/2)
-                     s13a( 1+jj+ii*(floor(l/2)+1) ) = mu*(2*ii+2*jj) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
-                  end
-               end
-               for ii=1:floor(k/2)
-                  for jj=1:floor((l+1)/2)
-                     s23b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(2*ii+2*jj) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
-                  end
-               end
-               for ii=0:floor((k-1)/2)
-                  for jj=0:floor(l/2)
-                     s13c( 1+jj+ii*(floor(l/2)+1) ) = mu*(k-2*ii) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
-                  end
-               end
-               for ii=0:floor(k/2)
-                  for jj=0:floor((l-1)/2)
-                     s23c( 1+jj+ii*(floor(l/2)+1) ) = mu*(l-2*jj) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
-                  end
-               end
-               
-               for no=1:size(fpa,2)
-                  slocpa = 1/Lx*[s11a(no),s12a(no),s13a(no);...
-                                 s12a(no),s22a(no),s23a(no);...
-                                 s13a(no),s23a(no),s33a(no)];
-                  spa = Q*slocpa*Q';
-                  fpa(:,no) = spa*exno;
-               end
-               for no=1:size(fpb,2)
-                  slocpb = 1/Lx*[s11b(no),s12b(no),s13b(no);...
-                                 s12b(no),s22b(no),s23b(no);...
-                                 s13b(no),s23b(no),s33b(no)];
-                  spb = Q*slocpb*Q';
-                  fpb(:,no) = spb*exno;
-               end
-               for no=1:size(fpc,2)
-                  slocpc = 1/Lx*[s11c(no),s12c(no),s13c(no);...
-                                 s12c(no),s22c(no),s23c(no);...
-                                 s13c(no),s23c(no),s33c(no)];
-                  spc = Q*slocpc*Q';
-                  fpc(:,no) = spc*exno;
-               end
-         
-               for ii = 0:floor((k+1)/2)
-                  for jj = 0:floor(l/2)
-                     v1a = X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
-                     vlocpa = [ v1a ; 0 ; 0 ];
-                     vpa( :, 1+jj+ii*(floor(l/2)+1) ) = Q*vlocpa;
-                     Msa( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) =...
-                          Msa( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) + ...
-                          S * wg * ( fpa( :, 1+jj+ii*(floor(l/2)+1) )'*vpa( :, 1+jj+ii*(floor(l/2)+1) ) );
-                  end
-               end
-               for ii = 0:floor(k/2)
-                  for jj = 0:floor((l+1)/2)
-                     v2b = X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj);
-                     vlocpb = [ 0 ; v2b ; 0 ];
-                     vpb( :, 1+jj+ii*(floor((l+1)/2)+1) ) = Q*vlocpb;
-                     Msb( 1+jj+ii*(floor((l+1)/2)+1), 1+jj+ii*(floor((l+1)/2)+1) ) = ...
-                          Msb( 1+jj+ii*(floor((l+1)/2)+1), 1+jj+ii*(floor((l+1)/2)+1) ) + ...
-                          S * wg * ( fpb( :, 1+jj+ii*(floor((l+1)/2)+1) )'*vpb( :, 1+jj+ii*(floor((l+1)/2)+1) ) );
-                  end
-               end
-               for ii = 0:floor(k/2)
-                  for jj = 0:floor(l/2)
-                     v3c = X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
-                     vlocpc = [ 0 ; 0 ; v3c ];
-                     vpc( :, 1+jj+ii*(floor(l/2)+1) ) = Q*vlocpc;
-                     Msc( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) = ...
-                          Msc( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) + ...
-                          S * wg * ( fpc( :, 1+jj+ii*(floor(l/2)+1) )'*vpc( :, 1+jj+ii*(floor(l/2)+1) ) );
-                  end
-               end
-
-            end
-         end
-         
-         Ms = [ Msa,zab,zac ; zab',Msb,zbc ; zac',zbc',Msc ]*E;
+%         % Computation via Gauss Points
+%         Msa = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1) );
+%         Msb = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1) );
+%         Msc = zeros( (floor(k/2)+1)*(floor(l/2)+1) );
+%               
+%         s11a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
+%         s22a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
+%         s33a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
+%         s12a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
+%         s13a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
+%         s23a = zeros( (floor((k+1)/2)+1)*(floor(l/2)+1), 1 );
+%               
+%         s11b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
+%         s22b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
+%         s33b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
+%         s12b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
+%         s13b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
+%         s23b = zeros( (floor(k/2)+1)*(floor((l+1)/2)+1), 1 );
+%               
+%         s11c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
+%         s22c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
+%         s33c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
+%         s12c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
+%         s13c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
+%         s23c = zeros( (floor(k/2)+1)*(floor(l/2)+1), 1 );
+%         
+%         vpa  = zeros( 3, (floor((k+1)/2)+1)*(floor(l/2)+1) );
+%         vpb  = zeros( 3, (floor(k/2)+1)*(floor((l+1)/2)+1) );
+%         vpc  = zeros( 3, (floor(k/2)+1)*(floor(l/2)+1) );
+%         
+%         fpa  = zeros( 3, (floor((k+1)/2)+1)*(floor(l/2)+1) );
+%         fpb  = zeros( 3, (floor(k/2)+1)*(floor((l+1)/2)+1) );
+%         fpc  = zeros( 3, (floor(k/2)+1)*(floor(l/2)+1) );
+%         
+%         for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
+%            bonod = boundary2(i,:); exno = extnorm2(i,:)';
+%         
+%            no1 = bonod(2); no2 = bonod(3); no3 = bonod(4);
+%            x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
+%            x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
+%            x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
+%            vecprod = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1),...
+%                        -(x2-x1)*(z3-z1) + (x3-x1)*(z2-z1),...
+%                        (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)];
+%            S = .5*norm(vecprod);
+%            
+%            if order==1
+%               Ng = min( 12 , max(1, ceil((k+l+2)/2)) );
+%            elseif order==2
+%               Ng  = min( 12, max(1, ceil((k+l+3)/2)) );
+%               no4 = bonod(5); no5 = bonod(6); no6 = bonod(7);
+%               x4  = nodes2(no4,1); y4 = nodes2(no4,2); z4 = nodes2(no4,3);
+%               x5  = nodes2(no5,1); y5 = nodes2(no5,2); z5 = nodes2(no5,3);
+%               x6  = nodes2(no6,1); y6 = nodes2(no6,2); z6 = nodes2(no6,3);
+%            end
+%            [ Xg, Wg ] = gaussPt( Ng );
+%                      
+%            for j=1:size(Wg,1)
+%               xg = Xg(j,:); wg = Wg(j);
+%               
+%               % Interpolations
+%               if order==1       
+%                  xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
+%         
+%               elseif order==2                    
+%                  xgr  = ( -(1-xg(1)-xg(2))*(1-2*(1-xg(1)-xg(2)))*[x1;y1;z1] + ...
+%                         -xg(1)*(1-2*xg(1))*[x2;y2;z2] + ...
+%                         -xg(2)*(1-2*xg(2))*[x3;y3;z3] + ...
+%                         4*xg(1)*(1-xg(1)-xg(2))*[x4;y4;z4] + ...
+%                         4*xg(1)*xg(2)*[x5;y5;z5] + ...
+%                         4*xg(2)*(1-xg(1)-xg(2))*[x6;y6;z6] ); 
+%               end
+%
+%               ixigrec = Q'*xgr;
+%               X = ixigrec(1)/Lx-X0; Y = ixigrec(2)/Lx-Y0; Z = (ixigrec(3)+Cte)/Lx;
+%               
+%               for ii=0:floor(k/2)
+%                  for jj=0:floor(l/2)
+%                     s11a( 1+jj+ii*(floor(l/2)+1) )     = (lam+2*mu)*(k+1-2*ii) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     s11b( 1+jj+ii*(floor((l+1)/2)+1) ) = lam*(l+1-2*jj) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     s11c( 1+jj+ii*(floor(l/2)+1) )     = lam*(2*ii+2*jj+1) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%
+%                     s22a( 1+jj+ii*(floor(l/2)+1) )     = lam*(k+1-2*ii) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     s22b( 1+jj+ii*(floor((l+1)/2)+1) ) = (lam+2*mu)*(l+1-2*jj) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     s22c( 1+jj+ii*(floor(l/2)+1) )     = lam*(2*ii+2*jj+1) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%
+%                     s33a( 1+jj+ii*(floor(l/2)+1) )     = lam*(k+1-2*ii) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     s33b( 1+jj+ii*(floor((l+1)/2)+1) ) = lam*(l+1-2*jj) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     s33c( 1+jj+ii*(floor(l/2)+1) )     = (lam+2*mu)*(2*ii+2*jj+1) * X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                  end
+%               end
+%
+%               for ii=0:floor((k+1)/2)
+%                  for jj=0:floor((l-1)/2)
+%                     s12a( 1+jj+ii*(floor(l/2)+1) ) = mu*(l-2*jj) * X^(k+1-2*ii)*Y^(l-2*jj-1)*Z^(2*ii+2*jj);
+%                  end
+%               end
+%               for ii=0:floor((k-1)/2)
+%                  for jj=0:floor((l+1)/2)
+%                     s12b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(k-2*ii) * X^(k-1-2*ii)*Y^(l-2*jj+1)*Z^(2*ii+2*jj);
+%                  end
+%               end
+%               
+%               jj = 0;
+%               for ii=1:floor((k+1)/2)
+%                  s13a( 1+jj+ii*(floor(l/2)+1) ) = mu*(2*ii+2*jj) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
+%               end
+%               for ii=1:floor(k/2)
+%                  s23b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(2*ii+2*jj) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
+%               end
+%               ii = 0;
+%               for jj=1:floor(l/2)
+%                  s13a( 1+jj+ii*(floor(l/2)+1) ) = mu*(2*ii+2*jj) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
+%               end
+%
+%               for jj=1:floor((l+1)/2)
+%                  s23b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(2*ii+2*jj) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
+%               end
+%
+%               for ii=1:floor((k+1)/2)
+%                  for jj=1:floor(l/2)
+%                     s13a( 1+jj+ii*(floor(l/2)+1) ) = mu*(2*ii+2*jj) * X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj-1);
+%                  end
+%               end
+%               for ii=1:floor(k/2)
+%                  for jj=1:floor((l+1)/2)
+%                     s23b( 1+jj+ii*(floor((l+1)/2)+1) ) = mu*(2*ii+2*jj) * X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj-1);
+%                  end
+%               end
+%               for ii=0:floor((k-1)/2)
+%                  for jj=0:floor(l/2)
+%                     s13c( 1+jj+ii*(floor(l/2)+1) ) = mu*(k-2*ii) * X^(k-2*ii-1)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
+%                  end
+%               end
+%               for ii=0:floor(k/2)
+%                  for jj=0:floor((l-1)/2)
+%                     s23c( 1+jj+ii*(floor(l/2)+1) ) = mu*(l-2*jj) * X^(k-2*ii)*Y^(l-1-2*jj)*Z^(2*ii+2*jj+1);
+%                  end
+%               end
+%               
+%               for no=1:size(fpa,2)
+%                  slocpa = 1/Lx*[s11a(no),s12a(no),s13a(no);...
+%                                 s12a(no),s22a(no),s23a(no);...
+%                                 s13a(no),s23a(no),s33a(no)];
+%                  spa = Q*slocpa*Q';
+%                  fpa(:,no) = spa*exno;
+%               end
+%               for no=1:size(fpb,2)
+%                  slocpb = 1/Lx*[s11b(no),s12b(no),s13b(no);...
+%                                 s12b(no),s22b(no),s23b(no);...
+%                                 s13b(no),s23b(no),s33b(no)];
+%                  spb = Q*slocpb*Q';
+%                  fpb(:,no) = spb*exno;
+%               end
+%               for no=1:size(fpc,2)
+%                  slocpc = 1/Lx*[s11c(no),s12c(no),s13c(no);...
+%                                 s12c(no),s22c(no),s23c(no);...
+%                                 s13c(no),s23c(no),s33c(no)];
+%                  spc = Q*slocpc*Q';
+%                  fpc(:,no) = spc*exno;
+%               end
+%         
+%               for ii = 0:floor((k+1)/2)
+%                  for jj = 0:floor(l/2)
+%                     v1a = X^(k+1-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj);
+%                     vlocpa = [ v1a ; 0 ; 0 ];
+%                     vpa( :, 1+jj+ii*(floor(l/2)+1) ) = Q*vlocpa;
+%                     Msa( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) =...
+%                          Msa( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) + ...
+%                          S * wg * ( fpa( :, 1+jj+ii*(floor(l/2)+1) )'*vpa( :, 1+jj+ii*(floor(l/2)+1) ) );
+%                  end
+%               end
+%               for ii = 0:floor(k/2)
+%                  for jj = 0:floor((l+1)/2)
+%                     v2b = X^(k-2*ii)*Y^(l+1-2*jj)*Z^(2*ii+2*jj);
+%                     vlocpb = [ 0 ; v2b ; 0 ];
+%                     vpb( :, 1+jj+ii*(floor((l+1)/2)+1) ) = Q*vlocpb;
+%                     Msb( 1+jj+ii*(floor((l+1)/2)+1), 1+jj+ii*(floor((l+1)/2)+1) ) = ...
+%                          Msb( 1+jj+ii*(floor((l+1)/2)+1), 1+jj+ii*(floor((l+1)/2)+1) ) + ...
+%                          S * wg * ( fpb( :, 1+jj+ii*(floor((l+1)/2)+1) )'*vpb( :, 1+jj+ii*(floor((l+1)/2)+1) ) );
+%                  end
+%               end
+%               for ii = 0:floor(k/2)
+%                  for jj = 0:floor(l/2)
+%                     v3c = X^(k-2*ii)*Y^(l-2*jj)*Z^(2*ii+2*jj+1);
+%                     vlocpc = [ 0 ; 0 ; v3c ];
+%                     vpc( :, 1+jj+ii*(floor(l/2)+1) ) = Q*vlocpc;
+%                     Msc( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) = ...
+%                          Msc( 1+jj+ii*(floor(l/2)+1), 1+jj+ii*(floor(l/2)+1) ) + ...
+%                          S * wg * ( fpc( :, 1+jj+ii*(floor(l/2)+1) )'*vpc( :, 1+jj+ii*(floor(l/2)+1) ) );
+%                  end
+%               end
+%
+%            end
+%         end
+%         
+%         Ms = [ Msa,zab,zac ; zab',Msb,zbc ; zac',zbc',Msc ]*E;
                   
          % Minimize under the constraints
 %         Lhsto2 = [ Mm , Lhsco' ; Lhsco , zeros(size(Lhsco,1)) ];
