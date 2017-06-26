@@ -147,8 +147,10 @@ function [u,sig,p,lambda] = Elastoplast( mat,K,f,T,nodes,elem,order,eps,nmax,var
                            -1/3*Deltaeps(1) - 1/3*Deltaeps(2) % deviator(e33)is not 0
                            Deltaeps(3)/2 ]; % Deviator of Deltaeps (plane defo, eps33=0)
              sigde = sigd( [4*j-3,4*j-2,4*j-1,4*j], i );
-             sigdelas = sigde + 2*mu*Deltaepsd; 
-             sigeqelas = sqrt32 * sqrt(sigdelas(1)^2 + sigdelas(2)^2 + sigdelas(3)^2 + 2*sigdelas(4)^2);
+             sigdelas = sigde + 2*mu*Deltaepsd;
+             Xloc = X([4*j-3;4*j-2;4*j-1;4*j], i);
+             sigeqelas = sqrt32 * sqrt((sigdelas(1)-Xloc(1))^2 + (sigdelas(2)-Xloc(2))^2 + ...
+                                       (sigdelas(3)-Xloc(3))^2 + 2*(sigdelas(4)-Xloc(4))^2);
 %             if j==1 sigeqelas
 %             Slim + alpha*p(j,i) 
 %             Slim + alpha*p(j,i) + alpha*Deltap(j) end
@@ -163,19 +165,26 @@ function [u,sig,p,lambda] = Elastoplast( mat,K,f,T,nodes,elem,order,eps,nmax,var
                 
                 Atan = Sm1; % We are in elasticity
              else % Plasticity
-                Deltap(j) = ( sigeqelas - Slim - alpha*p(j,i) ) / (alpha+3*mu);
+                Deltap(j) = ( sigeqelas - Slim - alpha*p(j,i) ) / (alpha+H+3*mu);
                 beta  = 3*mu*Deltap(j)/sigeqelas;
-                gamma = 3*mu/(3*mu+alpha);
+                gamma = 3*mu/(3*mu+alpha+H);
                 sig( [3*j-2,3*j-1,3*j], i+1 ) = ...
                       kappa*(epsipp(1)+epsipp(2)) * [1;1;0]...
                       + (1-beta)*sigdelas([1,2,4]) ;% (1-beta)/2*sigdelas(4) ] ;
                 sigd( [4*j-3,4*j-2,4*j-1,4*j], i+1 ) = (1-beta)*sigdelas;
                 epsp( [3*j-2,3*j-1,3*j], i+1 ) = epsp( [3*j-2,3*j-1,3*j], i ) + ...
                       beta/(2*mu)*sigdelas([1,2,4]);
-                      
+%
+%                size(sigdelas)
+%                size(X( [4*j-3;4*j-2;4*j-1;4*j], i))
+                DeltaX( [4*j-3;4*j-2;4*j-1;4*j], 1 ) = H*Deltap(j)* ...
+                        ( sigdelas - Xloc ) / sigeqelas;
+
 %                Atan = Sm1;
+                NXN = ( ( sigdelas([1,2,4]) - Xloc([1,2,4]) ) *...% - DeltaX( [4*j-3;4*j-2;4*j], 1 ) ) * ...
+                            transpose( sigdelas([1,2,4]) - Xloc([1,2,4]) ) ) ; % - DeltaX( [4*j-3;4*j-2;4*j], 1 ) ) );
                 Atan = Sm1  - 2*mu*beta*Deviator ...
-                       - 3*mu*(gamma-beta)*(sigdelas([1,2,4])*sigdelas([1,2,4])')/(sigeqelas)^2;
+                       - 3*mu*(gamma-beta)* NXN /(sigeqelas)^2;
              end
              %% End of radial algo
 %             if j==1 sigmaegal = sig( [3*j-2,3*j-1,3*j], i+1 )

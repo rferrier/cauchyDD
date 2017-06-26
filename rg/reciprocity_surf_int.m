@@ -23,7 +23,8 @@ regmu   = 0;      % Regularization parameter
 br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 2; % Order of polynom
+ordp      = 1; % Order of polynom
+ordpD     = 2; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -1687,13 +1688,85 @@ if usepolys == 1
       
    end
    
+   % Find the coefficients on the rest of the base, that minimize the derivative.
+   LhsD = zeros((ordpD+1)^2); % Will be truncated later : for now, it containsall the coeffs from 0 to 20
+   RhsD = zeros((ordpD+1)^2,1);
+   for i=0:ordpD
+      for j=0:ordpD
+         for k=0:ordpD
+            for l=0:ordpD
+               if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && i+k>1
+                  LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                        i*k*(L2x^(i+k-1)-L1x^(i+k-1))*(L2y^(j+l+1)-L1y^(j+l+1))/((i+k-1)*(j+l+1));
+               end
+               if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && j+l>1
+                  LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                        LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) +...
+                        j*l*(L2x^(i+k+1)-L1x^(i+k+1))*(L2y^(j+l-1)-L1y^(j+l-1))/((i+k+1)*(j+l-1));
+               end
+            end
+         end
+      end
+   end
+   
+   for i=0:ordp
+      for j=0:ordp
+         for k=0:ordpD
+            for l=0:ordpD
+               if (k>ordp || l>ordp) && i+k>1
+                  RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+i+(ordp+1)*j) * ...
+                        i*k*(L2x^(i+k-1)-L1x^(i+k-1))*(L2y^(j+l+1)-L1y^(j+l+1))/((i+k-1)*(j+l+1));
+               end
+               if (k>ordp || l>ordp) && j+l>1
+                  RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+i+(ordp+1)*j) * ...
+                        j*l*(L2x^(i+k+1)-L1x^(i+k+1))*(L2y^(j+l-1)-L1y^(j+l-1))/((i+k+1)*(j+l-1));
+               end
+            end
+         end
+      end
+   end
+   
+   % At this point, there are plenty of zero columns (and lines) in LhsD.
+   % We are going to add identity on those in order to make the system invertible
+   % This has no impact on the solution as the RhsD in front is 0.
+   for i=0:ordpD
+      for j=0:ordpD
+         if norm(LhsD(j+1+(ordpD+1)*i,:)) == 0
+            LhsD(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) = 1;
+         end
+      end
+   end
+   
+   McCoefD = LhsD\RhsD;
+   
+   % Add it to solup
+   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   solupp = solup'; % Because of the transpose
+   for k=0:ordpD
+      for l=0:ordpD
+         solupp = solupp + McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+      end
+   end
+   solupp = solupp';
+   
+   figure;
+   hold on;
+   surf(X,Y,solup);
+   shading interp;
+   colorbar();
+   axis('equal');
+   
+%   csvwrite('fields/rg3d_polyp.csv',solupp);
+%   csvwrite('fields/rg3d_X.csv',X);
+%   csvwrite('fields/rg3d_Y.csv',Y);
+   
 end
 
 % Plot on the line X = 4
 figure;
 hold on;
 nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = -4;
+Y = min(Ys):nys:max(Ys); X = 4;
 
 if usefourier == 1
    solu = 0;

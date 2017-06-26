@@ -19,7 +19,7 @@ function [indm,p] = findPicard2 (x, varargin)
      maxi = cell2mat(varargin(2));
  end
  
- crit = 1;   % Criterion : 1=derivative, 2=minimum
+ crit = 1;   % Criterion : 1=derivative, 2=minimum, 3=derivative & minimum
  if numel(varargin)>2
      crit = cell2mat(varargin(3));
  end
@@ -53,8 +53,7 @@ function [indm,p] = findPicard2 (x, varargin)
     px = p'*tt;  % interpolation
  end
  
- 
- if crit == 1
+ if crit == 1 || crit == 3
     % build the derivation matrix
     Md = zeros(n+1);
     for i=2:n+1
@@ -65,15 +64,29 @@ function [indm,p] = findPicard2 (x, varargin)
     px1 = p1'*tt; % interpolation of the derivative
    
     posit = find( px1>0 ); % Find the first point with px1>0
-    if size(posit>0)
+    if size(posit,2)>0
        indm = posit(1);
     end
  elseif crit == 2
-    px(inferior) = max(px)+1; % Makes sure inverior values von't be selected
+    px(inferior) = max(px)+1; % Makes sure inferior values won't be selected
     [px,indm] = min(px);
-%    indm = find ( px == min(px) );
- else
-    error('Third optional argument is not readable')
+ end
+
+ if crit == 3 % Min of the positive derivative points
+     px(inferior) = max(px)+1; % Makes sure inferior values won't be selected
+     noposit = setdiff(1:size(px,2),posit);
+     px(noposit) = max(px)+1; % Makes sure negative derivative won't be selected
+     
+     if size(noposit,2)>0 % If there is a negative part
+        nopo1 = noposit(1);
+        px(1:nopo1) = max(px)+1; % Makes sure first values won't be selected
+     end
+     
+     [px,indm] = min(px);
+     
+     if size(posit,2)==0 % There is no minimum : select the last one
+        indm = npo;
+     end
  end
  
 end

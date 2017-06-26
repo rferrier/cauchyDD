@@ -326,8 +326,8 @@ E       = 200000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 Slim    = 250;    % MPa : elasticity limit
 alpha   = 30000;  % MPa : Isotropic hardening coefficient 1000000
-H       = 000;  % MPa : Cinematic hardening (not implemented
-fscalar = 400;    % N.mm-2 : Loading on the plate
+H       = 0000;  % MPa : Cinematic hardening (not implemented
+fscalar = 330;    % N.mm-2 : Loading on the plate
 mat = [10, E, nu, Slim, alpha, H]; % Elasto-plastic with linear isotropic hardening
 
 % Boundary conditions
@@ -336,8 +336,9 @@ mat = [10, E, nu, Slim, alpha, H]; % Elasto-plastic with linear isotropic harden
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
 %dirichlet = [ 1,1,0 ; 1,2,0 ];
-dirichlet = [ 0,1,0 ; 1,2,0 ];% 2,1,0 ; 4,1,0 ];
-%dirichlet = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ];
+%dirichlet = [ 0,1,0 ; 1,2,0 ];
+%dirichlet = [ 1,1,0 ; 1,2,0 ];% 2,1,0 ; 4,1,0 ];
+dirichlet = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ];
 %dirichlet = [ 0,1,0 ; 1,2,0 ; 3,2,0 ];% 2,1,0 ; 4,1,0 ];
 neumann   = [ 3,2,fscalar ];
 
@@ -348,13 +349,13 @@ nnodes = size(nodes,1); nelem = size(elements,1);
 % Then, build the stiffness matrix :
 [K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,[0, E, nu],order,boundary,dirichlet,1);
 % The right hand side :
-f1 = loading(nbloq,nodes,boundary,neumann);
-%f1 = volumicLoad( nbloq, nodes, elements, 2, 30 );
-%udi = zeros( nnodes, 1 );
-%ind = 2:2:2*nnodes;
-%udi(ind,1) = 0.02;
-%udi = keepField( udi, 3, boundary );
-%f1 = [ zeros(2*nnodes,1) ; C'*udi ];
+%f1 = loading(nbloq,nodes,boundary,neumann);
+f1 = volumicLoad( nbloq, nodes, elements, 2, 30 );
+udi = zeros( nnodes, 1 );
+ind = 2:2:2*nnodes;
+udi(ind,1) = 0.02;
+udi = keepField( udi, 3, boundary );
+f1 = [ zeros(2*nnodes,1) ; C'*udi ];
 
 %% Proportionnal loading
 %T = 1:1:10;
@@ -363,7 +364,7 @@ f1 = loading(nbloq,nodes,boundary,neumann);
 % Cyclic loading
 T = 1:1:25;
 fa = f1*T/T(end); fb = f1*(1-T/T(end)); f = fa;
-%T = 1:1:100;
+T = 1:1:75; f = [fa,fb,-fa];
 %f = [fa,fb,-fa,-fb];%,fa];%,fb,-fa,-fb,fa];
 
 % Solve the problem :
@@ -373,8 +374,6 @@ fa = f1*T/T(end); fb = f1*(1-T/T(end)); f = fa;
 u = uin(1:2*nnodes,end);
 ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 
-% Compute stress (wrong in plasticity):
-%sigma = stress(u,E,nu,nodes,elements,order,1,ntoelem,1);
 % pass sigma on the nodes
 Red = zeros(nnodes,nelem);
 for i=1:size(elements,1)
@@ -399,6 +398,6 @@ plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress';p,'cumulated plasticity'},
           elements, nodes, 'output/elasto_plastic');
           
 % Plot traction curve at node 3
-%f = -[ lam(:,2:end) ; zeros( size(uin,1)-size(u,1) , size(T,2) ) ];
+f = -[ lam(:,2:end) ; zeros( size(uin,1)-size(u,1) , size(T,2) ) ];
 up = uin(6,1:end); fp = [0,f(6,:)];
 plot(up, fp);

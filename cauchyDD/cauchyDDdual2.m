@@ -222,6 +222,7 @@ urb = {}; b1to2 = {}; cornoglob = {}; corno = {};
 sdtorm = zeros(nsub,1); rmtosd = [];
 
 Mprec = eye(4*nnodes); % Predonditionner wrt multiplicity
+Mprec = sparse(Mprec);
 
 j = 1; % index for the connectivity tables
 for i = 1:2*nsub
@@ -258,6 +259,8 @@ for i = 1:2*nsub
    
 %   Mprec( [2*cornoglob{i}-1;2*cornoglob{i}], ...
 %                 [2*cornoglob{i}-1;2*cornoglob{i}] ) = 1/3*eye(4);
+%   Mprec( 2*nnodes+[2*cornoglob{i}-1;2*cornoglob{i}], ...
+%              2*nnodes+[2*cornoglob{i}-1;2*cornoglob{i}] ) = 1/3*eye(4);
 
    % Stiffness matrices
    [K{i},C,nbloq{i},node2c,c2node] =...

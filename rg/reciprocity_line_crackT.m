@@ -16,13 +16,13 @@ mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
 %niter      = 4;    %26-49 Number of regularization iterations
-ncrack     = 10001;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+ncrack     = 11;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
                     % 51  : refined postpro mesh
                     % 101 : direct & integrals refined, basic crack
                     % 103 : idem for the small crack
                     % 1001 : more test-functions
                     % 10001 : analysis on a mesh marking the crack
-co         = [1,1,1,1]; % Coefficients for each RG test-case
+co         = [1,0,1,0]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
 
 % List of the operations :
@@ -867,10 +867,10 @@ for i = 1:niter
    me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));   
 
    % Compute Picard stopping indices (induces singular matrix warning...)
-   ind1(i) = findPicard2 (log10(arplo1), 7, 1, 2);
-   ind2(i) = findPicard2 (log10(arplo2), 7, 1, 2);
-   ind3(i) = findPicard2 (log10(arplo3), 7, 1, 2);
-   ind4(i) = findPicard2 (log10(arplo4), 7, 1, 2);
+   ind1(i) = findPicard2 (log10(arplo1), 7, 1, 3);
+   ind2(i) = findPicard2 (log10(arplo2), 7, 1, 3);
+   ind3(i) = findPicard2 (log10(arplo3), 7, 1, 3);
+   ind4(i) = findPicard2 (log10(arplo4), 7, 1, 3);
    
    % Postpro
 %   if i>1
@@ -890,7 +890,7 @@ for i = 1:niter
       plot(log10(abs(rplo2)),'Color','blue');
       legend('Singular values','Rhs1','sol1','Rhs2','sol2');
       
-%      [indm,p] = findPicard2 (log10(abs(rplo3)), 7, 1, 2);
+%      [indm,p] = findPicard2 (log10(arplo1), 7, 1, 3);
 %      n = size(p,1);
 %      t = 1:.05:imax; tt = zeros(n,20*(imax-1)+1);
 %      for j=1:n
@@ -900,9 +900,9 @@ for i = 1:niter
 %      
 %      figure
 %      hold on;
-%      plot(log10(abs(rplo3)),'Color','black');
+%      plot(log10(arplo1),'Color','black');
 %      plot(t,px,'Color','red');
-%      legend('sol3','poly3');
+%      legend('sol1','poly1');
 
       figure
       hold on;
