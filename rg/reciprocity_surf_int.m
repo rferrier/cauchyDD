@@ -23,8 +23,8 @@ regmu   = 0;      % Regularization parameter
 br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 5; % Order of polynom
-ordpD     = 12; % Order of the differential H1 post-regularization whatsoever.
+ordp      = 8; % Order of polynom
+ordpD     = 10; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -34,6 +34,10 @@ usefourier = 0;
 usepolys   = 1;
 plotref    = 1;
 comperror  = 1;
+Norm       = 2; % 0 means no derivative stuff (and not zero norm)
+
+% Line to add to store the fields
+% save('fields/McCoef1.mat','McCoef','ordp','Lx','Ly','L1x','L2x','L1y','L2y','Xs','Ys','X0','Y0');
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
@@ -1667,151 +1671,113 @@ if usepolys == 1
          end
       end
    end
-   
-   % Matrix for the "H1-L2" Inner product
-   PS1 = zeros((ordpD+1)^2);
-   for i=0:ordpD
-      for j=0:ordpD
-         for k=0:ordpD
-            for l=0:ordpD
-               if k+i>1
-                  PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-                        PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) + ...
-                        Lx^2*k*i*(L2x^(k+i-1)-L1x^(k+i-1))*(L2y^(l+j+1)-L1y^(l+j+1))/...
-                                             ((k+i-1)*(l+j+1));
-               end
-               if l+j>1
-                  PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-                        PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) +...
-                        Ly^2*l*j*(L2x^(k+i+1)-L1x^(k+i+1))*(L2y^(l+j-1)-L1y^(l+j-1))/...
-                                             ((k+i+1)*(l+j-1));
-               end
-            end
-         end
-      end
-   end
-   
+
 %    [PassD, ~] = eig(LhsO); % This matrix gives the Legendre basis
 %    PassD = eye((ordpD+1)^2);
    PassD1 = chol(PS0,'lower');     %CHOLESKI
    PassD = inv(PassD1');
    
-%    LhsD = zeros((ordpD+1)^2); % Will be truncated later : for now, it contains all the coeffs from 0 to ordpD
-   RhsD = zeros((ordpD+1)^2,1);
-
-%    for i=0:ordpD
-%       for j=0:ordpD
-%          for k=0:ordpD
-%             for l=0:ordpD
-%                 
-%                for ii=0:i
-%                   for jj=0:j
-%                      for kk=0:k
-%                         for ll=0:l
-%                             % Debug stuff :
-% %                             LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-% %                                 LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) + ...
-% %                                 PassD(jj+1+(ordpD+1)*ii, j+1+(ordpD+1)*i) * ...
-% %                                 PassD(ll+1+(ordpD+1)*kk, l+1+(ordpD+1)*k) * ...
-% %                                 LhsO(jj+1+(ordpD+1)*ii,ll+1+(ordpD+1)*kk);
-%                            if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && kk+ii>1
-%                               LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-%                                     LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) + ...
-%                                     PassD(jj+1+(ordpD+1)*ii, j+1+(ordpD+1)*i) * ...
-%                                     PassD(ll+1+(ordpD+1)*kk, l+1+(ordpD+1)*k) * ...
-%                                     kk*ii*(L2x^(kk+ii-1)-L1x^(kk+ii-1))*(L2y^(ll+jj+1)-L1y^(ll+jj+1))/...
-%                                                          ((kk+ii-1)*(ll+jj+1));
-%                            end
-%                            if ((i>ordp || j>ordp) && ( k>ordp || l>ordp)) && ll+jj>1
-%                               LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-%                                     LhsD(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) +...
-%                                     PassD(jj+1+(ordpD+1)*ii, j+1+(ordpD+1)*i) * ...
-%                                     PassD(ll+1+(ordpD+1)*kk, l+1+(ordpD+1)*k) * ...
-%                                     ll*jj*(L2x^(kk+ii+1)-L1x^(kk+ii+1))*(L2y^(ll+jj-1)-L1y^(ll+jj-1))/...
-%                                                          ((kk+ii+1)*(ll+jj-1));
-%                            end
-%                         end
-%                      end
-%                   end
-%                end
-%                
-%             end
-%          end
-%       end
-%    end
-   
-   LhsD = PassD'*PS1*PassD;
-   % We are only using the last vectors from the basis : put zeros
-   for k=0:ordpD
-      for l=0:ordpD
-          if (k<=ordp && l<=ordp)
-             LhsD(l+1+(ordpD+1)*k,:) = 0;
-             LhsD(:,l+1+(ordpD+1)*k) = 0;
-          end
-      end
-   end
-   
-   
-   for k=0:ordpD
-      for l=0:ordpD
-         for i=0:ordp
-            for j=0:ordp
-
-               for ii=0:k
-                  for jj=0:l
-                     if (k>ordp || l>ordp) && i+ii>1
-                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
-                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-                              Lx^2*i*ii*(L2x^(i+ii-1)-L1x^(i+ii-1))*(L2y^(j+jj+1)-L1y^(j+jj+1))/((i+ii-1)*(j+jj+1));
-                     end
-                     if (k>ordp || l>ordp) && j+jj>1
-                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
-                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-                              Ly^2*j*jj*(L2x^(i+ii+1)-L1x^(i+ii+1))*(L2y^(j+jj-1)-L1y^(j+jj-1))/((i+ii+1)*(j+jj-1));
-                     end
+   if Norm == 2
+      % Matrix for the "H1-L2" Inner product
+      PS1 = zeros((ordpD+1)^2);
+      for i=0:ordpD
+         for j=0:ordpD
+            for k=0:ordpD
+               for l=0:ordpD
+                  if k+i>1
+                     PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                           PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) + ...
+                           Lx^2*k*i*(L2x^(k+i-1)-L1x^(k+i-1))*(L2y^(l+j+1)-L1y^(l+j+1))/...
+                                                ((k+i-1)*(l+j+1));
+                  end
+                  if l+j>1
+                     PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                           PS1(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) +...
+                           Ly^2*l*j*(L2x^(k+i+1)-L1x^(k+i+1))*(L2y^(l+j-1)-L1y^(l+j-1))/...
+                                                ((k+i+1)*(l+j-1));
                   end
                end
-               
             end
          end
       end
-   end
-   
-   % At this point, there are plenty of zero columns (and lines) in LhsD.
-   % We are going to add identity on those in order to make the system invertible
-   % This has no impact on the solution as the RhsD in front is 0.
-   for i=0:ordpD
-      for j=0:ordpD
-         if norm(LhsD(j+1+(ordpD+1)*i,:)) == 0
-            LhsD(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) = 1;
+
+      RhsD = zeros((ordpD+1)^2,1); % Will be truncated later : for now, it contains all the coeffs from 0 to ordpD
+
+      LhsD = PassD'*PS1*PassD;
+      % We are only using the last vectors from the basis : put zeros
+      for k=0:ordpD
+         for l=0:ordpD
+             if (k<=ordp && l<=ordp)
+                LhsD(l+1+(ordpD+1)*k,:) = 0;
+                LhsD(:,l+1+(ordpD+1)*k) = 0;
+             end
          end
       end
-   end
-   
-   McCoefD = LhsD\RhsD;
-   
-   % Add it to solup
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
-   solupp = solup'; % Because of the transpose
-   for k=0:ordpD
-      for l=0:ordpD
-         for ii=0:k
-            for jj=0:l
-               solupp = solupp + PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-                       McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
+
+      for k=0:ordpD
+         for l=0:ordpD
+            for i=0:ordp
+               for j=0:ordp
+
+                  for ii=0:k
+                     for jj=0:l
+                        if (k>ordp || l>ordp) && i+ii>1
+                           RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
+                                 PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+                                 Lx^2*i*ii*(L2x^(i+ii-1)-L1x^(i+ii-1))*(L2y^(j+jj+1)-L1y^(j+jj+1))/((i+ii-1)*(j+jj+1));
+                        end
+                        if (k>ordp || l>ordp) && j+jj>1
+                           RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
+                                 PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+                                 Ly^2*j*jj*(L2x^(i+ii+1)-L1x^(i+ii+1))*(L2y^(j+jj-1)-L1y^(j+jj-1))/((i+ii+1)*(j+jj-1));
+                        end
+                     end
+                  end
+
+               end
             end
          end
-                     
       end
+
+      % At this point, there are plenty of zero columns (and lines) in LhsD.
+      % We are going to add identity on those in order to make the system invertible
+      % This has no impact on the solution as the RhsD in front is 0.
+      for i=0:ordpD
+         for j=0:ordpD
+            if norm(LhsD(j+1+(ordpD+1)*i,:)) == 0
+               LhsD(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) = 1;
+            end
+         end
+      end
+       
+       McCoefD = LhsD\RhsD;
+
+      % Add it to solup
+      X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+      solupp = solup'; % Because of the transpose
+      for k=0:ordpD
+         for l=0:ordpD
+            for ii=0:k
+               for jj=0:l
+                  solupp = solupp + PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+                          McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
+               end
+            end
+         end
+      end
+      solupp = solupp';
+
+      figure;
+      hold on;
+      surf(X,Y,solupp);
+      shading interp;
+      colorbar();
+      axis('equal');
+      
+   else % No gradient stuff
+      solupp = solup;
+      McCoefD = zeros((ordpD+1)^2,1);
    end
-   solupp = solupp';
-   
-   figure;
-   hold on;
-   surf(X,Y,solupp);
-   shading interp;
-   colorbar();
-   axis('equal');
    
 %   csvwrite('fields/rg3d_polyp.csv',solupp);
 %   csvwrite('fields/rg3d_X.csv',X);

@@ -914,10 +914,10 @@ for j=1:size(oldauthorized0,1)
 end
 %axis equal;
 axis([0 1 0 1]);
-colormap("default")
+colormap('default')
 h = colorbar();
-ytick = get (h, "ytick");
-set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap10) ));
+ytick = get (h, 'ytick');
+set (h, 'yticklabel', sprintf ( '%g|', maxn1*ytick+min(nogap10) ));
 
 %figure;
 %hold on;
