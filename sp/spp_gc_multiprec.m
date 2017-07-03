@@ -216,10 +216,10 @@ for iter = 1:niter
     %%
     Delta = ([Ad1(indexa,iter),Ad2(indexa,iter)]'*[d1(indexa,iter),d2(indexa,iter)]);
     gamma = ([Zed1(indexa,iter),Zed2(indexa,iter)]'*Res(indexa,iter));
-    alpha = Delta\gamma;
+    alpha(:,iter) = Delta\gamma;
 
-    Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha;
-    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha;
+    Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha(:,iter);
+    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha(:,iter);
     
     residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
     error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));

@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 15;
-precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+niter   = 20;
+precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = .0;    % noise
+br      = .01;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
@@ -210,7 +210,7 @@ end
 
 d(:,1) = Zed(:,1);
 
-residual(1) = sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res( indexa,1));
+residual(1) = norm(Res( indexa,1));%sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res( indexa,1));
 error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
@@ -263,7 +263,7 @@ for iter = 1:niter
         Zed(:,iter+1) = Res(:,iter+1);
     end
     
-    residual(iter+1) = sqrt(Zed(indexa,iter+1)'*Res(indexa,iter+1));%norm(Res(indexa,iter+1));
+    residual(iter+1) = norm(Res(indexa,iter+1));%sqrt(Zed(indexa,iter+1)'*Res(indexa,iter+1));%
     error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
@@ -384,7 +384,7 @@ for i = 1:iter+1
    u1 = keepField( u1i, 2, boundaryp1 );
    ZedS = u1;
    
-   resS(i) = sqrt(ResS'*ZedS);%norm(ResS);   
+   resS(i) = norm(ResS); %sqrt(ResS'*ZedS);%  
    regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
    errS(i) = norm(ItereS(indexa)-uref(indexa))/norm(uref(indexa));
 end
