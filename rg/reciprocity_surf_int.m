@@ -23,8 +23,8 @@ regmu   = 0;      % Regularization parameter
 br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 8; % Order of polynom
-ordpD     = 10; % Order of the differential H1 post-regularization whatsoever.
+ordp      = 1; % Order of polynom
+ordpD     = 1; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -34,7 +34,7 @@ usefourier = 0;
 usepolys   = 1;
 plotref    = 1;
 comperror  = 1;
-Norm       = 2; % 0 means no derivative stuff (and not zero norm)
+Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % Line to add to store the fields
 % save('fields/McCoef1.mat','McCoef','ordp','Lx','Ly','L1x','L2x','L1y','L2y','Xs','Ys','X0','Y0');
