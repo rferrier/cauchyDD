@@ -38,6 +38,7 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % Line to add to store the fields
 % save('fields/McCoef1.mat','McCoef','ordp','Lx','Ly','L1x','L2x','L1y','L2y','Xs','Ys','X0','Y0');
+% save('fields/ref_mults.mat','uplo','uplo1');
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';

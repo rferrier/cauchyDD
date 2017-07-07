@@ -14,11 +14,11 @@ niter   = 20;
 precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
-br      = .01;      % noise
+br      = .0;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 0;      % inhomogeneous medium
+inhomog = 2;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -429,11 +429,11 @@ figure;
 %legend('brutal solution','filtred solution', 'reference')
 %figure;
 
-%hold on
-%plot(error(2:end),'Color','blue')
-%%plot(log10(residual(2:end)),'Color','red')
-%legend('error')%legend('error (log)','residual (log)')
-%figure;
+hold on
+plot(error(2:end),'Color','blue')
+%plot(log10(residual(2:end)),'Color','red')
+legend('error')%legend('error (log)','residual (log)')
+figure;
 %L-curve :
 hold on;
 loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');

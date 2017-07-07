@@ -834,7 +834,7 @@ for i = 1:niter
    end
    
    oldauthorized = authorized;
-   authorized = [ 2*authorized-1 ; 2*authorized ];
+   authorized = unique( [ 2*authorized-1 ; 2*authorized ] );
 
    [Q,Theta] = eig( A(authorized,authorized) );%,L); Q = Q*(Q'*L*Q)^(-1/2);
    thetas = diag(Theta);
@@ -912,7 +912,7 @@ for i = 1:niter
       plot(log10(abs(bplo4)),'Color','magenta');
       plot(log10(abs(rplo4)),'Color','blue');
       legend('Singular values','Rhs3','sol3','Rhs4','sol4');
-
+%      bug
 %      figure
 %      hold on;
 %      plot(log10(abs(rplo1)),'Color','black');
@@ -925,7 +925,11 @@ for i = 1:niter
    % Filter eigenvalues
    if jmax == 0
       jmax0 = size(Thetas,1);
-      jmax1 = ind1(i); jmax2 = ind2(i); jmax3 = ind3(i); jmax4 = ind4(i);
+      %if cond(A(authorized,authorized)) > 1e12 % Trigger Ritz filtering only if the cond number is huge
+         jmax1 = ind1(i); jmax2 = ind2(i); jmax3 = ind3(i); jmax4 = ind4(i);
+      %else
+       %  jmax1 = jmax0; jmax2 = jmax0; jmax3 = jmax0; jmax4 = jmax0;
+      %end
 %      jmax1 = ind1; jmax2 = ind2; jmax3 = ind3; jmax4 = ind4;
    else
       jmax = min( size(Thetas,1) , jmax );

@@ -35,15 +35,12 @@ Point(14) = {eps,H-eps,0.0,lc1};
 // Crack tops
 Point(5) = {x5, y5, 0.0, lc2};
 Point(6) = {x6, y6, 0.0, lc2};
-Point(7) = {x7, y7, 0.0, lc2};
-Point(8) = {x8, y8, 0.0, lc2};
 
 Line(1) = {1,2};
 Line(2) = {2,3};
 Line(3) = {3,4};
 Line(4) = {4,1};
-Circle(5) = {5,7,6};
-Circle(6) = {6,8,5};
+Line(5) = {5,6};
 
 Line(11) = {11,12};
 Line(12) = {12,13};
@@ -51,19 +48,13 @@ Line(13) = {13,14};
 Line(14) = {14,11};
 
 Line Loop(11) = {1,2,3,4};
-Line Loop(12) = {5,6};
-Plane Surface(1) = {11,12};
+Plane Surface(1) = {11};
 
-//Line{11} In Surface{1};
-//Line{12} In Surface{1};
-//Line{13} In Surface{1};
-//Line{14} In Surface{1};
+Line{5} In Surface{1};
 
 Physical Line(1) = {1};
 Physical Line(2) = {2};
 Physical Line(3) = {3};
-Physical Line(4) = {4}; 
-//Physical Line(5) = {5};
-//Physical Line(6) = {6};
+Physical Line(4) = {4};
 Physical Surface(7) = {1};
 

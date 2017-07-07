@@ -1,5 +1,5 @@
 % 06/06/2016
-% Algo Steklov-Poincar� primal avec Gradient Conjugu�
+% Algo Steklov-Poincar� dual avec Gradient Conjugu�
 
 close all;
 clear all;

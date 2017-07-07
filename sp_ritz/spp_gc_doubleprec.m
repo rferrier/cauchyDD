@@ -1,5 +1,5 @@
-% 08/09/2016
-% Algo Steklov-Poincaré primal avec Gradient Conjugué
+% 05/07/2017
+% Algo Steklov-Poincaré primal avec Gradient Conjugué double préconditionné
 
 close all;
 clear all;
@@ -11,14 +11,13 @@ E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 20;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = .0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -88,6 +87,7 @@ uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
 
 urefb = ( 1 + brt + br*noise ) .* uref;
+fref  = Kinter*uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
@@ -147,7 +147,7 @@ K1r = K1; K2r = K2; K1dr = K1d; K2dr = K2d;
 %K2d(indexa,indexa) = 0;
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
+%% Conjugate Gradient for the problem : D1(S10-S20)D1 x = S2-S1
 Itere = zeros( 2*nnodes, 1 );
 d     = zeros( 2*nnodes, niter+1 );
 Ad    = zeros( 2*nnodes, niter+1 );
@@ -160,20 +160,27 @@ H12   = H1demi(size(Res,1), nodes, boundary, 2 );
 Mgr   = Mgrad(size(Res,1), nodes, boundary, 2 );
 
 %% Perform A x0 :
+f1 = [Itere; zeros(nbloq1d,1)];
+uin1 = K1dr\f1;
+u1i = uin1(1:2*nnodes,1);
+u1 = keepField( u1i, 2, boundaryp1 );
 % Solve 1
-f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
+f1 = dirichletRhs2( u1, 2, c2node1, boundaryp1, nnodes );
 uin1 = K1\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
 lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
 % Solve 2
-f2 = dirichletRhs2( Itere, 2, c2node2, boundaryp2, nnodes );
+f2 = dirichletRhs2( u1, 2, c2node2, boundaryp2, nnodes );
 uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
 lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
-% Regularization term
-Nu = regul(Itere, nodes, boundary, 2);
 %
-Axz = mu*Nu+lamb1-lamb2;
+f1 = [lamb1-lamb2; zeros(nbloq1d,1)];
+uin1 = K1dr\f1;
+u1i = uin1(1:2*nnodes,1);
+u1 = keepField( u1i, 2, boundaryp1 );
+%
+Axz = u1;
 %%%%
 %% Compute Rhs :
 % Solve 1
@@ -187,59 +194,53 @@ uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
 lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 %
-b = lamb2-lamb1;
+f1 = [lamb2-lamb1; zeros(nbloq1d,1)];
+uin1 = K1dr\f1;
+u1i = uin1(1:2*nnodes,1);
+u1 = keepField( u1i, 2, boundaryp1 );
+%
+b = u1;
 %plot(b(2*b2node2-1));
 %figure;
 %%
 Res(:,1) = b - Axz;
-
-if precond == 1
-    % Solve 1
-    f1 = [Res(:,1); zeros(nbloq1d,1)];
-    uin1 = K1dr\f1;
-    u1i = uin1(1:2*nnodes,1);
-    u1 = keepField( u1i, 2, boundaryp1 );
-    Zed(:,1) = u1;
-elseif precond == 2
-    Zed(index,1) = 1/E*H12(index,index)\Res(index,1);
-elseif precond == 3
-    Zed(index,1) = 1/E*Mgr(index,index)\Res(index,1);
-else
-    Zed(:,1) = Res(:,1);
-end
+Zed(:,1) = Res(:,1);
 
 d(:,1) = Zed(:,1);
 
 residual(1) = norm(Res( indexa,1));%sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res( indexa,1));
-error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
+error(1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
 eta      = 0;
 getmeout = 0; % utility
-%V = zeros(2*nnodes, iter);
-%H = zeros(iter);
 %%
 for iter = 1:niter
     %% Optimal step
     
+    f1 = [d(:,iter); zeros(nbloq1d,1)];
+    uin1 = K1dr\f1;
+    u1i = uin1(1:2*nnodes,1);
+    u1 = keepField( u1i, 2, boundaryp1 );
     % Solve 1
-    rhs1 = d(:,iter);
-    f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
+    f1 = dirichletRhs2(u1, 2, c2node1, boundaryp1, nnodes);
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
     lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
     % Solve 2
-    rhs2 = d(:,iter);
-    f2 = dirichletRhs2(rhs2, 2, c2node2, boundaryp2, nnodes);
+    f2 = dirichletRhs2(u1, 2, c2node2, boundaryp2, nnodes);
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
     lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
-    % Regularization term
-    Nu = regul(d(:,iter), nodes, boundaryp2, 2);
     %
-    Ad(:,iter) = mu*Nu+lamb1-lamb2;
+    f1 = [lamb1-lamb2; zeros(nbloq1d,1)];
+    uin1 = K1dr\f1;
+    u1i = uin1(1:2*nnodes,1);
+    u1 = keepField( u1i, 2, boundaryp1 );
+    %
+    Ad(:,iter) = u1;
     
     den = (d(indexa,iter)'*Ad(indexa,iter));
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
@@ -248,23 +249,10 @@ for iter = 1:niter
     Itere         = Itere + d(:,iter)*num;%/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
-    if precond == 1
-        % Solve 1
-        f1 = [Res(:,iter+1); zeros(nbloq1d,1)];
-        uin1 = K1dr\f1;
-        u1i = uin1(1:2*nnodes,1);
-        u1 = keepField( u1i, 2, boundaryp1 );
-        Zed(:,iter+1) = u1;
-    elseif precond == 2
-        Zed(index,iter+1) = 1/E*H12(index,index)\Res(index,iter+1);
-    elseif precond == 3
-        Zed(index,iter+1) = 1/E*Mgr(index,index)\Res(index,iter+1);
-    else
-        Zed(:,iter+1) = Res(:,iter+1);
-    end
+    Zed(:,iter+1) = Res(:,iter+1);
     
     residual(iter+1) = norm(Res(indexa,iter+1));%sqrt(Zed(indexa,iter+1)'*Res(indexa,iter+1));%
-    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
+    error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
     % Needed values for the Ritz stuff
@@ -360,20 +348,29 @@ for i = 1:iter+1
    chiS   = inv(Theta1)*Y'*b; chiS(i:end) = 0;
    ItereS = Y*chiS;
    
+   f1 = [ItereS; zeros(nbloq1d,1)];
+   uin1 = K1dr\f1;
+   u1i = uin1(1:2*nnodes,1);
+   u1 = keepField( u1i, 2, boundaryp1 );
    % Solve 1
    rhs1 = ItereS;
-   f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
+   f1 = dirichletRhs2(u1, 2, c2node1, boundaryp1, nnodes);
    uin1 = K1\f1;
    lagr1 = uin1(2*nnodes+1:end,1);
    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
    % Solve 2
    rhs2 = ItereS;
-   f2 = dirichletRhs2(rhs2, 2, c2node2, boundaryp2, nnodes);
+   f2 = dirichletRhs2(u1, 2, c2node2, boundaryp2, nnodes);
    uin2 = K2\f2;
    lagr2 = uin2(2*nnodes+1:end,1);
    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
-   % Regularization term
-   AI = lamb1-lamb2;
+   %
+   f1 = [lamb1-lamb2; zeros(nbloq1d,1)];
+   uin1 = K1dr\f1;
+   u1i = uin1(1:2*nnodes,1);
+   u1 = keepField( u1i, 2, boundaryp1 );
+   %
+   AI = u1;
    
    ResS = AI-b;
    
@@ -418,23 +415,23 @@ for j=1:n
 end
 px = pol'*tt;
 
-hold on;
-plot(log10(theta),'Color','blue')
-plot(log10(abs(Y'*b)),'Color','red')
-plot(log10(abs(chiD)),'Color','black')
-%plot(chi1,'Color','yellow')
-%plot(chi2,'Color','green')
-plot(t,px,'Color','cyan')
-legend('Ritz Values','RHS values','solution coefficients', ...
-       'polynomial approxiamtion')
-figure;
+%hold on;
+%plot(log10(theta),'Color','blue')
+%plot(log10(abs(Y'*b)),'Color','red')
+%plot(log10(abs(chiD)),'Color','black')
+%%plot(chi1,'Color','yellow')
+%%plot(chi2,'Color','green')
+%plot(t,px,'Color','cyan')
+%legend('Ritz Values','RHS values','solution coefficients', ...
+%       'polynomial approxiamtion')
+%figure;
 %
-hold on;
-plot(Itere(2*b2node2-1),'Color','red')
-plot(ItereR(2*b2node2-1),'Color','blue')
-plot(uref(2*b2node2-1),'Color','green')
-legend('brutal solution','filtred solution', 'reference')
-figure;
+%hold on;
+%plot(Itere(2*b2node2-1),'Color','red')
+%plot(ItereR(2*b2node2-1),'Color','blue')
+%plot(uref(2*b2node2-1),'Color','green')
+%legend('brutal solution','filtred solution', 'reference')
+%figure;
 %
 %hold on;
 %plot(Itere(2*b2node2),'Color','red')
@@ -445,9 +442,9 @@ figure;
 
 hold on
 plot(log10(error(2:end)),'Color','blue')
-plot(log10(errS(2:end)),'Color','green')
+%plot(log10(errS(2:end)),'Color','green')
 %plot(log10(residual(2:end)),'Color','red')
-legend('error','Ritz error')
+legend('error')
 figure;
 %L-curve :
 hold on;
@@ -468,6 +465,12 @@ ylabel('H1 norm')
 %figure
 %findCorner (resD(2:iter), regD(2:iter), 3)
 %%%%%
+%% Recovery of the solution : First, do D1*Itere
+f1 = [Itere; zeros(nbloq1d,1)];
+uin1 = K1dr\f1;
+u1i = uin1(1:2*nnodes,1);
+u1 = keepField( u1i, 2, boundaryp1 );
+
 %% Final problem : compute u
 dirichlet = [4,1,0;4,2,0;
              3,1,0;3,2,0;
@@ -478,35 +481,26 @@ neumann   = [];
 if inhomog >= 1
    K(1:2*nnodes, 1:2*nnodes) = Kinter;
 end
-fdir2 = dirichletRhs(Itere, 2, C, boundary);
+fdir2 = dirichletRhs(u1, 2, C, boundary);
 fdir4 = dirichletRhs(urefb, 4, C, boundary);
 usoli = K \ (fdir4 + fdir2);
 
 usol = usoli(1:2*nnodes,1);
 fsol = Kinter*usol;
 
-% With the reduced solution
-dirichlet = [4,1,0;4,2,0;
-             3,1,0;3,2,0;
-             1,1,0;1,2,0;
-             2,1,0;2,2,0];
-neumann   = [];
-[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
-if inhomog >= 1
-   K(1:2*nnodes, 1:2*nnodes) = Kinter;
-end
-fdir2 = dirichletRhs(ItereR, 2, C, boundary);
-fdir4 = dirichletRhs(urefb, 4, C, boundary);
-usoli = K \ (fdir4 + fdir2);
-
-usolR = usoli(1:2*nnodes,1);
-fsolR = Kinter*usolR;
-
+%figure;
 %hold on;
 %plot(fsol(2*b2node2-1),'Color','red')
-%plot(fsolR(2*b2node2-1),'Color','blue')
+%%plot(fsolR(2*b2node2-1),'Color','blue')
 %plot(f(2*b2node2-1),'Color','green')
-%legend('brutal solution','filtred solution','reference')
+%legend('brutal solution','reference')
+
+figure;
+hold on;
+plot(usol(2*b2node2-1),'Color','red')
+%plot(fsolR(2*b2node2-1),'Color','blue')
+plot(uref(2*b2node2-1),'Color','green')
+legend('brutal solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

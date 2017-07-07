@@ -3,15 +3,17 @@
 clear all;
 close all;
  
-Norm = 2;
+Norm = 1;
 ordpD = 10;
 sideL = 10; % Nb of points on the domain (for integral approximation)
 pm4   = 4; % Position of the 1d line
  
-VAR = load('fields/McCoef8.mat');
-%VAR = load('fields/McCoef8r.mat');
+%VAR = load('fields/McCoef5.mat');
+%VAR = load('fields/McCoefs7.mat');
+VAR = load('fields/McCoef8r.mat');
 %VAR = load('fields/McCoef7r6.mat');
 %VAR = load('fields/McCoef7rb1.mat');
+%VAR = load('fields/McCoef6rb1.mat');
 McCoef = VAR.McCoef; ordp = VAR.ordp; Xs = VAR.Xs; Ys = VAR.Ys;
 X0 = VAR.X0; Y0 = VAR.Y0;
 Lx = VAR.Lx; Ly = VAR.Ly;
@@ -19,6 +21,7 @@ L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
 
 %REF = load('fields/ref_mult_u.mat');
 REF = load('fields/ref_mult.mat');
+%REF = load('fields/ref_mults.mat');
 %REF = load('fields/ref_mult6.mat');
 uplo1 = REF.uplo1; uplo = REF.uplo;
 
@@ -61,24 +64,55 @@ for i=0:ordpD
          for l=0:ordpD
             ordx = i+k+1;
             ordy = j+l+1;
-            PS0(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-                 Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
-                 % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
+            %if mod(ordx,1) == 0 && mod(ordy,1) == 0 % Provided L1x = -L2x && L1y = -L2y
+               PS0(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                    Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+                    % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
+            %end
          end
       end
    end
 end
 
+%figure
+%plot(log(abs(eig(PS0))));
+
+% Reshape the matrix
+DiagMult = sqrt(diag(1./diag(PS0)));
+
+PS0p = zeros((ordpD+1)^2); % Re-compute with the shaped form (actually, I'm not sure it's useful)
+for i=0:ordpD
+   for j=0:ordpD
+      for k=0:ordpD
+         for l=0:ordpD
+            ordx = i+k+1;
+            ordy = j+l+1;
+%            if mod(ordx,1) == 0 && mod(ordy,1) == 0 % Provided L1x = -L2x && L1y = -L2y
+               PS0p(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+                    DiagMult(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) * ...
+                    DiagMult(l+1+(ordpD+1)*k,l+1+(ordpD+1)*k) * ...
+                    Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+                    % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
+%            end
+         end
+      end
+   end
+end
+
+%PS0p = DiagMult'*PS0*DiagMult;
+
 %    [PassD, ~] = eig(LhsO); % This matrix gives the Legendre basis
 %    PassD = eye((ordpD+1)^2);
-PassD1 = chol(PS0,'lower');     %CHOLESKI
+PassD1 = chol(PS0p,'lower');     %CHOLESKI
 %for i=1:size(PassD1,2) % Normalize the stuff
 %   PassD1(:,i) = PassD1(:,i) / norm(PassD1(:,i));
 %end
 PassD = inv(PassD1');
+PassD = DiagMult * PassD ;
 
-PS0D = PassD'*PS0*PassD;  % Debug check
+%PS0D = PassD'*PS0*PassD;  % Debug check
 %bug;
+
 tic
  
 if Norm == 2
@@ -104,10 +138,29 @@ if Norm == 2
          end
       end
    end
+   
+   RhsR = zeros((ordpD+1)^2,1);
+   for i=0:ordp
+      for j=0:ordp
+         for k=0:ordpD
+            for l=0:ordpD
+               if i+k>1
+                  RhsR(l+1+(ordpD+1)*k) = RhsR(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
+                        1/Lx^2*i*k*(L2x^(i+k-1)-L1x^(i+k-1))*(L2y^(j+l+1)-L1y^(j+l+1))/((i+k-1)*(j+l+1));
+               end
+               if j+l>1
+                  RhsR(l+1+(ordpD+1)*k) = RhsR(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
+                        1/Ly^2*j*l*(L2x^(i+k+1)-L1x^(i+k+1))*(L2y^(j+l-1)-L1y^(j+l-1))/((i+k+1)*(j+l-1));
+               end
+            end
+         end
+      end
+   end
 
    RhsD = zeros((ordpD+1)^2,1); % Will be truncated later : for now, it contains all the coeffs from 0 to ordpD
 
    LhsD = PassD'*PS1*PassD;
+   RhsD1 = PassD'*RhsR;
    % We are only using the last vectors from the basis : put zeros
    for k=0:ordpD
       for l=0:ordpD
@@ -118,30 +171,30 @@ if Norm == 2
       end
    end
 
-   for k=0:ordpD
-      for l=0:ordpD
-         for i=0:ordp
-            for j=0:ordp
-
-               for ii=0:k
-                  for jj=0:l
-                     if (k>ordp || l>ordp) && i+ii>1
-                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
-                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-                              1/Lx^2*i*ii*(L2x^(i+ii-1)-L1x^(i+ii-1))*(L2y^(j+jj+1)-L1y^(j+jj+1))/((i+ii-1)*(j+jj+1));
-                     end
-                     if (k>ordp || l>ordp) && j+jj>1
-                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
-                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-                              1/Ly^2*j*jj*(L2x^(i+ii+1)-L1x^(i+ii+1))*(L2y^(j+jj-1)-L1y^(j+jj-1))/((i+ii+1)*(j+jj-1));
-                     end
-                  end
-               end
-               
-            end
-         end
-      end
-   end
+%   for k=0:ordpD
+%      for l=0:ordpD
+%         for i=0:ordp
+%            for j=0:ordp
+%
+%               for ii=0:k
+%                  for jj=0:l
+%                     if (k>ordp || l>ordp) && i+ii>1
+%                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
+%                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+%                              1/Lx^2*i*ii*(L2x^(i+ii-1)-L1x^(i+ii-1))*(L2y^(j+jj+1)-L1y^(j+jj+1))/((i+ii-1)*(j+jj+1));
+%                     end
+%                     if (k>ordp || l>ordp) && j+jj>1
+%                        RhsD(l+1+(ordpD+1)*k) = RhsD(l+1+(ordpD+1)*k) - McCoef(1+j+(ordp+1)*i) * ...
+%                              PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+%                              1/Ly^2*j*jj*(L2x^(i+ii+1)-L1x^(i+ii+1))*(L2y^(j+jj-1)-L1y^(j+jj-1))/((i+ii+1)*(j+jj-1));
+%                     end
+%                  end
+%               end
+%               
+%            end
+%         end
+%      end
+%   end
 
    % At this point, there are plenty of zero columns (and lines) in LhsD.
    % We are going to add identity on those in order to make the system invertible
@@ -150,10 +203,11 @@ if Norm == 2
       for j=0:ordpD
          if norm(LhsD(j+1+(ordpD+1)*i,:)) == 0
             LhsD(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) = 1;
+            RhsD1(j+1+(ordpD+1)*i) = 0;
          end
       end
    end
-     
+   RhsD = RhsD1;
    McCoefD = LhsD\RhsD;
 
    % Add it to solup
@@ -179,127 +233,6 @@ if Norm == 2
    axis('equal');
    
    error = norm( solupp-uplo1 ) / norm(uplo1);
-    
-elseif Norm == 11 % L1 norm of the gradient (old stinky stuff) % <BUGGY_ZONE>
-   % First task : build the matrix giving the derivatives from the coefficients
-   nxs = (max(Xs)-min(Xs))/10; nys = (max(Ys)-min(Ys))/10;
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
-    
-   Ax0 = zeros((sideL+1)^2,(ordpD+1)^2); Ay0 = zeros((sideL+1)^2,(ordpD+1)^2);
-   for k=1:ordpD
-      for l=0:ordpD
-         Amute = Lx*k*(X/Lx-X0)'.^(k-1) * (Y/Lx-Y0).^l;
-         Ax0(:,l+1+(ordpD+1)*k) = Amute(:);
-         % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
-      end
-   end
-   for k=0:ordpD
-      for l=1:ordpD
-         Amute = Ly*(X/Lx-X0)'.^k * l*(Y/Lx-Y0).^(l-1);
-         Ay0(:,l+1+(ordpD+1)*k) = Amute(:);
-         % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
-      end
-   end
-    
-   Ax = Ax0*PassD; % Put it in the "Legendre" basis
-   Ay = Ay0*PassD;
-    
-   % ... And re-write over them for the first coefficients (those that are not in the Legendre basis)
-   for k=1:ordp
-      for l=0:ordp
-         Amute = Lx*k*(X/Lx-X0)'.^(k-1) * (Y/Lx-Y0).^l;
-         Ax(:,l+1+(ordpD+1)*k) = Amute(:);
-      end
-   end
-   for k=0:ordp
-      for l=1:ordp
-         Amute = Ly*(X/Lx-X0)'.^k * l*(Y/Lx-Y0).^(l-1);
-         Ay(:,l+1+(ordpD+1)*k) = Amute(:);
-      end
-   end
-   
-   % Build the matrix of the linear optim problem
-   C1 = zeros(4*(sideL+1)^2,4*(ordpD+1)^2);
-   C1( 1:(sideL+1)^2 , 1:(ordpD+1)^2 )                         = Ax;
-   C1( (sideL+1)^2+1:2*(sideL+1)^2 , (ordpD+1)^2+1:2*(ordpD+1)^2 )     = Ax;
-   C1( 2*(sideL+1)^2+1:3*(sideL+1)^2 , 2*(ordpD+1)^2+1:3*(ordpD+1)^2 ) = Ay;
-   C1( 3*(sideL+1)^2+1:4*(sideL+1)^2 , 3*(ordpD+1)^2+1:4*(ordpD+1)^2 ) = Ay;
-   
-   % Do the sum
-   toremove = [];
-   C = zeros(1,4*(ordpD+1)^2);
-   for i=1:4*(ordpD+1)^2
-      C(1,i) = sum(C1(:,i));
-      if norm(C1(:,i)) == 0
-         toremove(end+1) = i;
-      end
-   end
-%   
-   % Now, the constraint matrix
-   Id = eye((ordpD+1)^2); Im = zeros(0,(ordpD+1)^2);
-   Zoo = zeros((ordpD+1)^2); Zno = zeros( (sideL+1)^2 , (ordpD+1)^2 );
-   Itor = zeros((ordpD+1)^2);
-   
-%   Itor(toremove,toremove) = eye(size(toremove)); % For the 
-   ind = 1;
-   for k=0:ordp
-      for l=0:ordp
-         Im( ind , 1+l+(ordpD+1)*k ) = 1; % Already-determined coefs
-         Itor( 1+l+(ordpD+1)*k , 1+l+(ordpD+1)*k ) = 0; % Remove it from the non-redondant stuff
-         ind = ind+1;
-      end
-   end
-
-   Zoom = zeros(size(Im));
-   
-   Ac = [ Im, -Im, Zoom, Zoom ;...
-          Id, Zoo, -Id, Zoo ;...
-          Zoo, -Id, Zoo, Id ];
-          
-   Ac = [Ac;C1];
-          
-   % Lhs of the constraint
-   bc = zeros( 4*(sideL+1)^2+2*(ordpD+1)^2 , 1 );
-   
-   a0 = zeros( 0 , 1 ); % Already determined coefficients
-   ind = 1;
-   for k=0:ordp
-      for l=0:ordp
-         a0(ind,1) = McCoef(l+1+(ordp+1)*k,1); 
-         ind = ind+1;
-      end
-   end
-   
-   bc = [a0;bc];
-   
-   lb = -1e5*ones(4*(ordpD+1)^2,1);
-   ub = 1e5*ones(4*(ordpD+1)^2,1); % Bounds
-   
-   cvect = 'C'*ones( 4*(ordpD+1)^2 , 1 ); cvect = char(cvect);
-   ctype1 = 'S'*ones( ind-1+2*(ordpD+1)^2 , 1 );
-   ctype2 = 'L'*ones( 4*(sideL+1)^2 , 1 );
-   ctype = char( [ctype1;ctype2] );
-   
-   % Call the Solver
-   param.lpsolver = 1;
-   [ sol , minim , errnum , extra ] = glpk ( C' , Ac , bc , lb , ub , ctype , cvect , 1 , param); %(1:27,:)
-   
-   % Recover the result
-   McCoefDt = zeros(4*(ordpD+1)^2,1);
-%   McCoefDt(~toremove) = sol;
-%   McCoefDt(~toremove) = sol;
-
-   McCoefDt = sol;
-   
-   McCoefD  = McCoefDt(1:(ordpD+1)^2) - McCoefDt((ordpD+1)^2+1:2*(ordpD+1)^2);
-   McCoefD2 = McCoefDt(2*(ordpD+1)^2+1:3*(ordpD+1)^2) - ... 
-                     McCoefDt(3*(ordpD+1)^2+1:4*(ordpD+1)^2);
-                     
-   % Actually, we should have McCoefD = McCoefD2
-   
-   solupp = solup;
-
-   %</BUGGY_ZONE>
 
 elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
    % First task : build the matrix giving the derivatives from the coefficients
@@ -339,8 +272,12 @@ elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
       end
    end
    
+   % Build Isum with the 1/2 on the borders and 1/4 on the corners
+   Is2 = ones(sideL+1,1); Is2(1) = .5; Is2(end) = .5;
+   Isum = Is2*Is2'; Isum = Isum(:);
+   
    % Build the matrix of the linear optim problem
-   C = [ zeros(1,(ordpD+1)^2) , ones(1,2*(sideL+1)^2) ];
+   C = [ zeros(1,(ordpD+1)^2) , Isum' , Isum' ]; %ones(1,2*(sideL+1)^2)
 
    % Now, the constraint matrix
    Id = eye((sideL+1)^2); Im = zeros(0,(ordpD+1)^2);
