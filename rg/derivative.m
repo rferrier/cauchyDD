@@ -3,17 +3,17 @@
 clear all;
 close all;
  
-Norm = 1;
-ordpD = 10;
+Norm = 2;
+ordpD = 12;
 sideL = 10; % Nb of points on the domain (for integral approximation)
 pm4   = 4; % Position of the 1d line
  
 %VAR = load('fields/McCoef5.mat');
 %VAR = load('fields/McCoefs7.mat');
-VAR = load('fields/McCoef8r.mat');
+%VAR = load('fields/McCoef8r.mat');
 %VAR = load('fields/McCoef7r6.mat');
 %VAR = load('fields/McCoef7rb1.mat');
-%VAR = load('fields/McCoef6rb1.mat');
+VAR = load('fields/McCoef6rb1.mat');
 McCoef = VAR.McCoef; ordp = VAR.ordp; Xs = VAR.Xs; Ys = VAR.Ys;
 X0 = VAR.X0; Y0 = VAR.Y0;
 Lx = VAR.Lx; Ly = VAR.Ly;
@@ -80,29 +80,34 @@ end
 % Reshape the matrix
 DiagMult = sqrt(diag(1./diag(PS0)));
 
-PS0p = zeros((ordpD+1)^2); % Re-compute with the shaped form (actually, I'm not sure it's useful)
-for i=0:ordpD
-   for j=0:ordpD
-      for k=0:ordpD
-         for l=0:ordpD
-            ordx = i+k+1;
-            ordy = j+l+1;
+%PS0p = zeros((ordpD+1)^2); % Re-compute with the shaped form (actually, I'm not sure it's useful)
+%for i=0:ordpD
+%   for j=0:ordpD
+%      for k=0:ordpD
+%         for l=0:ordpD
+%            ordx = i+k+1;
+%            ordy = j+l+1;
 %            if mod(ordx,1) == 0 && mod(ordy,1) == 0 % Provided L1x = -L2x && L1y = -L2y
-               PS0p(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
-                    DiagMult(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) * ...
-                    DiagMult(l+1+(ordpD+1)*k,l+1+(ordpD+1)*k) * ...
-                    Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
-                    % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
+%               PS0p(j+1+(ordpD+1)*i,l+1+(ordpD+1)*k) = ...
+%                    DiagMult(j+1+(ordpD+1)*i,j+1+(ordpD+1)*i) * ...
+%                    DiagMult(l+1+(ordpD+1)*k,l+1+(ordpD+1)*k) * ...
+%                    Lx^2*(L2x^ordx - L1x^ordx)/ordx * (L2y^ordy - L1y^ordy)/ordy;
+%                    % Lx* beacuse there is a variable change x' = Lx*x and y'=Lx*y
 %            end
-         end
-      end
-   end
-end
+%         end
+%      end
+%   end
+%end
 
-%PS0p = DiagMult'*PS0*DiagMult;
+PS0p = DiagMult'*PS0*DiagMult; % (This reshape appears to be useless)
+%PS0p = PS0;
 
 %    [PassD, ~] = eig(LhsO); % This matrix gives the Legendre basis
 %    PassD = eye((ordpD+1)^2);
+[PS0p,dist] = closestSPD(PS0p); % Just in case PS0p is not SPD because of floats
+if dist > 1e-5
+   warning('Frobenius distance to closest SPD is',num2str(dist));
+end
 PassD1 = chol(PS0p,'lower');     %CHOLESKI
 %for i=1:size(PassD1,2) % Normalize the stuff
 %   PassD1(:,i) = PassD1(:,i) / norm(PassD1(:,i));

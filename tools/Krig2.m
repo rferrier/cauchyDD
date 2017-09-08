@@ -6,7 +6,7 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
  %         mat      : Material : 0=isotropic, 1=orthotropic
  %         order    : order of the elements
  %         bc       : boundary conditions
- %         varargin : if 1 : plane deformations else plane constrains
+ %         varargin : if 1 : plane strain else plane stress
  %         varargin2: multiplicator for C (better condition number)
  
  % mat = [0, E, nu] if isotropic

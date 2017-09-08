@@ -18,7 +18,7 @@ br      = .0;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -122,6 +122,7 @@ end
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
 regulari = zeros(niter+1,1);
+regulari2 = zeros(niter+1,1);
 
 %% Dual problems
 % First problem
@@ -224,6 +225,7 @@ d(:,1) = Zed(:,1);
 residual(1) = norm(Res( indexa,1));
 error(1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+regulari2(1) = norm( Itere(indexa) );
 
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
@@ -260,6 +262,7 @@ for iter = 1:niter
     residual(iter+1) = norm(Res(indexa,iter+1));
     error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+    regulari2(iter+1) = norm( Itere(indexa) );
     
     if precond == 1
         % Solve 1
@@ -492,6 +495,7 @@ legend('filtred solution','reference')
 total_error = norm(usol-uref)/norm(uref);
 [a,b] = min(error);
 erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));
+erroru2 = norm(usol(indexa) - uref(indexa));
 % Compute the energy error
 f2 = dirichletRhs2( usol-uref, 2, c2node2, boundaryp2, nnodes );
 uin2 = K2\f2;

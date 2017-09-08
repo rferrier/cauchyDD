@@ -12,11 +12,11 @@ addpath(genpath('./sp_ritz'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 13;
+niter   = 20;
 precond = 0;      % 1 : Use a dual precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200;    % Maximal ratio (for eigenfilter)
-br      = 0.;      % noise
+br      = 0.01;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 
@@ -137,12 +137,12 @@ ntrunc = 0;  % In case the algo finishes at niter
 f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
 uin1 = K1\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
 % Solve 2
 f2 = dirichletRhs2( Itere, 2, c2node2, boundaryp2, nnodes );
 uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 % Regularization term
 Nu = regul(Itere, nodes, boundary, 2);
 %
@@ -181,23 +181,23 @@ MRes(:,1) = d(:,1);
 
 % Solve 1
 rhs1 = d(:,1);
-f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
 uin1 = K1\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
 % Solve 2
 rhs2 = d(:,1);
-f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+f2 = dirichletRhs2(rhs2, 2, c2node2, boundaryp2, nnodes);
 uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 %
 Ad(:,1) = lamb1-lamb2;
 
 AMRes(:,1) = Ad(:,1);
  
-residual(1) = sqrt( norm(Res( indexa,1)));
-error(1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+residual(1) = norm(Res( indexa,1));
+error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
 ritzval  = 0; % Last ritz value that converged
@@ -233,8 +233,8 @@ for iter = 1:niter
     Res(:,iter+1)  = Res(:,iter) - Ad(:,iter)*num;%/den;
     MRes(:,iter+1) = MRes(:,iter) - Zed(:,iter)*num;%/den;
     
-    residual(iter+1) = sqrt( norm(Res(indexa,iter+1)));
-    error(iter+1)    = sqrt( norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa)));
+    residual(iter+1) = norm(Res(indexa,iter+1));
+    error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 
     %% Orthogonalization
@@ -242,16 +242,16 @@ for iter = 1:niter
     
     % Solve 1
     rhs1 = d(:,iter+1);
-    f1 = dirichletRhs(rhs1, 2, C1, boundaryp1);
+    f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
     uin1 = K1\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
     % Solve 2
     rhs2 = d(:,iter+1);
-    f2 = dirichletRhs(rhs2, 2, C2, boundaryp2);
+    f2 = dirichletRhs2(rhs2, 2, c2node2, boundaryp2, nnodes);
     uin2 = K2\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
     %
     Ad(:,iter+1) = lamb1-lamb2;
     

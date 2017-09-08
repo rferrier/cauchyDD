@@ -10,18 +10,18 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 25;
-precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+niter   = 50;
+precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = 0.1;    % noise
+br      = 0.0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
-ntrunc  = 21;      % In case the algo finishes at niter
+ntrunc  = 31;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
-methods = [3];
+methods = [1];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
@@ -930,9 +930,13 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Conjugate Gradient for the problem : (D10-D20) x = D2-D1
 if methods==3
-   % First, plot the reference (sigma normal)
+%   % First, plot the reference (sigma normal)
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',sigma(3:6:end),'FaceColor','interp');
+
+   % First, plot the reference
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',sigma(3:6:end),'FaceColor','interp');
+               'FaceVertexCData',uref(3:3:end),'FaceColor','interp');
    colorbar;
    
    Itere = zeros( 3*nnodes, 2 );
@@ -1203,8 +1207,13 @@ if methods==3
    
    % plot the solution (sigma normal)
    figure;
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
+%   colorbar;
+   maxuref = max(abs(uref(3:3:end)));
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
+               'FaceVertexCData',(uref(3:3:end)-usol(3:3:end))/maxuref, ...
+               'FaceColor','interp');
    colorbar;
    
    erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));

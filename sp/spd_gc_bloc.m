@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 3;
+niter   = 5;
 precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
 mu      = 0.;    % Regularization parameter
 br      = 0.;     % noise

@@ -14,11 +14,11 @@ niter   = 20;
 precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = .0;    % noise
+br      = .01;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -120,6 +120,7 @@ end
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
 regulari = zeros(niter+1,1);
+regulari2 = zeros(niter+1,1);
 
 %% Dual problems
 % First problem
@@ -213,6 +214,7 @@ d(:,1) = Zed(:,1);
 residual(1) = norm(Res( indexa,1));%sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res( indexa,1));
 error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+regulari2(1) = norm( Itere(indexa) );
 
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
@@ -266,6 +268,7 @@ for iter = 1:niter
     residual(iter+1) = norm(Res(indexa,iter+1));%sqrt(Zed(indexa,iter+1)'*Res(indexa,iter+1));%
     error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+    regulari2(iter+1) = norm( Itere(indexa) );
     
     % Needed values for the Ritz stuff
     alpha(iter) = num/sqrt(den);
