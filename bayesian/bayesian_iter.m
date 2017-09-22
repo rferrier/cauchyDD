@@ -1,5 +1,5 @@
-%06/09/2017
-%Inversion bayesienne du pb de Cauchy avec les Polynomes du chaos
+%13/09/2017
+%Inversion bayesienne du pb de Cauchy avec les Polynomes du chaos, procédure iterative
 
 close all;
 clear all;
@@ -17,6 +17,7 @@ nMC       = 100000; % nb of MC samples
 refined   = .5;      % Choose the mesh to use
 chaosor   = 1;      % Order of the polynomial chaos max = 10
 cornermes = 0;      % Take the encastred corners as measurement (or not)
+niter     = 1;      % Nb of iterations
 
 upperpr   = 1e-3;   % Bounds of the prior distribution
 lowerpr   = -1e-3;  %
@@ -38,7 +39,7 @@ end
 dirichlet = [1,1,0; 1,2,0 ;
              3,1,0; 3,2,0 ];
 neumann   = [2,1,fscalar,0,fscalar;
-             2,2,0*fscalar,0,0;
+             2,2,-10*fscalar,0,0;
              4,1,fscalar,0,-fscalar];
 
 % Import the mesh
@@ -187,112 +188,127 @@ Msol0 = Km\Mrhs; Msol0 = Msol0(indexb,:);
 fm = loading(nbloqm,nodes,boundary,neumannm);
 Msol1 = Km\fm; Msol1 = Msol1(indexb,:);
 
-Msol = zeros(nindexb,1+(chaosor)*nindexa);
-Msol = Msol0*prior;
-Msol(:,1) = Msol(:,1) + Msol1;% + Msol0*prior(:,1); % The mean
-%for i=1:nindexa % Msol is the PCE of the measurements
-%   Msol(:,(chaosor)*(i-1)+2:(chaosor)*i+1) = Msol0(:,i) *...
-%                        prior(i,(chaosor)*(i-1)+2:(chaosor)*i+1);
-%end
+for iter = 1:niter
 
-%% Plot the after-model probability
-%ddl = 1;
-%coefS1 = [];
-%for i=1:nindexa
-%   coefS1 = [ coefS1 , Hermite(2:chaosor+1,2:chaosor+1)' * transpose(Msol(ddl,2+(chaosor)*(i-1):1+(chaosor)*(i))) ];
-%end
-% Plot the approximated theta
-%thetae  = randn(nindexa,nMC);
-%toplo = Msol(ddl,1);
-%for i=1:nindexa 
-%   for j=1:chaosor
-%      toplo = toplo + coefS1(j+chaosor*(i-1))*thetae(i,:).^j;
+   % New measurement
+   noise = randn(2*nnodes,1);
+   urefb = uref + br*noise*mean(abs(uref(indexb)));
+   %
+   Msol = zeros(nindexb,1+(chaosor)*nindexa);
+   Msol = Msol0 * prior;
+   Msol(:,1) = Msol(:,1) + Msol1;% + Msol0*prior(:,1); % The mean
+%   for i=1:nindexa % Msol is the PCE of the measurements
+%      Msol(:,(chaosor)*(i-1)+2:(chaosor)*i+1) = Msol0 *...
+%                           prior(:,(chaosor)*(i-1)+2:(chaosor)*i+1);
+%%      Msol(:,(chaosor)*(i-1)+2:(chaosor)*i+1) = Msol0(:,i) *...
+%%                        prior(i,(chaosor)*(i-1)+2:(chaosor)*i+1);
 %   end
-%end
-%figure;
-%hist(toplo,nMC/1000);
-%bug
 
-%% DEBUG : compute the prior back
-%priorback1 = Msol;
-%priorback1(:,1) = priorback1(:,1)-Msol1;
-%priorback = Msol0\priorback1;
-%bug
-
-% Estimate additive noise level
-nl = br*mean(abs(uref(indexb))); % indexb
-Ceps = nl^2*eye(nindexb);  % Correlation matrix of the noise
-% Compute observation covariance
-Cy = zeros(nindexb);
-for i=1:chaosor % We're intentionnaly starting at 1 'cause uniform law has no covariance
-   for j=1:nindexa
-      Cy = Cy + factorial(i)*Msol(:,i+1+(j-1)*(chaosor))*Msol(:,i+1+(j-1)*(chaosor))';
+   % Estimate additive noise level
+   nl = br*mean(abs(uref(indexb))); % indexb
+   Ceps = nl^2*eye(nindexb);  % Correlation matrix of the noise
+   % Compute observation covariance
+   Cy = zeros(nindexb);
+   for i=1:chaosor % We're intentionnaly starting at 1 'cause uniform law has no covariance
+      for j=1:nindexa
+         Cy = Cy + factorial(i)*Msol(:,i+1+(j-1)*(chaosor))*Msol(:,i+1+(j-1)*(chaosor))';
+      end
    end
-end
-Cd = Ceps+Cy; % Total covariance (from noise and prediction)
-
-% Estimate the Kalman factor
-ZmY = -Msol;        % Difference between measurement and prediction
-ZmY(:,1) = ZmY(:,1) + urefb(indexb);  % The mean
-for i=1:nindexa  % and probability measurement (again in PCE form)
-   ZmY(:,(chaosor)*(i-1)+2) = ZmY(:,(chaosor)*(i-1)+2) + nl;%/sqrt(nindexa);  % /!\ Rem : I guess there should be other RVs here
-end
-Geai = Cd\ZmY;
-
-% Covariance between a-priori and reconstructed observation
-Cqy = zeros(nindexa,nindexb);
-for i=1:chaosor
-   for j=1:nindexa
-      Cqy = Cqy + factorial(i)*prior(:,i+1+(j-1)*(chaosor))*Msol(:,i+1+(j-1)*(chaosor))';
+   %prior(1,:)
+   %Msol(1,:)
+   norm(diag(Cy));
+%   norm(diag(Ceps))
+   Cd = Ceps+Cy; % Total covariance (from noise and prediction)
+   %norm(diag(Cy))
+   % Estimate the Kalman factor
+   ZmY = -Msol;        % Difference between measurement and prediction
+   ZmY(:,1) = ZmY(:,1) + urefb(indexb);  % The mean
+   for i=1:nindexa  % and probability measurement (again in PCE form)
+      ZmY(:,(chaosor)*(i-1)+2) = ZmY(:,(chaosor)*(i-1)+2) + nl;%/sqrt(nindexa);  % /!\ Rem : I guess there should be other RVs introduced here
    end
-end
-
-% Build the PCE of the solution
-Qb = prior + Cqy*Geai;
-
-sigmav = zeros(nindexa,1);
-CD     = zeros(nindexa); % Posterior variance
-for j=1:nindexa 
+   Geai = Cd\ZmY;
+   
+   % Covariance between a-priori and reconstructed observation
+   Cqy = zeros(nindexa,nindexb);
    for i=1:chaosor
-      CD = CD + factorial(i)*Qb(:,i+1+(j-1)*(chaosor))*Qb(:,i+1+(j-1)*(chaosor))';
+      for j=1:nindexa
+         Cqy = Cqy + factorial(i)*prior(:,i+1+(j-1)*(chaosor))*Msol(:,i+1+(j-1)*(chaosor))';
+      end
+   end
+   
+%   testF = Cqy*Geai; norm(testF(:,1))
+   % Build the PCE of the solution
+   Qb = prior + Cqy*Geai;
+   
+   sigmav = zeros(nindexa,1);
+   CD     = zeros(nindexa); % Posterior variance
+   for j=1:nindexa 
+      for i=1:chaosor
+         CD = CD + factorial(i)*Qb(:,i+1+(j-1)*(chaosor))*Qb(:,i+1+(j-1)*(chaosor))';
+      end
+   end
+   sigmav = sqrt(diag(CD));
+   meanD = Qb(:,1);
+   
+   % Diagonalize the covariance matrix
+   %[~,CDt] = eig(CD); sigmav = sqrt(diag(CDt));
+   
+   figure;
+   hold on;
+   plot(meanD(1:nindexa/2),'Color','red');
+   plot(uref(2*b2node2-1),'Color','green');
+   plot(meanD(1:nindexa/2)-sigmav(1:nindexa/2),'Color','red');
+   plot(meanD(1:nindexa/2)+sigmav(1:nindexa/2),'Color','red');
+   legend('solution','reference')
+   
+%   figure;
+%   hold on;
+%   plot(meanD(nindexa/2+1:end),'Color','red');
+%   plot(uref(2*b2node2),'Color','green');
+%   plot(meanD(nindexa/2+1:end)-sigmav(nindexa/2+1:end),'Color','red');
+%   plot(meanD(nindexa/2+1:end)+sigmav(nindexa/2+1:end),'Color','red');
+%   legend('solution','reference')
+   
+   error = norm(uref(indexa)-meanD)/norm(uref(indexa));
+   
+   % Update the stuff
+   prior2 = Qb;
+   priorold = prior;
+   prior = prior2-prior2;
+   % Hack on the prior : make it uncoupled
+   for j=1:nindexa 
+      for i=1:nindexa
+         prior(j,2+(j-1)*(chaosor):1+(j)*(chaosor)) =...
+                          prior(j,2+(j-1)*(chaosor):1+(j)*(chaosor)) + ...
+                          (prior2(j,2+(i-1)*(chaosor):1+(i)*(chaosor))).^2 ;
+      end
+   end
+   prior = sqrt(prior);
+   prior(:,1) = prior2(:,1);
+%   prior = prior2;
+end
+
+% Plot the proba density on 1 dof
+ddl = 1;
+coefS1 = [];
+for i=1:nindexa
+   coefS1 = [ coefS1 , Hermite(2:chaosor+1,2:chaosor+1)' * transpose(Qb(ddl,2+(chaosor)*(i-1):1+(chaosor)*(i))) ];
+end
+% Plot the approximated theta
+thetae  = randn(nindexa,nMC);
+toplo = Qb(ddl,1);
+for i=1:nindexa 
+   for j=1:chaosor
+      toplo = toplo + coefS1(j+chaosor*(i-1))*thetae(i,:).^j;
    end
 end
-sigmav = sqrt(diag(CD));
-meanD = Qb(:,1);
-
-% Diagonalize the covariance matrix
-%[~,CDt] = eig(CD); sigmav = sqrt(diag(CDt));
-
 figure;
-hold on;
-plot(meanD(1:nindexa/2),'Color','red');
-plot(uref(2*b2node2-1),'Color','green');
-plot(meanD(1:nindexa/2)-sigmav(1:nindexa/2),'Color','red');
-plot(meanD(1:nindexa/2)+sigmav(1:nindexa/2),'Color','red');
-legend('solution','reference')
-
-figure;
-hold on;
-plot(meanD(nindexa/2+1:end),'Color','red');
-plot(uref(2*b2node2),'Color','green');
-plot(meanD(nindexa/2+1:end)-sigmav(nindexa/2+1:end),'Color','red');
-plot(meanD(nindexa/2+1:end)+sigmav(nindexa/2+1:end),'Color','red');
-legend('solution','reference')
-
-error = norm(uref(indexa)-meanD)/norm(uref(indexa));
-
-%ddl = 1;
-%coefS1 = [];
-%for i=1:nindexa
-%   coefS1 = [ coefS1 , Hermite(2:chaosor+1,2:chaosor+1)' * transpose(Qb(ddl,2+(chaosor)*(i-1):1+(chaosor)*(i))) ];
-%end
-%% Plot the approximated theta
+hist(toplo,nMC/1000);
+%% Plot an independant noise
 %thetae  = randn(nindexa,nMC);
-%toplo = Qb(ddl,1);
+%toplo = 0;
 %for i=1:nindexa 
-%   for j=1:chaosor
-%      toplo = toplo + coefS1(j+chaosor*(i-1))*thetae(i,:).^j;
-%   end
+%   toplo = toplo + 1/sqrt(nindexa)*thetae(i,:);
 %end
 %figure;
 %hist(toplo,nMC/1000);

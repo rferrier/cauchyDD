@@ -1,5 +1,5 @@
 % 07/06/2017 : Couplage entre Cauchy et décomposition de domaines,
-% points multiples mieux gérés
+% points multiples mieux gérés, analyse de Ritz
 
 clear all;
 close all;
@@ -76,13 +76,13 @@ thetax = 0:2*pi/size(index,1):2*pi*(1-1/size(index,1));
 %plot(thetax,uref(index-1,1),'Color','red');
 %legend('uy','ux')
 %xlabel('angle(rad)')
-%figure
-%hold on
-%set(gca, 'fontsize', 15);
-%plot(thetax,fref(index,1));
-%plot(thetax,fref(index-1,1),'Color','red');
-%legend('fy','fx')
-%xlabel('angle(rad)')
+figure
+hold on
+set(gca, 'fontsize', 15);
+plot(thetax,fref(index,1));
+plot(thetax,fref(index-1,1),'Color','red');
+legend('fy','fx')
+xlabel('angle(rad)')
 
 %uref(index-1)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -246,7 +246,7 @@ for i = 1:2*nsub
    % Extract the local uref
    [ b1to2i, b2to1 ] = superNodes( nodess, nodes, 1e-6 ); % Yeah, I'm a pig
    b1to2{i} = b1to2i;
-   urbi = zeros(2*nno{i});
+   urbi = zeros(2*nno{i},1);
    urbi( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = urefb( [2*b1to2{i}-1 ; 2*b1to2{i}] );
    urb{i} = urbi;
    
@@ -549,7 +549,6 @@ if precond == 1
       % Cauchy part
       uloc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = ...
                           Res( 2*nnodes + [2*b1to2{i}-1 ; 2*b1to2{i}] , 1 ) ;
-                          
 
       uloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
                   sign * Res( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ] , 1 );
@@ -665,9 +664,9 @@ for iter = 1:niter
          
          uloc = zeros( 2*nno{i}, 1 );
 
-         % Cauchy part
-         uloc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = ...
-                          Res( 2*nnodes + [2*b1to2{i}-1 ; 2*b1to2{i}] , iter+1 ) ;
+%         % Cauchy part
+%         uloc( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = ...
+%                          Res( 2*nnodes + [2*b1to2{i}-1 ; 2*b1to2{i}] , iter+1 ) ;
          
          uloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...
                      Res( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ] , iter+1 );

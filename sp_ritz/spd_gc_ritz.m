@@ -14,7 +14,7 @@ niter   = 20;
 precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
-br      = .0;      % noise
+br      = .01;      % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-1;   % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
@@ -92,7 +92,7 @@ urefb = ( 1 + brt + br*noise ) .* uref;
 fref  = Kinter*uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
-plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
+plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'output/reference');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Definition of the operators

@@ -10,18 +10,18 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 50;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+niter   = 25;
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = 0.0;    % noise
+br      = 0.;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
-ntrunc  = 31;      % In case the algo finishes at niter
+ntrunc  = 0;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
-methods = [1];
+methods = [3];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
@@ -1204,6 +1204,8 @@ if methods==3
    
    sigmasol = stress3D(usol,mat,nodes,elements,order,1,ntoelem);
    plotGMSH3D({usol,'Vect_U';sigmasol,'stress'}, elements, nodes, 'output/solution');
+   relerror = abs(usol-uref)/max(abs(uref(indexa)));
+   plotGMSH3D({relerror,'Vect_U'}, elements, nodes, 'output/error');
    
    % plot the solution (sigma normal)
    figure;
@@ -1212,7 +1214,7 @@ if methods==3
 %   colorbar;
    maxuref = max(abs(uref(3:3:end)));
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',(uref(3:3:end)-usol(3:3:end))/maxuref, ...
+               'FaceVertexCData',abs(uref(3:3:end)-usol(3:3:end))/maxuref, ...
                'FaceColor','interp');
    colorbar;
    

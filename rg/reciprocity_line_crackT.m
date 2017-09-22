@@ -16,7 +16,7 @@ mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
 %niter      = 4;    %26-49 Number of regularization iterations
-ncrack     = 1;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+ncrack     = 2;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
                     % 51  : refined postpro mesh
                     % 101 : direct & integrals refined, basic crack
                     % 103 : idem for the small crack
@@ -30,15 +30,15 @@ recompute  = 0; % Recompute A and b
 % 2 : 2 elts per node algorithm
 % 3 : Building of chains and suppression of monoms
 % 4 : Proximity-based suppression of shortest chains
-%operations = [1,2,3,4,4,4,4,4];
-%regD       = [0,0,0,.1,.2,.3,.4,.5];   
+operations = [1,2,3,4,4,4,4,4];
+regD       = [0,0,0,.1,.2,.3,.4,.5];   
 % Minimal distance between 2 chains (0 means only one) 
 
 %operations = [1,2,3,4,4,4,4];
 %regD       = [0,0,0,.2,.4,.6,.8];
 
-operations = [1,2,3,4,4,4,4,4,4,4,4];
-regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
+%operations = [1,2,3,4,4,4,4,4,4,4,4];
+%regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
 
 %operations = [1,2,3];
 %regD       = [0,0,0];

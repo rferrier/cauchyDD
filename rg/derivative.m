@@ -3,25 +3,25 @@
 clear all;
 close all;
  
-Norm = 2;
+Norm = 1;
 ordpD = 12;
 sideL = 10; % Nb of points on the domain (for integral approximation)
 pm4   = 4; % Position of the 1d line
  
 %VAR = load('fields/McCoef5.mat');
-%VAR = load('fields/McCoefs7.mat');
+VAR = load('fields/McCoefs7.mat');
 %VAR = load('fields/McCoef8r.mat');
 %VAR = load('fields/McCoef7r6.mat');
 %VAR = load('fields/McCoef7rb1.mat');
-VAR = load('fields/McCoef6rb1.mat');
+%VAR = load('fields/McCoef6rb1.mat');
 McCoef = VAR.McCoef; ordp = VAR.ordp; Xs = VAR.Xs; Ys = VAR.Ys;
 X0 = VAR.X0; Y0 = VAR.Y0;
 Lx = VAR.Lx; Ly = VAR.Ly;
 L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
 
 %REF = load('fields/ref_mult_u.mat');
-REF = load('fields/ref_mult.mat');
-%REF = load('fields/ref_mults.mat');
+%REF = load('fields/ref_mult.mat');
+REF = load('fields/ref_mults.mat');
 %REF = load('fields/ref_mult6.mat');
 uplo1 = REF.uplo1; uplo = REF.uplo;
 

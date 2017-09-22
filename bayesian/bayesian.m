@@ -104,7 +104,8 @@ uin = K\f;
 uref = uin(1:2*nnodes,1);
 lagr = uin(2*nnodes+1:end,1);
 
-urefb = ( 1 + brt + br*noise ) .* uref;
+%urefb = ( 1 + brt + br*noise ) .* uref;
+urefb = uref + br*noise*mean(abs(uref(indexb)));
 fref  = Kinter*uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
@@ -140,8 +141,8 @@ tic
 Msol = Km\Mrhs; Msol = Msol(indexb,:);
 toc
 
-% Estimate additive noise level  /!\/!\/!\ TOSEE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-nl = br*mean(uref(indexa)); % br
+% Estimate additive noise level
+nl = br*mean(abs(uref(indexa))); % br
 %nl = 1.; % Debug stuff
 Co = nl^2*eye(nindexb);  % Correlation matrix
 Co1 = inv(Co); factor = 1/((2*pi)^nindexb*det(Co));

@@ -295,7 +295,7 @@ for iter = 1:niter
     
     %% Orthogonalization
     d(:,iter+1) = Zed(:,iter+1);
-    
+
     for jter=1:iter
         betaij = ( Zed(indexa,iter+1)'*Ad(indexa,jter) );
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
