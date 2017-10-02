@@ -435,17 +435,35 @@ if reduction ~= 0 % G \simeq Ut*Sigmat*Vt'; Ut'*Zd*Ut = 1; Vt'*M*Vt = 1;
    Yt = Y(indexa,1:nbayes);
    Thetat = Theta1(1:nbayes,1:nbayes);
    
-   Sigmat = sqrt(Thetat); Vt = Yt;
-   % Ut = G*M*Vt*Sigmat
+   Sigmat = sqrt(Thetat); %Vt = Yt;
+   
+   % Vt = MYt
    if precond == 1
-      rhs = zeros(2*nnodes,size(Vt*Sigmat,2)); rhs(indexa,:) = Vt*inv(Sigmat);
+      rhs = zeros(2*nnodes,nbayes); rhs(indexa,:) = Yt;
       f11 = dirichletRhs2( rhs, 2, c2node1, boundaryp1, nnodes );
       uin1 = K1\f11;
       lagr1 = uin1(2*nnodes+1:end,:);
-      rhs = zeros(2*nnodes,size(Vt*Sigmat,2));
-      for i=1:size(Vt*Sigmat,2)
+      rhs = zeros(2*nnodes,nbayes);
+      for i=1:nbayes
          rhs(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundaryp1, nnodes );
       end
+   else
+      rhs = zeros(2*nnodes,nbayes); rhs(indexa,:) = Yt;
+   end
+   Vt = rhs(indexa,:);
+   
+   % Ut = G*M^-1*Vt*Sigmat^-1
+   if precond == 1
+%      rhs = zeros(2*nnodes,size(Vt*Sigmat,2)); rhs(indexa,:) = Vt*inv(Sigmat);
+%      f11 = dirichletRhs2( rhs, 2, c2node1, boundaryp1, nnodes );
+%      uin1 = K1\f11;
+%      lagr1 = uin1(2*nnodes+1:end,:);
+%      rhs = zeros(2*nnodes,size(Vt*Sigmat,2));
+%      for i=1:size(Vt*Sigmat,2)
+%         rhs(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundaryp1, nnodes );
+%      end
+      rhs = zeros(2*nnodes,size(Vt*Sigmat,2)); rhs(indexa,:) = Vt*inv(Sigmat);
+      rhs = K1d\[rhs;zeros(nbloq1d,size(Vt*Sigmat,2))];
    else
       rhs = zeros(2*nnodes,size(Vt*Sigmat,2)); rhs(indexa,:) = Vt*inv(Sigmat);
    end
@@ -453,6 +471,18 @@ if reduction ~= 0 % G \simeq Ut*Sigmat*Vt'; Ut'*Zd*Ut = 1; Vt'*M*Vt = 1;
    Mrhs = dirichletRhs2( rhs, 2, c2nodem, boundary, nnodes );
    Ut = Km\Mrhs; Ut = Ut(indexb,:);
    
+   % DEBUG : test the orthogonality of Ut
+   rhs = zeros(2*nnodes,size(Ut,2)); rhs(indexb,:) = Ut;
+   f11 = dirichletRhs2( rhs, 4, c2node1, boundaryp1, nnodes );
+   uin1 = K1\f11;
+   lagr1 = uin1(2*nnodes+1:end,:);
+   rhs = zeros(2*nnodes,size(Ut,2));
+   for i=1:size(Ut,2)
+      rhs(:,i) = lagr2forces2( lagr1(:,i), c2node1, 4, boundaryp1, nnodes );
+   end
+   rhs = rhs(indexb,:);
+%   Ut'*rhs
+
    Gtilde = Ut*Sigmat*Vt';
 end
 
@@ -470,6 +500,7 @@ if reduction == 2 % Linear Bayesian update (Kalman filter)
    uin1 = K1\f1; lagr1 = uin1(2*nnodes+1:end,1);
    Zu = lagr2forces2( lagr1, c2node1, 4, boundaryp1, nnodes );
    btilde = Ut'*Zu(indexb,:);
+%   btilde = (Ut'*Ut)\Ut'*urefb;
    
    % Estimate additive noise level and project it on the basis
    nl = br*mean(abs(uref(indexb))); % indexb
@@ -484,8 +515,7 @@ if reduction == 2 % Linear Bayesian update (Kalman filter)
       lagr1 = uin1(2*nnodes+1:end,1);
       Ceps1(:,i) = lagr2forces2( lagr1, c2node1, 4, boundaryp1, nnodes );
    end
-   Ceps1 = Ceps1(indexb,:); 
-   Ceps = Ceps1*Ceps1';
+   Ceps1 = Ceps1(indexb,:); Ceps = Ceps1*Ceps1';
    
    Ctilde = Ut'*Ceps*Ut;         % Reduced correlation matrix
    ntilde = Ut'*Ceps1;           % Reduced noise 

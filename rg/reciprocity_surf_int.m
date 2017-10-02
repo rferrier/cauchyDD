@@ -20,7 +20,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
-br      = .0;
+br      = .1;
 
 nbase     = 2; % Number of Fourier basis functions
 ordp      = 1; % Order of polynom
@@ -31,9 +31,9 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 4 : meshes are conformal, read the u field
 
 usefourier = 0;
-usepolys   = 1;
-plotref    = 1;
-comperror  = 1;
+usepolys   = 0;
+plotref    = 0;
+comperror  = 0;
 Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % Line to add to store the fields
@@ -300,7 +300,7 @@ end
 
 % Second method : loop over boundaries to compute the integrals
 R11 = 0; R21 = 0; R31 = 0; R41 = 0; R51 = 0; R61 = 0;
-R12 = 0; R22 = 0; R32 = 0; R42 = 0; R52 = 0; R62 = 0;
+R12 = 0; R22 = 0; R32 = 0; R42 = 0; R52 = 0; R62 = 0; %Checksum = 0;
 for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
    bonod = boundary2(i,:); exno = extnorm2(i,:)';
 
@@ -404,25 +404,37 @@ for i=1:nboun2 % boundary1 and boundary 2 are supposed to be the same
       R42 = R42 + S * wg * ( fer2'*v4 - f4'*uer2 );
       R52 = R52 + S * wg * ( fer2'*v5 - f5'*uer2 );
       R62 = R62 + S * wg * ( fer2'*v6 - f6'*uer2 );
+      
+%      Checksum = Checksum + S * wg * uer1; % Just a random debug asset
    end
 end
 RR1 = [R11, R41, R51 ; R41, R21, R61 ; R51, R61, R31];
 RR2 = [R12, R42, R52 ; R42, R22, R62 ; R52, R62, R32];
 
+%% Evaluate the noise effect from the knowledge that an eignevalue is 0
+%a = R11; b = R41; c = R51; d = R21; e = R61; f = R31;
+%atilde1 = (-c^2*d+2*b*c*e-a*e^2-b^2*f+a*d*f) / ...
+%          (b^2-2*b*c+c^2-a*d+2*c*d+2*a*e*2*b*e-2*c*e+e^2-a*f+2*b*f-d*f);
+%a = R12; b = R42; c = R52; d = R22; e = R62; f = R32;
+%atilde2 = (-c^2*d+2*b*c*e-a*e^2-b^2*f+a*d*f) / ...
+%          (b^2-2*b*c+c^2-a*d+2*c*d+2*a*e*2*b*e-2*c*e+e^2-a*f+2*b*f-d*f);
+
 % Normalize R1
 normR1 = sqrt( 2*(R11^2+R21^2+R31^2+2*(R41^2+R51^2+R61^2)) - (R11+R21+R31)^2 );
-RR1 = RR1/normR1;
+RR1 = RR1/normR1;  RR1p = closestDeficient (RR1, 100);
 [phi1,Lambda1] = eig( RR1 );
 
 % Normalize R2
 normR2 = sqrt( 2*(R12^2+R22^2+R32^2+2*(R42^2+R52^2+R62^2)) - (R12+R22+R32)^2 );
-RR2 = RR2/normR2;
+RR2 = RR2/normR2; RR2p = closestDeficient (RR2, 100);
 [phi2,Lambda2] = eig( RR2 );
 
-% Vectorial product (provided the null eigenvalue is the second one)
-normal = [phi1(2,2)*phi2(3,2) - phi2(2,2)*phi1(3,2)
-          phi1(3,2)*phi2(1,2) - phi2(3,2)*phi1(1,2)
-          phi1(1,2)*phi2(2,2) - phi2(1,2)*phi1(2,2)];
+% Find the null eigenvalue
+[~,inul1] = min(abs(diag(Lambda1))); [~,inul2] = min(abs(diag(Lambda2)));
+% Vectorial product
+normal = [phi1(2,inul1)*phi2(3,inul2) - phi2(2,inul2)*phi1(3,inul1)
+          phi1(3,inul1)*phi2(1,inul2) - phi2(3,inul2)*phi1(1,inul1)
+          phi1(1,inul1)*phi2(2,inul2) - phi2(1,inul2)*phi1(2,inul1)];
 
 normal = normal/norm(normal);
           
