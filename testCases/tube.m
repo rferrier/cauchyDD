@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.;      % noise
+br      = 0.01;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
@@ -31,7 +31,7 @@ dirichlet   = [2,1,0; 2,2,0];
     readmesh( 'meshes/tube.msh' );
 nnodes = size(nodes,1);
 
-noises = load('./noises/noisetube0.mat'); % Particular noise vector
+noises = load('./noises/noisetube1.mat'); % Particular noise vector
 noise  = noises.bruit1;
 %noise  = randn(2*nnodes,1);
 
@@ -64,7 +64,7 @@ frefb = ( 1 + br*noise ) .* fref;
 % Compute stress :
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem,1);
 % Output :
-plotGMSH({uref,'U_vect';sigma,'stress'}, elements, nodes, 'reference');
+plotGMSH({uref,'U_vect';sigma,'stress'}, elements, nodes, 'output/reference');
 
 % Plot displacement on the interface :
 %index = 2*[b2node1;b2node2;b2node3];
@@ -156,6 +156,7 @@ if find(methods==1)
         residual(iter) = norm(u1(indexxy)-u2(indexxy)) /...
                          sqrt ( norm(u1(indexxy))*norm(u2(indexxy)) );             
         regulari(iter) = sqrt(u2'*( regul(u2, nodes, boundary, 3) ));
+        residual2(iter) = norm(vo(indexxy)-u2(indexxy));
     end
     
     figure
@@ -641,7 +642,7 @@ end
 if find(methods==4)
     niter   = 10;
     mu      = 0;      % Regularization parameter
-    precond = 0;      % use a dual precond ?
+    precond = 1;      % use a dual precond ?
     
     % Init
     Itere    = zeros( 2*nnodes, 1 );
@@ -789,9 +790,9 @@ if find(methods==4)
     figure
     hold on
     set(gca, 'fontsize', 15);
-    plot(error,'Color','blue')
-    plot(residual,'Color','red')
-    legend('error','residual')
+    plot(log10(error),'Color','blue')
+    plot(log10(residual),'Color','red')
+    legend('error(log)','residual(log)')
     % L-curve
     figure
     loglog(residual,regulari,'-+');
@@ -831,7 +832,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dual SP with Orthodir (niter = 70)
 if find(methods==5)
-    niter   = 100;
+    niter   = 10;
     mu      = 0.0/E;      % Regularization parameter
     precond = 0;      % use a primal precond ?
     
@@ -1588,10 +1589,11 @@ if find(methods==8)
 end
 %%
 if find(methods==9)
-   niter   = 5;
+   niter   = 10;
    precond = 1;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
+   ntrunc = 0;  % In case the algo finishes before max ratio is reached
    
    %% Conjugate Gradient for the problem : (S10-S20) x = S2-S1
    Itere = zeros( 2*nnodes, 1 );
@@ -1602,7 +1604,6 @@ if find(methods==9)
    Zed   = zeros( 2*nnodes, niter+1 );
    alpha = zeros( niter+1, 1 );
    beta  = zeros( niter+1, 1 );
-   ntrunc = 0;  % In case the algo finishes before max ratio is reached
    
    %% Perform A x0 :
    % Solve 1
@@ -1866,15 +1867,16 @@ if find(methods==9)
    hold on
    set(gca, 'fontsize', 15);
    plot(error,'Color','blue')
+   plot(errS,'Color','green')
    plot(residual/residual(1),'Color','red')
-   legend('error','residual')
+   legend('error','Ritz error','residual')
   
-%   figure; 
-%   hold on;
-%   plot(log10(theta),'Color','blue')
-%   plot(log10(abs(Y'*b)),'Color','red')
-%   plot(log10(abs(chi)),'Color','black')
-%   legend('Ritz Values','RHS values','solution coefficients')
+   figure; 
+   hold on;
+   plot(log10(theta),'Color','blue')
+   plot(log10(abs(Y'*b)),'Color','red')
+   plot(log10(abs(chi)),'Color','black')
+   legend('Ritz Values','RHS values','solution coefficients')
    
    regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
    for i = 1:iter+1
@@ -1892,9 +1894,10 @@ if find(methods==9)
    set(gca, 'fontsize', 20);
 %   loglog(resS(2:iter+1),regS(2:iter+1),'-*','Color','red','linewidth',3);
 %   loglog(residual(2:iter+1),regulari(2:iter+1),'-+','linewidth',3);
+   plot(log10(resS(2:iter+1)),log10(regS(2:iter+1)),'-+','linewidth',3,'Color','red');
    plot(log10(residual(2:iter+1)),log10(regulari(2:iter+1)),'-+','linewidth',3);
-%   legend('RL-curve','L-curve')
-   legend('L-curve')
+   legend('RL-curve','L-curve')
+%   legend('L-curve')
    xlabel('Residual (log)')
    ylabel('H1 Norm (log)')
 %   ntrunc = findCorner (resD(2:iter), regD(2:iter), 3)
@@ -1933,16 +1936,16 @@ if find(methods==9)
 %   plot(thetax,usolR(index,1));
 %   plot(thetax,usolR(index-1,1), 'Color', 'red');
 %   xlabel('angle(rad)')
-   figure
-   hold on
-   set(gca, 'fontsize', 20);
-%   plot(thetax,efeR(index,1),'linewidth',3);
-%   plot(thetax,efeR(index-1,1), 'Color', 'red','linewidth',3);
-   plot( thetax,sqrt(efeR(index-1,1).^2+efeR(index,1).^2) ,'linewidth',3);
-   plot( thetax,sqrt(fref(index-1,1).^2+fref(index,1).^2) ,'linewidth',3,'Color','red');
-   xlabel('angle(rad)')
-   ylabel('pressure')
-   legend('Solution','Reference')
+%   figure
+%   hold on
+%   set(gca, 'fontsize', 20);
+%%   plot(thetax,efeR(index,1),'linewidth',3);
+%%   plot(thetax,efeR(index-1,1), 'Color', 'red','linewidth',3);
+%   plot( thetax,sqrt(efeR(index-1,1).^2+efeR(index,1).^2) ,'linewidth',3);
+%   plot( thetax,sqrt(fref(index-1,1).^2+fref(index,1).^2) ,'linewidth',3,'Color','red');
+%   xlabel('angle(rad)')
+%   ylabel('pressure')
+%   legend('Solution','Reference')
    
 %   efe = Kinter*usolR;
 %   figure
@@ -1957,17 +1960,29 @@ if find(methods==9)
 %   plot(thetax,efe(index,1));
 %   plot(thetax,efe(index-1,1), 'Color', 'red');
 %   xlabel('angle(rad)')
-    
+
+   figure
+   hold on
+   set(gca, 'fontsize', 15);
+   plot(thetax,ItereR(index,1));
+   plot(thetax,ItereR(index-1,1),'Color','red');
+   legend('uy','ux')
+   xlabel('angle(rad)')
+
    total_error = norm(uref-usolR)/norm(uref);
    total_errorf = norm(fref-efeR)/norm(fref);
  
 end
 %%
 if find(methods==10)
-   niter   = 50;
+   niter   = 10;
    precond = 0;      % 1 : Use a dual precond
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
+   
+   %% For u error computation
+   dirichlet = [2,1,0;2,2,0];
+   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
    
    %% Conjugate Gradient for the problem : (D20-D10) x = D1-D2
    Itere = zeros( 2*nnodes, 1 );
@@ -2033,6 +2048,11 @@ if find(methods==10)
    error(1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
    regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
    
+%   % U error computation
+%   fdir3 = [ Itere ; zeros(nbloq,1) ];
+%   usoli = K \ fdir3;
+%   erroru(1) = norm(usoli(indexxy) - uref(indexxy)) / norm(uref(indexxy));
+   
    ritzval  = 0; % Last ritz value that converged
    oldtheta = 0;
    eta      = 0;
@@ -2064,6 +2084,11 @@ if find(methods==10)
        residual(iter+1) = norm(Res(indexxy,iter+1));
        error(iter+1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
        regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
+       
+%       % U error computation
+%       fdir3 = [ Itere ; zeros(nbloq,1) ];
+%       usoli = K \ fdir3;
+%       erroru(iter+1) = norm(usoli(indexxy) - uref(indexxy)) / norm(uref(indexxy));
        
        if precond == 1
           % Solve 1
@@ -2231,8 +2256,8 @@ if find(methods==10)
 %   xlabel('angle(rad)')
    
    %% Final problem
-   dirichlet = [2,1,0;2,2,0];
-   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
+%   dirichlet = [2,1,0;2,2,0];
+%   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
    fdir3R = [ ItereR ; zeros(nbloq,1) ];
    fdir3 = [ Itere ; zeros(nbloq,1) ];
    usoli = K \ fdir3R ;

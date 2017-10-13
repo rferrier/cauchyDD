@@ -235,15 +235,46 @@ eidp = real(Vdp)'*(d);
 %legend('Korth primal','Korth precond','Korth dual','Korth precond');
 
 % %% Iterative resolutions
-% [x,flag,relres,iter] = pcg(K1k,b,1e-15,20);
-% figure; plot(x); relres
+%[x,flag,relres,iter] = pcg(K1k,b,1e-15,5);
+%figure; plot(x); relres;
+%norm(x-uin(indexa))
 % [x,flag,relres,iter] = symmlq(K1k,b,1e-15,20);
 % figure; plot(x); relres
-% [x,flag,relres,iter] = gmres(K1k,b,[],1e-15,20);
-% figure; plot(x); relres
-% x = K1k\b;
-% figure; plot(x); norm(K1k*x-b)
-% bug
+%[x,flag,relres,iter] = gmres(K1k,b,[],1e-15,20);
+%figure; plot(x); relres
+%x = K1k\b;
+%figure; plot(x); norm(K1k*x-b)
+
+%% Manual CG
+%x = zeros(size(b)); Axz = K1k*x;
+%Res(:,1) = b - Axz; Zed(:,1) = Res(:,1);
+%d(:,1) = Zed(:,1);
+%residual(1) = norm(Res( :,1));
+%
+%for iter = 1:5
+%    Ad(:,iter) = K1k*d(:,iter);
+%    
+%    den = (d(:,iter)'*Ad(:,iter));
+%    d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
+%    num = Res(:,iter)'*d(:,iter);
+%
+%    x             = x + d(:,iter)*num;
+%    Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;
+%    
+%    residual(iter+1) = norm(Res(:,iter+1));
+%    
+%    Zed(:,iter+1) = Res(:,iter+1);
+%
+%    d(:,iter+1) = Zed(:,iter+1);
+%    for jter=1:iter
+%        betaij = ( Zed(:,iter+1)'*Ad(:,jter) );
+%        d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
+%    end    
+%end
+%figure; plot(x); norm(K1k*x-b);
+%norm(x-uin(indexa))
+%bug
+
 %% Primal noprec
 chib = eib./vp; chiD = chib; niter = size(chiD,1);
 %[indm2,pol] = findPicard2(log10(abs(chiD)), 3, 1);

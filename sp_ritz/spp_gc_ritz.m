@@ -10,11 +10,11 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+niter   = 3;
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = .01;    % noise
+br      = .1;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
@@ -120,6 +120,7 @@ end
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
 regulari = zeros(niter+1,1);
+regulari2 = zeros(niter+1,1);
 
 %% Dual problems
 % First problem
@@ -210,9 +211,32 @@ end
 
 d(:,1) = Zed(:,1);
 
+% Violent Computation of the residual and regulari (avoidable)
+f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
+uin1 = K1\f1;
+lagr1 = uin1(2*nnodes+1:end,1);
+MItere = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+%
+regulari3(1) = sqrt(Itere(indexa,1)'*MItere(indexa,1));
+%
+f1 = dirichletRhs2( Zed(:,1), 2, c2node1, boundaryp1, nnodes );
+uin1 = K1\f1;
+lagr1 = uin1(2*nnodes+1:end,1);
+lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+% Solve 2
+f2 = dirichletRhs2( Zed(:,1), 2, c2node2, boundaryp2, nnodes );
+uin2 = K2\f2;
+lagr2 = uin2(2*nnodes+1:end,1);
+lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
+%
+AZed = lamb1-lamb2;
+%
+residual3(1) = sqrt(AZed(indexa,1)'*Zed(indexa,1));
+
 residual(1) = norm(Res( indexa,1));%sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res( indexa,1));
 error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+regulari2(1) = norm( Itere(indexa) );
 
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
@@ -263,9 +287,32 @@ for iter = 1:niter
         Zed(:,iter+1) = Res(:,iter+1);
     end
     
+    % Violent Computation of the residual and regulari (avoidable)
+    f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
+    uin1 = K1\f1;
+    lagr1 = uin1(2*nnodes+1:end,1);
+    MItere = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+    %
+    regulari3(iter+1) = sqrt(Itere(indexa,1)'*MItere(indexa,1));
+    %
+    f1 = dirichletRhs2( Zed(:,iter+1), 2, c2node1, boundaryp1, nnodes );
+    uin1 = K1\f1;
+    lagr1 = uin1(2*nnodes+1:end,1);
+    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+    % Solve 2
+    f2 = dirichletRhs2( Zed(:,iter+1), 2, c2node2, boundaryp2, nnodes );
+    uin2 = K2\f2;
+    lagr2 = uin2(2*nnodes+1:end,1);
+    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
+    %
+    AZed = lamb1-lamb2;
+    %
+    residual3(iter+1) = sqrt(AZed(indexa,1)'*Zed(indexa,iter+1));
+    
     residual(iter+1) = norm(Res(indexa,iter+1));%sqrt(Zed(indexa,iter+1)'*Res(indexa,iter+1));%
     error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
+    regulari2(iter+1) = norm( Itere(indexa) );
     
     % Needed values for the Ritz stuff
     alpha(iter) = num/sqrt(den);
@@ -376,7 +423,7 @@ for i = 1:iter+1
    AI = lamb1-lamb2;
    
    ResS = AI-b;
-   
+
    % Preconditionned residual
    f1 = [ResS; zeros(nbloq1d,1)];
    uin1 = K1dr\f1;
@@ -507,6 +554,8 @@ fsolR = Kinter*usolR;
 %plot(fsolR(2*b2node2-1),'Color','blue')
 %plot(f(2*b2node2-1),'Color','green')
 %legend('brutal solution','filtred solution','reference')
+
+errorx = abs((usol(2*b2node2-1)-uref(2*b2node2-1)))/max(abs(uref(2*b2node2-1)));
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

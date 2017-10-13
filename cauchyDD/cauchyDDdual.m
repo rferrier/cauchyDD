@@ -238,7 +238,7 @@ for i = 1:2*nsub
    
    % Extract the local uref
    [ b1to2{i}, b2to1 ] = superNodes( nodess, nodes, 1e-6 ); % Yeah, I'm a pig
-   urbi = zeros(2*nno{i});
+   urbi = zeros(2*nno{i},1);
    urbi( [1:2:2*nno{i}-1, 2:2:2*nno{i}] ) = urefb( [2*b1to2{i}-1 ; 2*b1to2{i}] );
    urb{i} = urbi;
    

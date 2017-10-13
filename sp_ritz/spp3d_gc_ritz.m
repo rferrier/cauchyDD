@@ -22,7 +22,7 @@ ntrunc   = 0;      % In case the algo finishes at niter
 inhomog  = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
-methods = [2];
+methods = [1];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
@@ -944,20 +944,25 @@ if methods == 2
    
    sigmasol = stress3D(usol,mat,nodes,elements,order,1,ntoelem);
    plotGMSH3D({usol,'Vect_U';sigmasol,'stress'}, elements, nodes, 'output/solution');
+   relerror = (usol-uref)/max(abs(uref(indexa)));
+   plotGMSH3D({relerror,'Vect_U'}, elements, nodes, 'output/error');
    
    sigmasole  = stress3D(usol,mat,nodes,elements,order,0,ntoelem); % Per element stress
    sigmasoleb = sigmasole( [ 6*boun2vol2-5 , 6*boun2vol2-4 , 6*boun2vol2-3 , ...
                              6*boun2vol2-2 , 6*boun2vol2-1 , 6*boun2vol2 ] );
    
    % plot the solution (sigma normal)
-   figure;
+%   figure;
 %   ret = patch('Faces',patch2,'Vertices',nodes, ... 
 %               'FaceVertexCData',sigmasoleb(:,3),'FaceColor','flat');
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
+%   colorbar;
+   figure;
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
+               'FaceVertexCData',(usol(3:3:end) - uref(3:3:end)) ...
+                        / max(abs(uref(indexa))),'FaceColor','interp');
    colorbar;
-   
-   
    
    erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));
 end
@@ -1232,13 +1237,19 @@ if methods==3
    
    sigmasol = stress3D(usol,mat,nodes,elements,order,1,ntoelem);
    plotGMSH3D({usol,'Vect_U';sigmasol,'stress'}, elements, nodes, 'output/solution');
+   relerror = abs(usol-uref)/max(abs(uref(indexa)));
+   plotGMSH3D({relerror,'Vect_U'}, elements, nodes, 'output/error');
    
    % plot the solution (sigma normal)
+%   figure;
+%   ret = patch('Faces',patch2,'Vertices',nodes, ... 
+%               'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
    figure;
    ret = patch('Faces',patch2,'Vertices',nodes, ... 
-               'FaceVertexCData',sigmasol(3:6:end),'FaceColor','interp');
+               'FaceVertexCData',abs(usol(3:3:end) - uref(3:3:end)) ...
+                        / max(abs(uref(indexa))),'FaceColor','interp');
    colorbar;
    
-   erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));
+   erroru = norm(usol(indexa) - uref(indexa)) / norm(uref(indexa));% / max(abs(uref(indexa)));
            
 end

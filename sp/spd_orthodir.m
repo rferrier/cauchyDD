@@ -41,6 +41,9 @@ boundaryp1 = suppressBound( boundary, [no3;no4], 3 );
 boundaryp2 = boundaryp1;
 %boundary = suppressBound( boundary, [no3;no4], 3 );
 
+[~, b2node3] = mapBound(3, boundaryp1, nnodes);
+indexa = [2*b2node3-1; 2*b2node3];
+
 % Then, build the stiffness matrix :
 [K,C,nbloq,node2c,c2node] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
 Kinter = K(1:2*nnodes, 1:2*nnodes);
@@ -165,8 +168,9 @@ p(:,1) = Zed(:,1);
 
 %residual(1) = sqrt( myps( Zed(:,1), Zed(:,1), Kinter, boundaryp1, M, nodes ) );
 residual(1) = sqrt( myps( Res(:,1), Res(:,1), Kinter, boundaryp1, M, nodes ) );
-error(1)    = sqrt( myps( Itere - fref, Itere - fref, Kinter, boundaryp1, M, nodes )...
-                 / myps( fref, fref, Kinter, boundaryp1, M, nodes ) );
+error(1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
+%error(1)    = sqrt( myps( Itere - fref, Itere - fref, Kinter, boundaryp1, M, nodes )...
+%                 / myps( fref, fref, Kinter, boundaryp1, M, nodes ) );
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundaryp1, 3) );
 
 %% Perform Q1 = A P1 :
@@ -216,8 +220,9 @@ for iter = 1:niter
     
     %residual(iter+1) = sqrt( myps( Zed(:,iter+1), Zed(:,iter+1), Kinter, boundaryp1, M, nodes ) );
     residual(iter+1) = sqrt( myps( Res(:,iter+1), Res(:,iter+1), Kinter, boundaryp1, M, nodes ) );
-    error(iter+1)    = sqrt( myps( Itere - fref, Itere - fref, Kinter, boundaryp1, M, nodes )...
-                     / myps( fref, fref, Kinter, boundaryp1, M, nodes ) );
+%    error(iter+1)    = sqrt( myps( Itere - fref, Itere - fref, Kinter, boundaryp1, M, nodes )...
+%                     / myps( fref, fref, Kinter, boundaryp1, M, nodes ) );
+    error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundaryp1, 3) );
 
     %% Perform Ari = A*Res
@@ -271,6 +276,12 @@ fdir2 = dirichletRhs(urefb, 2, C, boundary);
 f3 = [ Itere ; zeros(nbloq,1) ];
 usoli = K \ ( max(fdir1, fdir2) + f3 );
 usol = usoli(1:2*nnodes,1);
+
+figure;
+hold on;
+plot(usol(2*b2node3-1),'Color','blue')
+plot(uref(2*b2node3-1),'Color','green')
+legend('solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

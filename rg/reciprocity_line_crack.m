@@ -15,6 +15,7 @@ mat        = [0, E, nu];
 br         = .0;      % Noise level
 jmax       = 35;     % Eigenvalues truncation number
 regular    = 0;      % Use the regularization matrix
+upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 
 thetareg   = pi/3;  % Regularization angle
 dreg       = .2;    % Regularization distance
@@ -24,6 +25,10 @@ alreg      = 1e-5;     % Regularization parameter
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
 neumann1   = [3,2,fscalar ; 1,2,-fscalar];
 neumann2   = [2,1,fscalar ; 4,1,-fscalar];
+neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
+              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
+neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
+              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
@@ -49,14 +54,14 @@ Ymax = max(nodes(:,2)); Ymin = min(nodes(:,2)); Ymoy = (Ymax+Ymin)/2;
 Lx = Xmax-Xmin; Ly = Ymax-Ymin;
 
 f1  = loading(nbloq,nodes,boundary,neumann1);
-uin = K\f1;
-u1 = uin(1:2*nnodes,1);
-f1 = Kinter*u1;
-
 f2  = loading(nbloq,nodes,boundary,neumann2);
-uin = K\f2;
-u2 = uin(1:2*nnodes,1);
-f2 = Kinter*u2;
+f3  = loading(nbloq,nodes,boundary,neumann3);
+f4  = loading(nbloq,nodes,boundary,neumann4);
+
+uin = K\[f1,f2,f3,f4];
+u1 = uin(1:2*nnodes,1); u2 = uin(1:2*nnodes,2);
+u3 = uin(1:2*nnodes,3); u4 = uin(1:2*nnodes,4);
+f1 = Kinter*u1; f2 = Kinter*u2; f3 = Kinter*u3; f4 = Kinter*u4;
 
 ui = reshape(u1,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 
@@ -64,7 +69,7 @@ ui = reshape(u1,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
 
 % Output :
-plotGMSH({u1,'U1';u2,'U2'}, elements, nodes, 'output/reference');
+plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Import the uncracked domain
 [ nodes2,elements2,ntoelem2,boundary2,order2] = readmesh( 'meshes/rg_refined/plate_nn.msh' );
@@ -101,12 +106,22 @@ fr1(indexbound2) = f1(indexbound);
 ur2 = zeros( 2*nnodes2, 1 ); fr2 = zeros( 2*nnodes2, 1 );
 ur2(indexbound2) = u2(indexbound);
 fr2(indexbound2) = f2(indexbound);
+% 3
+ur3 = zeros( 2*nnodes2, 1 ); fr3 = zeros( 2*nnodes2, 1 );
+ur3(indexbound2) = u3(indexbound);
+fr3(indexbound2) = f3(indexbound);
+% 4
+ur4 = zeros( 2*nnodes2, 1 ); fr4 = zeros( 2*nnodes2, 1 );
+ur4(indexbound2) = u4(indexbound);
+fr4(indexbound2) = f4(indexbound);
 
 % Add the noise
-%u1n = u1; u2n = u2;
-%br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
-%% noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
-%u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
+u1n = u1; u2n = u2; u3n = u3; u4n = u4;
+br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
+br3 = randn(2*nnodes,1); br4 = randn(2*nnodes,1);
+% noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
+u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
+u3 = ( 1 + br*br3 ) .* u3; u4 = ( 1 + br*br4 ) .* u4;
 
 plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
 
@@ -157,10 +172,14 @@ for i=1:nboun1
    % ur
    urr1(i,1:4) = u1( [2*no1-1,2*no1,2*no2-1,2*no2] );
    urr2(i,1:4) = u2( [2*no1-1,2*no1,2*no2-1,2*no2] );
+   urr3(i,1:4) = u3( [2*no1-1,2*no1,2*no2-1,2*no2] );
+   urr4(i,1:4) = u4( [2*no1-1,2*no1,2*no2-1,2*no2] );
    if order == 2
       no4 = boundary(i,4);
-      urr1(i,5:6) = u1( [2*no4-1,2*no4] );
-      urr2(i,5:6) = u2( [2*no4-1,2*no4] );
+         urr1(i,5:6) = u1( [2*no4-1,2*no4] );
+         urr2(i,5:6) = u2( [2*no4-1,2*no4] );
+         urr3(i,5:6) = u3( [2*no4-1,2*no4] );
+         urr4(i,5:6) = u4( [2*no4-1,2*no4] );
    end
 end
 
@@ -169,10 +188,22 @@ tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Identify the crack
 % Build the polynomial test functions.
-load('conditions10_2d.mat','-ascii');
-M = spconvert(conditions10_2d); clear('conditions10_2d');
-nmax = 10;
+load('conditions20_2d.mat','-ascii');
+M = spconvert(conditions20_2d); clear('conditions20_2d');
+nmax = 20;
 ncoef =2*(nmax+1)^2; neq = ncoef;
+
+% Suppress the superior terms
+if upper_term == 0 % Rem : there will be loads of 0 in coef
+   for i=0:nmax
+      for j=0:nmax
+         if i+j>nmax
+            M((nmax+1)*i+j+1,:) = 0;
+            M((nmax+1)*i+j+1,(nmax+1)*i+j+1) = 1;
+         end
+      end
+   end
+end
 
 % Suppress zeros rows
 toremove = [];
@@ -258,6 +289,10 @@ for j=1:nseg % Compute the 1D integrals
       X = xgr(1)/Lx; Y = xgr(2)/Lx;
       
       for i=1:nftest
+         if norm(coef(1:(nmax+1)^2,i)) == 0 % Zero column : no need to continue
+            continue;
+         end
+         
          coefa = coef(1:(nmax+1)^2,i);
          coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,i);
          
@@ -316,6 +351,8 @@ tic
 %% Compute the RG
 Rhs1  = zeros(nftest,1);
 Rhs2  = zeros(nftest,1);
+Rhs3  = zeros(nftest,1);
+Rhs4  = zeros(nftest,1);
 
 for k=1:nftest
 
@@ -346,6 +383,8 @@ for k=1:nftest
          if order==1
             uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
             uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
+            uer3 = transpose( (1-xg)*urr3(i,1:2) + xg*urr3(i,3:4) ); % [ux;uy] on the
+            uer4 = transpose( (1-xg)*urr4(i,1:2) + xg*urr4(i,3:4) ); % Gauss point
             xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
          elseif order==2
             uer1 = transpose( urr1(i,1:2) + ...
@@ -354,19 +393,29 @@ for k=1:nftest
             uer2 = transpose( urr2(i,1:2) + ...
                    xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
                    xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
+            uer3 = transpose( urr3(i,1:2) + ...
+                   xg*(4*urr3(i,5:6)-3*urr3(i,1:2)-urr3(i,3:4)) + ...   % [ux;uy] on the
+                   xg^2*(2*urr3(i,3:4)+2*urr3(i,1:2)-4*urr3(i,5:6)) ); % Gauss point
+            uer4 = transpose( urr4(i,1:2) + ...
+                   xg*(4*urr4(i,5:6)-3*urr4(i,1:2)-urr4(i,3:4)) + ...  
+                   xg^2*(2*urr4(i,3:4)+2*urr4(i,1:2)-4*urr4(i,5:6)) );
             xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
                    xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
          end
    
          % Reference force from the BC's
-         if exno(1) == 1
+         if exno(1) == 1 % Bound 2
             fer1 = [0;0]; fer2 = [fscalar;0];
-         elseif exno(1) == -1
+            fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
+         elseif exno(1) == -1 % Bound 4
             fer1 = [0;0]; fer2 = -[fscalar;0];
-         elseif exno(2) == 1
+            fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
+         elseif exno(2) == 1 % Bound 3
             fer1 = [0;fscalar]; fer2 = [0;0];
-         elseif exno(2) == -1
+            fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];
+         elseif exno(2) == -1 % Bound 1
             fer1 = -[0;fscalar]; fer2 = [0;0];
+            fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
          end
          
          X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
@@ -428,6 +477,8 @@ for k=1:nftest
 
          Rhs1(k) = Rhs1(k) + len * wg * ( fer1'*vpa - fpa'*uer1 );
          Rhs2(k) = Rhs2(k) + len * wg * ( fer2'*vpa - fpa'*uer2 );
+         Rhs3(k) = Rhs3(k) + len * wg * ( fer3'*vpa - fpa'*uer3 );
+         Rhs4(k) = Rhs4(k) + len * wg * ( fer4'*vpa - fpa'*uer4 );
       end
    end
    

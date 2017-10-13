@@ -22,7 +22,7 @@ ncrack     = 1;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise
                     % 103 : idem for the small crack
                     % 1001 : more test-functions
                     % 10001 : analysis on a mesh marking the crack
-co         = [1,1,1,1]; % Coefficients for each RG test-case
+co         = [1,1,0,0]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
 
 % List of the operations :
@@ -34,18 +34,18 @@ recompute  = 0; % Recompute A and b
 %regD       = [0,0,0,.1,.2,.3,.4,.5];   
 % Minimal distance between 2 chains (0 means only one) 
 
-%operations = [1,2,3,4,4,4,4];
-%regD       = [0,0,0,.2,.4,.6,.8];
+operations = [1,2,3,4,4,4,4];
+regD       = [0,0,0,.2,.4,.6,.8];
 
-operations = [1,2,3,4,4,4,4,4,4,4,4];
-regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
+%operations = [1,2,3,4,4,4,4,4,4,4,4];
+%regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
 
 %operations = [1,2,3];
 %regD       = [0,0,0];
 %operations = [1,2];
 %regD       = [0,0];
-%operations = 1;
-%regD       = 0;
+operations = 1;
+regD       = 0;
 
 niter = size(operations,2);
 
@@ -566,6 +566,7 @@ if recompute == 1
 else
    if ncrack == 1
       Anb = load('fields/matrix.mat');
+%      Anb = load('fields/matrix_order_20.mat');
       % The mesh is still needed
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 2
@@ -834,7 +835,7 @@ for i = 1:niter
    end
    
    oldauthorized = authorized;
-   authorized = [ 2*authorized-1 ; 2*authorized ];
+   authorized = unique( [ 2*authorized-1 ; 2*authorized ] );
 
    [Q,Theta] = eig( A(authorized,authorized) );%,L); Q = Q*(Q'*L*Q)^(-1/2);
    thetas = diag(Theta);
@@ -912,7 +913,7 @@ for i = 1:niter
       plot(log10(abs(bplo4)),'Color','magenta');
       plot(log10(abs(rplo4)),'Color','blue');
       legend('Singular values','Rhs3','sol3','Rhs4','sol4');
-
+%      bug
 %      figure
 %      hold on;
 %      plot(log10(abs(rplo1)),'Color','black');
@@ -925,7 +926,11 @@ for i = 1:niter
    % Filter eigenvalues
    if jmax == 0
       jmax0 = size(Thetas,1);
-      jmax1 = ind1(i); jmax2 = ind2(i); jmax3 = ind3(i); jmax4 = ind4(i);
+      %if cond(A(authorized,authorized)) > 1e12 % Trigger Ritz filtering only if the cond number is huge
+         jmax1 = ind1(i); jmax2 = ind2(i); jmax3 = ind3(i); jmax4 = ind4(i);
+      %else
+       %  jmax1 = jmax0; jmax2 = jmax0; jmax3 = jmax0; jmax4 = jmax0;
+      %end
 %      jmax1 = ind1; jmax2 = ind2; jmax3 = ind3; jmax4 = ind4;
    else
       jmax = min( size(Thetas,1) , jmax );
@@ -1011,7 +1016,7 @@ end
 if ncrack == 11 || ncrack == 111
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-nogapp1 = co(1)*nogap1 + co(2)*nogap2 + co(3)*nogap3 + co(4)*nogap4;
+nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);
 maxn1 = max(nogapp1);
 %      for i=1:nseg
 for j=1:size(oldauthorized,1)

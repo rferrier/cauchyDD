@@ -9,3 +9,4 @@ addpath( genpath('./tools') );
 addpath( genpath('./rg') );
 addpath( genpath('./cauchyDD') );
 addpath( genpath('./sp_r') );
+addpath( genpath('./bayesian') );

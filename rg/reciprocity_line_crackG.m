@@ -15,19 +15,20 @@ fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
-ncrack     = 10001;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+ncrack     = 1;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
                     % 51  : refined postpro mesh
                     % 101 : direct & integrals refined, basic crack
                     % 103 : idem for the small crack
                     % 1001 : more test-functions
                     % 10001 : analysis on a mesh marking the crack
-co         = [1,1,0,0]; % Coefficients for each RG test-case
+co         = [1,1,1,1]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
-niter      = 10;
+niter      = 40;
 popmin     = 20;  % Nb of survivors at each step (20,30)
-multip     = 2;   % Population multiplicator at the mutation step (4,2)
+multip     = 4;   % Population multiplicator at the mutation step (4,2)
 pop        = popmin*(multip+1); % Population before the selection step
-Lreg       = 1e10; % Regularization length (100)
+Lreg       = 20; % Regularization length (100)
+mugrad     = 40;   % Gradient penalization parameter (no unit)
 
 %% In order to build the (Petrov-Galerkin) Left Hand Side
 if ncrack == 10001
@@ -597,6 +598,7 @@ end
 %% Solve the linear system and recover the crack
 Rhs = Rhs1;
 A = Lhs'*Lhs; b = Lhs'*Rhs;
+b1 = Lhs'*Rhs1; b2 = Lhs'*Rhs2; b3 = Lhs'*Rhs3; b4 = Lhs'*Rhs4;
 
 %% Build the regularization matrix
 % Initialize the vectors
@@ -611,7 +613,10 @@ nogap3 = zeros(nseg,pop); nogap4 = zeros(nseg,pop);
 
 res1 = zeros(pop,1); res2 = zeros(pop,1); % Cost function stuff
 res3 = zeros(pop,1); res4 = zeros(pop,1);
-res0 = zeros(pop,1); lres = zeros(pop,1); ressum = zeros(pop,1);
+res0 = zeros(pop,1); lres = zeros(pop,1);
+ressum = zeros(pop,1); gradsum = zeros(pop,1);
+gradres1 = zeros(pop,1); gradres2 = zeros(pop,1);
+gradres3 = zeros(pop,1); gradres4 = zeros(pop,1);
 
 for j=1:pop % Randomly initialize the population
    thisseg = 1+floor(nseg*rand);
@@ -623,14 +628,30 @@ for j=1:pop % Randomly initialize the population
 %   oldauthorized{j} = thisseg;
 %   nodescrack{j}   = unique( [segel(thisseg,1);segel(thisseg,2)] );
 
-%   % Nodes : 
+%   % DEBUG : right crack
+%   zenodes = [5;43;44;45;46;47;6]; nodescrack{j} = zenodes;
+%   zesegms = [];
+%   for m = 1:nseg
+%      no1 = segel(m,1); no2 = segel(m,2);
+%      if size(find(zenodes==no1),1)>0 && size(find(zenodes==no2),1)>0
+%         zesegms(end+1) = m;
+%      end
+%   end
+%   oldauthorized{j} = unique(zesegms');
+
 end
 
 for i=1:niter
    %% Selection stage : compute the criterion
+
+   nogap1 = zeros(nseg,pop); nogap2 = zeros(nseg,pop);
+   nogap3 = zeros(nseg,pop); nogap4 = zeros(nseg,pop);
+   
    for j=1:pop
-      oldauthorized0 = oldauthorized{j};
+      oldauthorized0 = unique(oldauthorized{j}); % Just for safety
       authorized = [ 2*oldauthorized0-1 ; 2*oldauthorized0 ];
+%      nodescrack0 = unique(nodescrack{j});
+      nodescrack0 = unique( [segel(oldauthorized0,1);segel(oldauthorized0,2)] );
       
       %% DEBUG : compute the criterion for each of them
       [Q,Theta] = eig( A(authorized,authorized) );
@@ -640,38 +661,81 @@ for i=1:niter
       Thetas = diag(thetas); 
       Theta = Theta(Ind,Ind);
       
-      % Plot the Picard stuff
-      imax = min( find(thetas/thetas(1)<1e-16) );
-      if size(imax,1) == 0
-          imax = size(thetas,1);
-      end
-      
-      tplo = thetas(1:imax); b1 = Lhs'*Rhs1; bplo1 = Q'*b1(authorized);
-      bplo1 = bplo1(1:imax); rplo1 = (Q'*b1(authorized))./thetas;
-      rplo1 = rplo1(1:imax); b2 = Lhs'*Rhs2; bplo2 = Q'*b2(authorized);
-      bplo2 = bplo2(1:imax); rplo2 = (Q'*b2(authorized))./thetas;
-      rplo2 = rplo2(1:imax); b3 = Lhs'*Rhs3; bplo3 = Q'*b3(authorized);
-      bplo3 = bplo3(1:imax); rplo3 = (Q'*b3(authorized))./thetas;
-      rplo3 = rplo3(1:imax); b4 = Lhs'*Rhs4; bplo4 = Q'*b4(authorized);
-      bplo4 = bplo4(1:imax); rplo4 = (Q'*b4(authorized))./thetas;
-      rplo4 = rplo4(1:imax);
-      
-      % Remove Zeros in rploi (why on hell are there zeros in the first place ?)
-      me1 = mean(abs(rplo1))/1e5; arplo1 = max(me1,abs(rplo1));
-      me2 = mean(abs(rplo2))/1e5; arplo2 = max(me2,abs(rplo2));
-      me3 = mean(abs(rplo3))/1e5; arplo3 = max(me3,abs(rplo3));
-      me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));   
+%      % Plot the Picard stuff
+%      imax = min( find(thetas/thetas(1)<1e-16) );
+%      if size(imax,1) == 0
+%          imax = size(thetas,1);
+%      end
+%      
+%      tplo = thetas(1:imax); bplo1 = Q'*b1(authorized);
+%      bplo1 = bplo1(1:imax); rplo1 = (Q'*b1(authorized))./thetas;
+%      rplo1 = rplo1(1:imax); bplo2 = Q'*b2(authorized);
+%      bplo2 = bplo2(1:imax); rplo2 = (Q'*b2(authorized))./thetas;
+%      rplo2 = rplo2(1:imax); bplo3 = Q'*b3(authorized);
+%      bplo3 = bplo3(1:imax); rplo3 = (Q'*b3(authorized))./thetas;
+%      rplo3 = rplo3(1:imax); bplo4 = Q'*b4(authorized);
+%      bplo4 = bplo4(1:imax); rplo4 = (Q'*b4(authorized))./thetas;
+%      rplo4 = rplo4(1:imax);
+%      
+%      % Remove Zeros in rploi (why on hell are there zeros in the first place ?)
+%      me1 = mean(abs(rplo1))/1e5; arplo1 = max(me1,abs(rplo1));
+%      me2 = mean(abs(rplo2))/1e5; arplo2 = max(me2,abs(rplo2));
+%      me3 = mean(abs(rplo3))/1e5; arplo3 = max(me3,abs(rplo3));
+%      me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));   
    
       % Compute Picard stopping indices
 %      ind1 = 2; ind2 = 2; ind3 = 2; ind4 = 2; %
       if size(authorized,1)==2
          ind1 = 2; ind2 = 2; ind3 = 2; ind4 = 2;
       else % If there are more than 2 dofs, use Picard
+      
+         % Plot the Picard stuff
+         imax = min( find(thetas/thetas(1)<1e-16) );
+         if size(imax,1) == 0
+             imax = size(thetas,1);
+         end
+         
+         tplo = thetas(1:imax); bplo1 = Q'*b1(authorized);
+         rplo1 = (bplo1)./thetas; bplo1 = bplo1(1:imax);
+         rplo1 = rplo1(1:imax); bplo2 = Q'*b2(authorized);
+         rplo2 = (bplo2)./thetas; bplo2 = bplo2(1:imax);
+         rplo2 = rplo2(1:imax); bplo3 = Q'*b3(authorized);
+         rplo3 = (bplo3)./thetas; bplo3 = bplo3(1:imax);
+         rplo3 = rplo3(1:imax); bplo4 = Q'*b4(authorized);
+         rplo4 = (bplo4)./thetas; bplo4 = bplo4(1:imax);
+         rplo4 = rplo4(1:imax);
+         
+         % Remove Zeros in rploi (why on hell are there zeros in the first place ?)
+         me1 = mean(abs(rplo1))/1e5; arplo1 = max(me1,abs(rplo1));
+         me2 = mean(abs(rplo2))/1e5; arplo2 = max(me2,abs(rplo2));
+         me3 = mean(abs(rplo3))/1e5; arplo3 = max(me3,abs(rplo3));
+         me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));
+      
          ind1 = findPicard2 (log10(arplo1), 7, 1, 3);
          ind2 = findPicard2 (log10(arplo2), 7, 1, 3);
          ind3 = findPicard2 (log10(arplo3), 7, 1, 3);
          ind4 = findPicard2 (log10(arplo4), 7, 1, 3);
       end
+      
+%   if i==1
+%      figure
+%      hold on;
+%      plot(log10(abs(tplo)),'Color','green');
+%      plot(log10(abs(bplo1)),'Color','red');
+%      plot(log10(abs(rplo1)),'Color','black');
+%      plot(log10(abs(bplo2)),'Color','magenta');
+%      plot(log10(abs(rplo2)),'Color','blue');
+%      legend('Singular values','Rhs1','sol1','Rhs2','sol2');
+%
+%      figure
+%      hold on;
+%      plot(log10(abs(tplo)),'Color','green');
+%      plot(log10(abs(bplo3)),'Color','red');
+%      plot(log10(abs(rplo3)),'Color','black');
+%      plot(log10(abs(bplo4)),'Color','magenta');
+%      plot(log10(abs(rplo4)),'Color','blue');
+%      legend('Singular values','Rhs3','sol3','Rhs4','sol4');
+%   end
       
       % Filter eigenvalues
       if jmax == 0
@@ -701,38 +765,76 @@ for i=1:niter
       Solu3(authorized) = Q(:,1:jmax3) * (ThetaT3\bT3);
       Solu4(authorized) = Q(:,1:jmax4) * (ThetaT4\bT4);
       
-      res1(j) = norm( Lhs'*Lhs*Solu1 - Lhs'*Rhs1 ) / norm( Lhs'*Rhs1 );
-      res2(j) = norm( Lhs'*Lhs*Solu2 - Lhs'*Rhs2 ) / norm( Lhs'*Rhs2 );
-      res3(j) = norm( Lhs'*Lhs*Solu3 - Lhs'*Rhs3 ) / norm( Lhs'*Rhs3 );
-      res4(j) = norm( Lhs'*Lhs*Solu4 - Lhs'*Rhs4 ) / norm( Lhs'*Rhs4 );
+%      res1(j) = norm( A(authorized,authorized)*Solu1(authorized) - b1(authorized) ) / norm( b1(authorized) );
+%      res2(j) = norm( A(authorized,authorized)*Solu2(authorized) - b2(authorized) ) / norm( b2(authorized) );
+%      res3(j) = norm( A(authorized,authorized)*Solu3(authorized) - b3(authorized) ) / norm( b3(authorized) );
+%      res4(j) = norm( A(authorized,authorized)*Solu4(authorized) - b4(authorized) ) / norm( b4(authorized) );
+      res1(j) = norm( A*Solu1 - b1 ) / norm( b1 );
+      res2(j) = norm( A*Solu2 - b2 ) / norm( b2 );
+      res3(j) = norm( A*Solu3 - b3 ) / norm( b3 );
+      res4(j) = norm( A*Solu4 - b4 ) / norm( b4 );
       
+      % Compute length of the crack
       lres(j) = 0;
+      lengvect = zeros(size(oldauthorized0,1));
       for k=1:size(oldauthorized0)
          no1 = segel(oldauthorized0(k),1); no2 = segel(oldauthorized0(k),2);
-         lres(j) = lres(j) + sqrt( ( nodesu(no1,1)-nodesu(no2,1) )^2 +...
-                                 ( nodesu(no1,2)-nodesu(no2,2) )^2 );
+         lengvect(k) = sqrt( ( nodesu(no1,1)-nodesu(no2,1) )^2 +...
+                             ( nodesu(no1,2)-nodesu(no2,2) )^2 );
+         lres(j) = lres(j) + lengvect(k);
       end
-      lres(j) = lres(j) / Lreg;
+      
+      % Compute gradient cost function
+      gradres1(j) = 0; gradres2(j) = 0; gradres3(j) = 0; gradres4(j) = 0;
+      for k=1:size(nodescrack0,1)
+         no1 = nodescrack0(k);
+         segs0 = rem( find(segel(oldauthorized0,:)==no1)-1 , size(oldauthorized0,1) )+1;
+         segs = oldauthorized0(segs0);
+         if size(segs,1) == 1
+            gradloc1 = [Solu1(2*segs-1);Solu1(2*segs)]/lengvect(segs0);
+            gradloc2 = [Solu2(2*segs-1);Solu2(2*segs)]/lengvect(segs0);
+            gradloc3 = [Solu3(2*segs-1);Solu3(2*segs)]/lengvect(segs0);
+            gradloc4 = [Solu4(2*segs-1);Solu4(2*segs)]/lengvect(segs0);
+         elseif size(segs,1) == 2
+            gradloc1 = ( [Solu1(2*segs(1)-1);Solu1(2*segs(1))] - ...
+                         [Solu1(2*segs(2)-1);Solu1(2*segs(2))] )/lengvect(segs0);
+            gradloc2 = ( [Solu2(2*segs(1)-1);Solu2(2*segs(1))] - ...
+                         [Solu2(2*segs(2)-1);Solu2(2*segs(2))] )/lengvect(segs0);
+            gradloc3 = ( [Solu3(2*segs(1)-1);Solu3(2*segs(1))] - ...
+                         [Solu3(2*segs(2)-1);Solu3(2*segs(2))] )/lengvect(segs0);
+            gradloc4 = ( [Solu4(2*segs(1)-1);Solu4(2*segs(1))] - ...
+                         [Solu4(2*segs(2)-1);Solu4(2*segs(2))] )/lengvect(segs0);
+         end
+         gradres1(j) = gradres1(j) + norm(gradloc1)^2;
+         gradres2(j) = gradres2(j) + norm(gradloc2)^2;
+         gradres3(j) = gradres3(j) + norm(gradloc3)^2;
+         gradres4(j) = gradres4(j) + norm(gradloc4)^2;
+      end
+
+      gradsum(j) = (gradres1(j)*co(1) + gradres2(j)*co(2) + gradres3(j)*co(3) + gradres4(j)*co(4)) / (sum(co));
       ressum(j) = (res1(j)*co(1) + res2(j)*co(2) + res3(j)*co(3) + res4(j)*co(4)) / (sum(co));
       
-      res0(j) = ressum(j) + lres(j);
-      
+      res0(j) = mugrad*gradsum(j) + ressum(j) + lres(j)/Lreg;
+
       % Re-loop over segments to build normal gap
-      for k=1:nseg
+%      for k=1:nseg
+      for kk = 1:size(oldauthorized0,1)
+         k = oldauthorized0(kk);
          no1 = segel(k,1); no2 = segel(k,2);
          nogap1(k,j) = norm( Solu1( [2*k-1,2*k] ) );
          nogap2(k,j) = norm( Solu2( [2*k-1,2*k] ) );
          nogap3(k,j) = norm( Solu3( [2*k-1,2*k] ) );
          nogap4(k,j) = norm( Solu4( [2*k-1,2*k] ) );
       end
-      
    end
-   
+
    %% Selection stage : kill the less efficient (rem : less efficient will be overwritten later)
    % Reorder the coefs
    [res0,Ind] = sort( res0 );
    res1 = res1(Ind); res2 = res2(Ind); res3 = res3(Ind); res4 = res4(Ind);
-   ressum = ressum(Ind); lres = lres(Ind);
+   gradres1 = gradres1(Ind); gradres2 = gradres2(Ind);
+   gradres3 = gradres3(Ind); gradres4 = gradres4(Ind);
+   ressum = ressum(Ind); lres = lres(Ind); gradsum = gradsum(Ind);
    nogap1 = nogap1(:,Ind); nogap2 = nogap2(:,Ind);
    nogap3 = nogap3(:,Ind); nogap4 = nogap4(:,Ind);
    
@@ -747,13 +849,88 @@ for i=1:niter
 
    for j=1:popmin
       for k=1:multip
-         % Choose the mutation
-         choice = 1+floor(1*rand);
-
-         oldauthorized0 = oldauthorized{j}; nodescrack0 = nodescrack{j};
-         szold0 = size(oldauthorized0,1);
+         oldauthorized0 = unique(oldauthorized{j}); %nodescrack0 = unique(nodescrack{j});
+         nodescrack0 = unique( [segel(oldauthorized0,1);segel(oldauthorized0,2)] );
+         szold0 = size(oldauthorized0,1); sznod0 = size(nodescrack0,1);
          
-         if choice==2
+         % Test if the simplification mutation is doable
+         simpldo = 0; notosimpl = []; elemtosimpl = []; newelemsimpl = [];
+         if szold0>1
+            for m=1:sznod0
+               no1 = nodescrack0(m);
+               controlelem = rem( find(segel(oldauthorized0,:)==no1)-1 , szold0 )+1;
+               controlelem = oldauthorized0(controlelem,:);
+               if size(controlelem,1) == 2
+                  no2 = setdiff( segel(controlelem(1),:), no1 );
+                  no3 = setdiff( segel(controlelem(2),:), no1 );
+                  % Test the inner product for angle
+                  %C1 = nodesu(no1,:); C2 = nodesu(no2,:); C3 = nodesu(no3,:);
+                  %C1C2 = C2-C1; C1C3 = C3-C1;
+                  %if C1C2*C1C3' > 0
+                     elem2 = rem( find(segel==no2)-1 , nseg )+1;
+                     elem3 = rem( find(segel==no3)-1 , nseg )+1;
+                     elem23 = intersect(elem2,elem3);
+                     
+                     if size(elem23,1) > 0 && size(elem23,2) > 0
+                        simpldo = 1;
+                        notosimpl(end+1) = no1;
+                        elemtosimpl = [elemtosimpl ; controlelem'];
+                        %nstosimpl = [nstosimpl ; no2 , no3];
+                        newelemsimpl(end+1) = elem23;
+                     end
+                  %end
+               end
+            end
+         end
+         
+         % Choose the mutation
+         if simpldo == 1
+            choice = 1+floor(4*rand);
+%            if j==1
+%               choice
+%            end
+         elseif szold0>1
+            choice = 1+floor(3*rand);
+         else % Don't suppress element if there is only one
+            choice = 1+floor(2*rand);
+         end
+
+         if choice == 4 % Simplify a corner
+            thisone = 1+floor(size(notosimpl,2)*rand);
+            
+            % Actually do the changes
+            oldauthorized0 = setdiff( oldauthorized0, elemtosimpl(thisone,:) );
+            nodescrack0    = setdiff( nodescrack0, notosimpl);
+            oldauthorized0 = [ oldauthorized0 ; newelemsimpl(thisone) ];
+            
+            oldauthorized{rank} = unique(oldauthorized0);
+            nodescrack{rank} = unique(nodescrack0);
+            
+         elseif choice == 3 % Suppress an extremity element & the corresponding node
+            % Find the extremal nodes
+            extrnodes = []; extrelem = [];
+            for m = 1:size(nodescrack0,1)
+               no1 = nodescrack0(m);
+               controlelem = rem( find(segel(oldauthorized0,:)==no1)-1 , szold0 )+1;
+               controlelem = oldauthorized0(controlelem);
+               if size(controlelem,1) == 1
+                  extrnodes(end+1) = no1;
+                  extrelem(end+1) = controlelem;
+               end
+            end
+
+            szext = size(extrnodes,2);
+            if szext>0 && size(extrnodes,1)>0
+               thisone = 1+floor(szext*rand);
+               notokill = extrnodes(thisone); elemtokill = extrelem(thisone);
+            end
+            
+            oldauthorized0 = setdiff( oldauthorized0, elemtokill );
+            nodescrack0    = setdiff( nodescrack0, notokill);
+            oldauthorized{rank} = unique(oldauthorized0);
+            nodescrack{rank} = unique(nodescrack0);
+            
+         elseif choice==2
             % Move a node
             sznod0 = size(nodescrack0,1);
             notomove = nodescrack0(1+floor(sznod0*rand)); % Node to move
@@ -775,9 +952,49 @@ for i=1:niter
             candnod = canduniq(totake); % This contains only the few nodes that appear at least nextr times
             candnod = setdiff(candnod,extrnodes); % Remove the extrnodes
             candnod = setdiff(candnod,notomove); % Remove the node to move
+            
+            % Discriminate the candidates wrt the angle
+            if size(candnod,1)>0 && size(candnod,2) > 0
+               if nextr == 2
+                  no2 = extrnodes(1); no3 = extrnodes(2);
+                  toremove = [];
+                  for m = 1:size(candnod,1)
+                     no1 = candnod(m);
+                     % Test the inner product for angle
+                     C1 = nodesu(no1,:); C2 = nodesu(no2,:); C3 = nodesu(no3,:);
+                     C1C2 = C2-C1; C1C3 = C3-C1;
+                     if C1C2*C1C3' > 0
+                        toremove(end+1) = m;
+                     end
+                  end
+                  candnod(toremove) = [];
+
+               elseif nextr == 1 % Don't forget the last node
+                  no2 = extrnodes(1);
+                  controlelem = rem( find(segel(oldauthorized0,:)==no2)-1 , szold0 )+1;
+                  controlelem = oldauthorized0(controlelem);
+                  controlelem = setdiff(controlelem,tokill);
+                  if size(controlelem,1) > 0 && size(controlelem,2) > 0
+                     no3 = setdiff(segel(controlelem,:),no1);
+                     toremove = [];
+
+                     for m = 1:size(candnod,1)
+                        no1 = candnod(m);
+                        % Test the inner product for angle
+                        C1 = nodesu(no1,:); C2 = nodesu(no2,:); C3 = nodesu(no3,:);
+                        C1C2 = C2-C1; C1C3 = C3-C1;
+                        if C1C2*C1C3' > 0
+                           toremove(end+1) = m;
+                        end
+                     end
+                     candnod(toremove) = [];
+                  end
+               end
+            end
+            
             szcandnod = size(candnod,1);
 
-            if size(candnod,1)>0 && size(candnod,2)>0 
+            if size(candnod,1)>0 && size(candnod,2)>0
                replacelem = [];
                for m=1:size(candnod,1) % Contains the elements that have one of the non-unique nodes from candnod
                   candid0 = rem( find(segel(candidate)==candnod(m))-1 , size(candidate,1) )+1;
@@ -798,7 +1015,6 @@ for i=1:niter
                nodescrack0    = [ nodescrack0 ; newno ];
             end
             oldauthorized{rank} = oldauthorized0; nodescrack{rank} = nodescrack0;
-            
          else
             % Choose an element connected to the other ones and add it
             admissible = [];
@@ -855,23 +1071,24 @@ for i=1:niter
             oldauthorized0 = unique(oldauthorized0);
             nodescrack0 = unique(nodescrack0);
             oldauthorized{rank} = oldauthorized0; nodescrack{rank} = nodescrack0;
-
          end
          rank = rank+1;
       end
    end
-   
+
    % Remove double and add monoms in their place (unique doesn't work)
+%   zzz = 0;
    for j=2:pop
       oldauthorizedj = oldauthorized{j};
       for k=1:j-1
          oldauthorizedk = oldauthorized{k};
          if size(oldauthorizedj,1) == size(oldauthorizedk,1)
-            if sum( oldauthorizedj==oldauthorizedk) == size(oldauthorizedj,1)
+            if sum( oldauthorizedj==oldauthorizedk ) == size(oldauthorizedj,1)
                % Suppress this double (put a fresh new one on it)
                thisseg = 1+floor(nseg*rand);
                oldauthorized{j} = thisseg;
                nodescrack{j}    = [segel(thisseg,1);segel(thisseg,2)];
+%               zzz++;
                break;
             end
          end

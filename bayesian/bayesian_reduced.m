@@ -1,5 +1,5 @@
-% 01/02/2017
-% Algo Steklov-Poincaré primal bloc avec Gradient Conjugué
+% 20/09/2017
+% Algo Bayésien s'appuyant sur l'analyse de Ritz
 
 close all;
 clear all;
@@ -7,24 +7,24 @@ clear all;
 addpath(genpath('./tools'))
 
 % Parameters
-E       = 70000;  % MPa : Young modulus
-nu      = 0.3;    % Poisson ratio
-fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
-precond = 1;      % 1 : Use a dual precond, 2 : use regul precond
-mu      = 0.;    % Regularization parameter
-br      = 0.;     % noise
-ntrunc  = 10;
-inhomog = 2;      % inhomogeneous medium
+E        = 70000;    % MPa : Young modulus
+nu       = 0.3;      % Poisson ratio
+fscalar  = 1;        % N.mm-1 : Loading on the plate
+niter    = 10;
+precond  = 0;        % 1 : Use a dual precond, 2 : use regul precond
+mu       = 0.;       % Regularization parameter
+br       = 0.1;      % noise
+ntrunc   = 2;        % Ritz truncature level for the prior
+nbayesp1 = 20;        % Ritz truncature level for Bayesian inversion
+nMC       = 100000; % nb of MC samples
+refined   = .5;      % Choose the mesh to use
+chaosor   = 1;      % Order of the polynomial chaos max = 10
+cornermes = 0;      % Take the encastred corners as measurement (or not)
+sampling  = 0;      % Use the MC sampling technique (1) or Kalman filter (0)
 
-if inhomog == 2  % load previously stored matrix
-   mat = [2, E, nu, .1, 1];
-   Kinter = load('./noises/stocrig1.mat'); Kinter = Kinter.Kinter;
-elseif inhomog == 1  % /!\ IN THE INHOMOGENEOUS CASE, ALL THE SIGMAS ARE WRONG
-   mat = [2, E, nu, .1, 1];
-else
-   mat = [0, E, nu];
-end
+szpri     = 0;   % Size of the prior distribution, 0 : automatic estimate
+
+mat = [0, E, nu];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -63,15 +63,13 @@ boundaryp1 = suppressBound( boundaryp1, no4, 4 );
 boundaryp2 = boundaryp1;
 
 [~, b2node2] = mapBound(2, boundaryp1, nnodes);
-indexa = [2*b2node2-1; 2*b2node2];
+[~, b2node4] = mapBound(4, boundaryp1, nnodes);
+indexa = [2*b2node2-1; 2*b2node2]; nindexa = size(indexa,1);
+indexb = [2*b2node4-1; 2*b2node4]; nindexb = size(indexb,1);
 
 % Then, build the stiffness matrix :
 [K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
-if inhomog == 2
-   K(1:2*nnodes, 1:2*nnodes) = Kinter;
-else
-   Kinter = K(1:2*nnodes, 1:2*nnodes);
-end
+Kinter = K(1:2*nnodes, 1:2*nnodes);
 M      = mass_mat(nodes, elements);
 [node2b4, b2node4] = mapBound(4, boundaryp1, nnodes);
 [node2b3, b2node3] = mapBound(3, boundaryp1, nnodes);
@@ -102,10 +100,7 @@ dirichlet1 = [4,1,0;4,2,0;
               2,1,0;2,2,0;
               1,1,0;1,2,0];
 
-[K1,C1,nbloq1,node2c1,c2node1] = Krig2 (nodes,elements,mat,order,boundaryp1,dirichlet1);
-if inhomog >= 1  % Because of the random stuff
-   K1(1:2*nnodes, 1:2*nnodes) = Kinter;
-end
+[K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundaryp1,dirichlet1);
 
 % Second problem
 dirichlet2 = [1,1,0;1,2,0;
@@ -114,10 +109,7 @@ dirichlet2 = [1,1,0;1,2,0;
 neumann2   = [4,1,fscalar,0,-fscalar];
 %neumann2   = [4,1,fscalar];
 neumann0   = [];
-[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes,elements,mat,order,boundaryp2,dirichlet2);
-if inhomog >= 1
-   K2(1:2*nnodes, 1:2*nnodes) = Kinter;
-end
+[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
 
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
@@ -128,18 +120,12 @@ regulari = zeros(niter+1,1);
 dirichlet1d = [4,1,0;4,2,0;
                3,1,0;3,2,0;
                1,1,0;1,2,0];
-[K1d,C1d,nbloq1d] = Krig2 (nodes,elements,mat,order,boundary,dirichlet1d);
-if inhomog >= 1
-   K1d(1:2*nnodes, 1:2*nnodes) = Kinter;
-end
+[K1d,C1d,nbloq1d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1d);
 
 % Second problem
 dirichlet2d = [1,1,0;1,2,0;
                3,1,0;3,2,0];
-[K2d,C2d,nbloq2d] = Krig2 (nodes,elements,mat,order,boundary,dirichlet2d);
-if inhomog >= 1
-   K2d(1:2*nnodes, 1:2*nnodes) = Kinter;
-end
+[K2d,C2d,nbloq2d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2d);
 
 %% Anti-cancellation trick
 % K1(indexa,indexa) = 0;
@@ -169,12 +155,12 @@ etaeta       = zeros( 2*(niter+1) );
 f1 = dirichletRhs2( Itere(:,1), 2, c2node1, boundaryp1, nnodes );
 uin1 = K1\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 2, boundaryp1 );
+lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
 % Solve 2
 f2 = dirichletRhs2( Itere(:,2), 2, c2node2, boundaryp2, nnodes );
 uin2 = K2\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 2, boundaryp2 );
+lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
 %
 Axz = [lamb1,lamb2];
 %%%%
@@ -235,29 +221,26 @@ for iter = 1:niter
     f12 = dirichletRhs2( d(:,2*iter), 2, c2node1, boundaryp1, nnodes );
     uin1 = K1\[f11,f12];
     lagr1 = uin1(2*nnodes+1:end,[1,2]);
-    lamb11 = lagr2forces( lagr1(:,1), C1, 2, boundaryp1 );
-    lamb12 = lagr2forces( lagr1(:,2), C1, 2, boundaryp1 );
+    lamb11 = lagr2forces2( lagr1(:,1), c2node1, 2, boundaryp1, nnodes );
+    lamb12 = lagr2forces2( lagr1(:,2), c2node1, 2, boundaryp1, nnodes );
     % Solve 2
     f21 = dirichletRhs2( d(:,2*iter-1), 2, c2node2, boundaryp2, nnodes );
     f22 = dirichletRhs2( d(:,2*iter), 2, c2node2, boundaryp2, nnodes );
     uin2 = K2\[f21,f22];
     lagr2 = uin2(2*nnodes+1:end,[1,2]);
-    lamb21 = lagr2forces( lagr2(:,1), C2, 2, boundaryp2 );
-    lamb22 = lagr2forces( lagr2(:,2), C2, 2, boundaryp2 );
+    lamb21 = lagr2forces2( lagr2(:,1), c2node2, 2, boundaryp2, nnodes );
+    lamb22 = lagr2forces2( lagr2(:,2), c2node2, 2, boundaryp2, nnodes );
     %
     Ad(:,[2*iter-1,2*iter]) = [lamb11-lamb21,lamb12-lamb22];
-%    AZed(:,[2*iter-1,2*iter]) = Ad(:,[2*iter-1,2*iter]);
+
     denprec = den; numprec = num; % Store those ones
     den = d(indexa,[2*iter-1,2*iter])'*Ad(indexa,[2*iter-1,2*iter]);
     sqD = den^(1/2);
-    d(:,[2*iter-1,2*iter]) = d(:,[2*iter-1,2*iter]) * inv(sqD); %transpose( sqD\d(:,[2*iter-1,2*iter])' );
-    Ad(:,[2*iter-1,2*iter]) = Ad(:,[2*iter-1,2*iter]) * inv(sqD); %transpose( sqD\Ad(:,[2*iter-1,2*iter])' );
+    d(:,[2*iter-1,2*iter]) = d(:,[2*iter-1,2*iter]) * inv(sqD);
+    Ad(:,[2*iter-1,2*iter]) = Ad(:,[2*iter-1,2*iter]) * inv(sqD);
     num = Res(indexa,[2*iter-1,2*iter])'*Zed(indexa,[2*iter-1,2*iter]);
     num = sqD\num; % because of Zed and not d
     
-%    Itere = Itere + d(:,[2*iter-1,2*iter])*alpha;
-%    Res(:,[2*iter+1,2*iter+2]) = Res(:,[2*iter-1,2*iter]) - ...
-%                                    Ad(:,[2*iter-1,2*iter])*alpha;
     Itere = Itere + d(:,[2*iter-1,2*iter])*num;
     Res(:,[2*iter+1,2*iter+2]) = Res(:,[2*iter-1,2*iter]) - ...
                                     Ad(:,[2*iter-1,2*iter])*num;
@@ -285,12 +268,8 @@ for iter = 1:niter
     end
     
     % Ritz variables (Saad++)
-%    alpha( [2*iter-1,2*iter], [2*iter-1,2*iter] ) = ...
-%                                    (sqD*num)^(1/2)*inv(den)*(sqD*num)^(1/2);
     unsuralpha( [2*iter-1,2*iter], [2*iter-1,2*iter] ) = ...
                                     (sqD*num)^(-1/2)*den*(sqD*num)^(-1/2);
-%    beta( [2*iter-1,2*iter], [2*iter-1,2*iter] )  = ...
-%         - sqD \ ( Ad(indexa,[2*iter-1,2*iter])' * Zed(indexa,[2*iter+1,2*iter+2]) );
     
     if iter > 1
        betasuralpha( [2*iter-3,2*iter-2], [2*iter-3,2*iter-2] ) = ...
@@ -326,28 +305,6 @@ for iter = 1:niter
     %% The Ritz elements
     V(indexa,[2*iter-1,2*iter]) = (-1)^(iter-1) * Zed(indexa,[2*iter-1,2*iter]) * ...
       ((Res(indexa,[2*iter-1,2*iter])'*Zed(indexa,[2*iter-1,2*iter]))^(-1/2)) ;
-
-    % Compute MV (Debug)
-%    MV(indexa,[2*iter-1,2*iter]) = (-1)^(iter-1) * Res(indexa,[2*iter-1,2*iter]) * ...
-%      ((Res(indexa,[2*iter-1,2*iter])'*Zed(indexa,[2*iter-1,2*iter]))^(-1/2)) ;
-
-%    %% Compute AV (DEBUG)
-%    % Solve 1
-%    f11 = dirichletRhs2( V(:,2*iter-1), 2, c2node1, boundaryp1, nnodes );
-%    f12 = dirichletRhs2( V(:,2*iter), 2, c2node1, boundaryp1, nnodes );
-%    uin1 = K1\[f11,f12];
-%    lagr1 = uin1(2*nnodes+1:end,[1,2]);
-%    lamb11 = lagr2forces( lagr1(:,1), C1, 2, boundaryp1 );
-%    lamb12 = lagr2forces( lagr1(:,2), C1, 2, boundaryp1 );
-%    % Solve 2
-%    f21 = dirichletRhs2( V(:,2*iter-1), 2, c2node2, boundaryp2, nnodes );
-%    f22 = dirichletRhs2( V(:,2*iter), 2, c2node2, boundaryp2, nnodes );
-%    uin2 = K2\[f21,f22];
-%    lagr2 = uin2(2*nnodes+1:end,[1,2]);
-%    lamb21 = lagr2forces( lagr2(:,1), C2, 2, boundaryp2 );
-%    lamb22 = lagr2forces( lagr2(:,2), C2, 2, boundaryp2 );
-%    %
-%    AV(:,[2*iter-1,2*iter]) = [lamb11-lamb21,lamb12-lamb22];
                        
     delta  = unsuralpha( [2*iter-1,2*iter], [2*iter-1,2*iter] ) ;
     if iter > 1
@@ -364,8 +321,6 @@ for iter = 1:niter
        H( [2*iter-1,2*iter] , [2*iter-1,2*iter] ) = delta;
     end
     
-%    Hd = V'*AV;  % Debug H
-    
     % Compute eigenelems of the Hessenberg :
     [Q,Theta1] = eig(H);
     theta = diag(Theta1);
@@ -376,6 +331,8 @@ for iter = 1:niter
     Y = V*Q;
     
 end
+
+residual = residual/residual(1); % Normalize the residual
 
 % Compute the solution
 chi = inv(Theta1)*Y'*( b(:,1)-b(:,2) );
@@ -402,11 +359,11 @@ for j=1:n
 end
 px = pol'*tt;
 
-figure;
-hold on
-plot(error,'Color','blue')
-plot(residual,'Color','red')
-legend('error','residual')
+%figure;
+%hold on
+%plot(error,'Color','blue')
+%plot(residual,'Color','red')
+%legend('error','residual')
 %% L-curve :
 %loglog(residual(2:end),regulari(2:end));
 %figure
@@ -428,34 +385,230 @@ plot(uref(2*b2node2-1),'Color','green');
 legend('solution','reference')
 %legend('solution','Ritz solution','reference')
 
-%%%%
-%% Final problem : compute u
-% DN problem
-dirichlet = [4,1,0;4,2,0;
-             3,1,0;3,2,0;
-             1,1,0;1,2,0;
-             2,1,0;2,2,0];
-neumann   = [];
-[K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
-if inhomog >= 1
-   K(1:2*nnodes, 1:2*nnodes) = Kinter;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Bayesian stuff
+if szpri == 0
+   szpri = max(ItereR(indexa))-min(ItereR(indexa));
 end
-fdir2 = dirichletRhs(ItereR, 2, C, boundary);
-fdir4 = dirichletRhs(urefb, 4, C, boundary);
-usoli = K \ (fdir4 + fdir2);
 
-usol = usoli(1:2*nnodes,1);
-fsol = Kinter*usol;
+% Approximate the rectangular prior with chaos expansion (1D)
+Hermite = [ 1,0,0,0,0,0,0,0,0,0,0
+            0,1,0,0,0,0,0,0,0,0,0
+            -1,0,1,0,0,0,0,0,0,0,0
+            0,-3,0,1,0,0,0,0,0,0,0
+            3,0,-6,0,1,0,0,0,0,0,0
+            0,15,0,-10,0,1,0,0,0,0,0
+            -15,0,45,0,-15,0,1,0,0,0,0
+            0,-105,0,105,0,-21,0,1,0,0,0
+            105,0,-420,0,210,0,-28,0,1,0,0        % Source : Modeling multibody systems with uncertainties. Part I:Theoretica and computational aspects
+            0,945,0,-1260,0,378,0,-36,0,1,0       %
+            -945,0,4725,0,-3150,0,630,0,-45,0,1]; % Polynomial coefficients
 
+theta  = rand(1,nMC);                        % random seed
+prior  = szpri*theta-szpri/2;                        % rectangular law
+thetaG = sqrt(2)*erfinv(2*theta-1);          % gaussian law N(0,1)
+
+% Determinate the chaos coefficients (via Monte-Carlo)
+coef = zeros(chaosor+1,1);
+for i=0:chaosor
+   esti = 0;
+   for j=0:chaosor
+      esti = esti + Hermite(i+1,j+1)*thetaG.^j;
+   end
+   coef(i+1) = mean(prior.*esti)/factorial(i);
+end
+
+%% Determine the coeffs in the standard polynomial basis
+%coefS = Hermite(1:chaosor+1,1:chaosor+1)'*coef;
+%
+%% Plot the approximated theta
+%thetae  = randn(1,nMC);
+%toplo = 0;
+%for j=0:chaosor
+%   toplo = toplo + coefS(j+1)*thetae.^j;
+%end
 %figure;
-%hold on;
-%plot(usol(2*b2node2-1),'Color','red');
-%plot(uref(2*b2node2-1),'Color','green');
-%legend('solution','reference')
+%hist(toplo,nMC/1000);
 
-errorx = abs((usol(2*b2node2-1)-uref(2*b2node2-1)))/max(abs(uref(2*b2node2-1)));
+% Transform the Ritz basis (only format difference) and truncate it
+nbayes = nbayesp1 - 1;
+Yt = Y(indexa,1:nbayes);
+Thetat = Theta1(1:nbayes,1:nbayes);
 
-total_error = norm(usol-uref)/norm(uref);
-% Compute stress :
-sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem);
-plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
+ItereR0 = ItereR;
+%if precond == 1
+%   for i=1:1
+%      f11 = dirichletRhs2( ItereR, 2, c2node1, boundaryp1, nnodes );
+%      uin1 = K1\f11;
+%      lagr1 = uin1(2*nnodes+1:end);
+%      ItereR0 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+%   end
+%else
+%   ItereR0 = ItereR;
+%end
+
+prior0 = ItereR0(indexa); % Prior given by the first inversion
+
+% Propagate the uncertainties into the Ritz basis : multiply by Y'
+prior = zeros(nindexa,1+(chaosor)*nindexa);
+for i=1:nindexa % See how optimized it is
+   prior(i,(chaosor)*(i-1)+2:(chaosor)*i+1) = transpose(coef(2:end));  % Coefficients of the PCE for the prior
+end
+prior(:,1) = prior0;
+
+%prior0 = prior;
+szprior = size(prior,2);
+if precond == 1 % We do have chi = Y'*Sd*Itere
+   prior0 = prior;
+   for i=1:szprior%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%1
+      prior01 = zeros(2*nnodes,1); prior01(indexa) = prior(:,i);
+      f11 = dirichletRhs2( prior01, 2, c2node1, boundaryp1, nnodes );
+      uin1 = K1\f11;
+      lagr1 = uin1(2*nnodes+1:end);
+      prior01 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+      prior0(:,i) = prior01(indexa);
+   end
+else
+   prior0 = prior;
+end
+
+pritilde = Yt'*prior0; % Reduced prior
+
+bai = b(:,1)-b(:,2);  bai = bai(indexa);
+btilde = Yt'*bai;  % Reduced RHS
+
+% Estimate additive noise level and project it on the basis
+nl = br*mean(abs(uref(indexb))); % indexb
+Ceps0 = nl*eye(nindexb);     % Correlation matrix of the noise
+
+Ceps1 = zeros(2*nnodes,size(Ceps0,2));
+% Multiply in order to get the noise on b from the noise on u
+for i = 1:size(Ceps0,1)
+   rhs = zeros(2*nnodes); rhs(indexb) = Ceps0(:,i);
+   f1 = dirichletRhs2( rhs, 4, c2node1, boundary, nnodes );
+   uin1 = K1\f1;
+   lagr1 = uin1(2*nnodes+1:end,1);
+   Ceps1(:,i) = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+end
+Ceps1 = Ceps1(indexa,:); 
+Ceps = Ceps1*Ceps1';
+
+Ctilde = Yt'*Ceps*Yt;         % Reduced correlation matrix
+ntilde = Yt'*Ceps1;           % Reduced noise 
+%ntilde = nl*Yt'*eye(nindexb); % Old value
+
+if sampling == 0 % Linear Bayesian update (Kalman filter)
+   Msol = Thetat*pritilde; % Generate the synthetic measurement PDF
+   
+   % Compute observation covariance
+   Cy = zeros(nbayes);
+   for i=1:chaosor % We're intentionnaly starting at 1 'cause uniform law has no covariance
+      for j=1:nindexa
+         Cy = Cy + factorial(i)*Msol(:,i+1+(j-1)*(chaosor))*Msol(:,i+1+(j-1)*(chaosor))';
+      end
+   end
+   Cd = Ctilde+Cy; % Total covariance (from noise and prediction)
+   
+   % Estimate the Kalman factor
+   ZmY = -Msol;        % Difference between measurement and prediction
+   ZmY(:,1) = ZmY(:,1) + btilde;  % The mean
+   for i=1:nindexa  % and probability measurement (again in PCE form)
+      ZmY(:,(chaosor)*(i-1)+2) = ZmY(:,(chaosor)*(i-1)+2) + ...
+                         ntilde(:,i)/sqrt(nindexa);  % /!\ Rem : I guess there should be other RVs here
+   end
+   Geai = Cd\ZmY;
+   
+   % Covariance between a-priori and reconstructed observation
+   Cqy = zeros(nbayes);
+   for i=1:chaosor
+      for j=1:nindexa
+         Cqy = Cqy + factorial(i)*pritilde(:,i+1+(j-1)*(chaosor))*Msol(:,i+1+(j-1)*(chaosor))';
+      end
+   end
+
+   % Build the PCE of the solution
+   Qb = pritilde + Cqy*Geai;
+   
+   sigmav = zeros(nbayes,1);
+   CD     = zeros(nbayes); % Posterior variance
+   for j=1:nindexa 
+      for i=1:chaosor
+         CD = CD + factorial(i)*Qb(:,i+1+(j-1)*(chaosor))*Qb(:,i+1+(j-1)*(chaosor))';
+      end
+   end
+   sigmav = sqrt(diag(CD));
+   meanD = Qb(:,1);
+   
+else % Do a standard MC sampling on the PCE for the prior
+   coefS1 = [];
+   multHer = Hermite(2:chaosor+1,2:chaosor+1)'*ones(nbayes,1);
+   for i=1:nindexa
+      % /!\ This isn't supposed to work for non Gaussian RVs
+      coefS1 = [ coefS1 , diag( multHer * transpose(pritilde(:,2+(chaosor)*(i-1):1+(chaosor)*(i))) ) ];
+   end
+   thetae  = randn(nindexa,nMC);
+   topri = pritilde(:,1)*ones(1,nMC);
+   for i=1:nindexa 
+      for j=1:chaosor
+         topri = topri + coefS1(:,j+chaosor*(i-1))*thetae(i,:).^j;
+      end
+   end
+   
+   % Priceless model evaluation
+    Msol = Thetat*topri;
+   
+   % MC integrals computations
+   %normalize =1;%Ctilde(1,1); % In order to avoid 0/0
+   factor = 1/((2*pi)^nbayes*det(Ctilde)); Co1 = inv(Ctilde);
+   mesure = btilde;
+   pia = 0; meanD = zeros(nbayes,1); Vsq = zeros(nbayes,1);
+   for i=1:nMC
+      pia   = pia   + factor*exp(-1/2*(Msol(:,i)-mesure)'*Co1*(Msol(:,i)-mesure));
+      meanD = meanD + topri(:,i).*factor*exp(-1/2*(Msol(:,i)-mesure)'*Co1*(Msol(:,i)-mesure));
+   end
+   meanD = meanD/pia; % normalize
+   
+   for i=1:nMC % Variation
+      Vsq = Vsq + ((topri(:,i)-meanD).^2).*factor*exp(-1/2*(Msol(:,i)-mesure)'*Co1*(Msol(:,i)-mesure));
+   end
+   Vsq = Vsq/pia; CD = diag(Vsq);
+   sigmav = sqrt(Vsq);
+end
+   
+meanU = Yt*meanD; % Back to the regular basis
+CU    = Yt*CD*Yt'; sigmau = sqrt(diag(CU));
+usoltot = zeros(2*nnodes,1); usoltot(indexa) = meanU;
+usolmax = zeros(2*nnodes,1); usolmax(indexa) = meanU+sigmau;
+usolmin = zeros(2*nnodes,1); usolmin(indexa) = meanU-sigmau;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%
+%%% Final problem : compute u and f
+%% DN problem
+%dirichlet = [4,1,0;4,2,0;
+%             3,1,0;3,2,0;
+%             1,1,0;1,2,0;
+%             2,1,0;2,2,0];
+%neumann   = [];
+%[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+%fdir2 = dirichletRhs(ItereR, 2, C, boundary);
+%fdir4 = dirichletRhs(urefb, 4, C, boundary);
+%usoli = K \ (fdir4 + fdir2);
+%
+%usol = usoli(1:2*nnodes,1);
+%fsol = Kinter*usol;
+%
+figure;
+hold on;
+plot(usoltot(2*b2node2-1),'Color','red');
+plot(uref(2*b2node2-1),'Color','green');
+plot(usolmax(2*b2node2-1),'Color','red');
+plot(usolmin(2*b2node2-1),'Color','red');
+legend('solution','reference');
+%
+error0 = norm(ItereR(indexa)-uref(indexa))/norm(uref(indexa));
+error1 = norm(usoltot(indexa)-uref(indexa))/norm(uref(indexa));
+%total_error = norm(usol-uref)/norm(uref);
+%% Compute stress :
+%sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem);
+%plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');

@@ -14,7 +14,7 @@ niter   = 5;
 precond = 0;      % 1/2 : Use a dual precond
 mu      = 0.;     % Regularization parameter
 br      = 0.;     % noise
-ntrunc  = 0;
+ntrunc  = 5;
 difmesh = 0;
 
 mat = [0, E, nu];
@@ -29,7 +29,7 @@ dirichlet = [1,1,0; 1,2,0 ;
 neumann   = [2,1,fscalar,0,fscalar;
              4,1,fscalar,0,-fscalar];
 
-%% Import the unrefined mesh
+%% Import the unrefined mesh (that is in fact an overkill mesh)
 if difmesh == 1
    [ nodesu,elementsu,ntoelemu,boundaryu,orderu ] = readmesh( 'meshes/plateu.msh' );
    nnodesu = size(nodesu,1);
