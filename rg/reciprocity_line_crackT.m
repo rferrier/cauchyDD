@@ -16,13 +16,13 @@ mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
 %niter      = 4;    %26-49 Number of regularization iterations
-ncrack     = 2;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+ncrack     = 1;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
                     % 51  : refined postpro mesh
                     % 101 : direct & integrals refined, basic crack
                     % 103 : idem for the small crack
                     % 1001 : more test-functions
                     % 10001 : analysis on a mesh marking the crack
-co         = [1,1,1,1]; % Coefficients for each RG test-case
+co         = [1,1,0,0]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
 
 % List of the operations :
@@ -30,12 +30,12 @@ recompute  = 0; % Recompute A and b
 % 2 : 2 elts per node algorithm
 % 3 : Building of chains and suppression of monoms
 % 4 : Proximity-based suppression of shortest chains
-operations = [1,2,3,4,4,4,4,4];
-regD       = [0,0,0,.1,.2,.3,.4,.5];   
+%operations = [1,2,3,4,4,4,4,4];
+%regD       = [0,0,0,.1,.2,.3,.4,.5];   
 % Minimal distance between 2 chains (0 means only one) 
 
-%operations = [1,2,3,4,4,4,4];
-%regD       = [0,0,0,.2,.4,.6,.8];
+operations = [1,2,3,4,4,4,4];
+regD       = [0,0,0,.2,.4,.6,.8];
 
 %operations = [1,2,3,4,4,4,4,4,4,4,4];
 %regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
@@ -44,8 +44,8 @@ regD       = [0,0,0,.1,.2,.3,.4,.5];
 %regD       = [0,0,0];
 %operations = [1,2];
 %regD       = [0,0];
-%operations = 1;
-%regD       = 0;
+operations = 1;
+regD       = 0;
 
 niter = size(operations,2);
 
@@ -566,6 +566,7 @@ if recompute == 1
 else
    if ncrack == 1
       Anb = load('fields/matrix.mat');
+%      Anb = load('fields/matrix_order_20.mat');
       % The mesh is still needed
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 2
@@ -1015,7 +1016,7 @@ end
 if ncrack == 11 || ncrack == 111
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-nogapp1 = co(1)*nogap1 + co(2)*nogap2 + co(3)*nogap3 + co(4)*nogap4;
+nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);
 maxn1 = max(nogapp1);
 %      for i=1:nseg
 for j=1:size(oldauthorized,1)

@@ -19,6 +19,7 @@ brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
+assembl = 0;      % Shall I assemble the operators ?
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
 methods = [3];
@@ -93,6 +94,57 @@ patch2    = boundary(bounindex,2:end);
 % find the index of the upper nodes
 Ckk = Cbound ( nodes, [2,1,0;2,2,0;2,3,0], boundaryp1 );
 indexC= sum(Ckk'); indexa = find(indexC);
+
+%% Debug : get the index of
+if assembl == 1
+   boundaryp3 = boundaryp1 = suppressBound( boundaryp1, 'extreme', 1, nodes,1e-5 );
+   C11 = Cbound ( nodes, [1,1,0;1,2,0;1,3,0], boundaryp3 );
+   indexC11= sum(C11'); index1 = find(indexC11)';
+   index2 = indexa';
+   C3456 = Cbound ( nodes, ...
+                    [3,1,0;3,2,0;3,3,0 ; 4,1,0;4,2,0;4,3,0 ;...
+                     5,1,0;5,2,0;5,3,0 ; 6,1,0;6,2,0;6,3,0], boundaryp3 );
+   indexC3456= sum(C3456'); index3456 = find(indexC3456)';
+   
+   Krr = Kinter(index1, index1);
+   Kgg = Kinter( index2, index2 );
+   Kjj = Kinter;
+   Kjj([index1;index2;index3456],:) = [];
+   Kjj(:,[index1;index2;index3456]) = [];
+   
+   Krj = Kinter( index1, : );
+   Krj(:,[index1;index2;index3456]) = [];
+   
+   Kgj = Kinter( index2, : );
+   Kgj( :, [index1;index2;index3456] ) = [];
+   
+   Ikjj = inv(Kjj);
+   SR = full(Krr - Krj*Ikjj*Krj'); Crm = Krj*Ikjj*Kgj';
+   K1k = Crm'*inv(SR)*Crm;
+   
+   ur = uin(index1); um = uin(index2);
+   tr = f(index1); tm = f(index2);
+   b = Kgj*Ikjj*Krj'*(ur - SR\tr);
+   
+   Crmp = Crm*inv(Kgg-Kgj*Ikjj*Kgj');
+   umtilde = Crm'*((Crm*K1k*Crm')\(Crm*K1k*um));
+   ur2 = SR\Crm*um;
+   umtildep = Crmp'*((Crmp*K1k*Crmp')\(Crmp*K1k*um));
+   umorth = um-umtilde; umorthp = um-umtildep;
+%   norm(umtilde)
+   errlimu = norm(umorth)/norm(um); errlimup = norm(umorthp)/norm(um);
+   %%
+   Ikgg = inv(Kgg);
+   L = Kjj-Kgj'*Ikgg*Kgj; Il = inv(L);
+   SR2 = Krr-Krj*Il*Krj'; Crm2 = Krj*Il*Kgj'*Ikgg;
+   K2k = Crm2'*inv(SR2)*Crm2;
+   
+   tmtilde = Crm2'*((Crm2*K2k*Crm2')\(Crm2*K2k*tm));
+   tmorth = tm-tmtilde;
+   umdtilde = (Kgg-Kgj*Ikjj*Kgj')\tmtilde+Crm2'*ur; umdorth = um-umdtilde;
+%   norm(tmtilde)
+   errlimt = norm(tmorth)/norm(tm); errlimud = norm(umdorth)/norm(um);
+end
 
 % H1 norm
 Kreg = H1 (nodes, patch2, order); Kreg = Kreg(indexa,indexa);

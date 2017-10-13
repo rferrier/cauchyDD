@@ -11,7 +11,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
+niter   = 30;
 br      = 0.;     % noise
 epsilon = 1e-100;   % Convergence criterion for ritz value
 ratio   = 1e-500;   % Max ratio between eigenvalues

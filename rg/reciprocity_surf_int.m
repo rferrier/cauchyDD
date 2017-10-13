@@ -20,7 +20,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter
-br      = .1;
+br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
 ordp      = 1; % Order of polynom
@@ -421,22 +421,22 @@ RR2 = [R12, R42, R52 ; R42, R22, R62 ; R52, R62, R32];
 
 % Normalize R1
 normR1 = sqrt( 2*(R11^2+R21^2+R31^2+2*(R41^2+R51^2+R61^2)) - (R11+R21+R31)^2 );
-RR1 = RR1/normR1;  RR1p = closestDeficient (RR1, 100);
+RR1 = RR1/normR1;  %RR1p = closestDeficient (RR1, 100);
 [phi1,Lambda1] = eig( RR1 );
 
 % Normalize R2
 normR2 = sqrt( 2*(R12^2+R22^2+R32^2+2*(R42^2+R52^2+R62^2)) - (R12+R22+R32)^2 );
-RR2 = RR2/normR2; RR2p = closestDeficient (RR2, 100);
+RR2 = RR2/normR2; %RR2p = closestDeficient (RR2, 100);
 [phi2,Lambda2] = eig( RR2 );
 
-% Find the null eigenvalue
+% Find the "nullest" eigenvalue
 [~,inul1] = min(abs(diag(Lambda1))); [~,inul2] = min(abs(diag(Lambda2)));
 % Vectorial product
 normal = [phi1(2,inul1)*phi2(3,inul2) - phi2(2,inul2)*phi1(3,inul1)
           phi1(3,inul1)*phi2(1,inul2) - phi2(3,inul2)*phi1(1,inul1)
           phi1(1,inul1)*phi2(2,inul2) - phi2(1,inul2)*phi1(2,inul1)];
 
-normal = normal/norm(normal);
+normal = normal/norm(normal); alpha = atan2(normal(1),normal(3));
           
 % Build the base-change matrix : [x;y;z] = Q*[X;Y;Z], [X;Y;Z] = Q'*[x;y;z]
 t = sign(normal(3))*[1 ; 0 ; -(normal(1))/normal(3)]; t = t/norm(t); % Total random t
@@ -448,7 +448,7 @@ Q = [ t , v , normal ];
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
 % Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
-% Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
+%Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
 Qref = Q;
 
 %% Then the constant

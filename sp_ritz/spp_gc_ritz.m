@@ -10,8 +10,8 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+niter   = 3;
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = .1;    % noise
@@ -554,6 +554,8 @@ fsolR = Kinter*usolR;
 %plot(fsolR(2*b2node2-1),'Color','blue')
 %plot(f(2*b2node2-1),'Color','green')
 %legend('brutal solution','filtred solution','reference')
+
+errorx = abs((usol(2*b2node2-1)-uref(2*b2node2-1)))/max(abs(uref(2*b2node2-1)));
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :

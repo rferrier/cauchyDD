@@ -1,5 +1,5 @@
 % 22/09/2017
-% Algo Bayésien s'appuyant sur l'analyse de Ritz, u VS u
+% Algo Bayésien s'appuyant sur l'analyse de Ritz, u VS u, bloc primal
 
 close all;
 clear all;
@@ -39,11 +39,28 @@ neumann   = [2,1,fscalar,0,fscalar;
 %             4,1,fscalar];
 
 % Import the mesh
-[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
-nnodes = size(nodes,1);
+if refined == 5
+   [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plateUs/plate5.msh' );
+    nnodes = size(nodes,1); noise = randn(2*nnodes,1);
+elseif refined == 4
+   [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plateUs/plate4.msh' );
+    nnodes = size(nodes,1); noise = randn(2*nnodes,1);
+elseif refined == 3
+   [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plateUs/plate3.msh' );
+    nnodes = size(nodes,1); noise = randn(2*nnodes,1);
+elseif refined == 2
+   [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plateUs/plate2.msh' );
+    noises = load('./noises/noise0U.mat'); % Particular noise vector
+    nnodes = size(nodes,1); noise  = noises.bruit1;
+elseif refined == .5
+   [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plateUs/plate05.msh' );
+   noises = load('./noises/noise0.mat'); % Particular noise vector
+   nnodes = size(nodes,1); noise  = noises.bruit1;
+%   noise = randn(2*nnodes,1);
+end
 
-noises = load('./noises/noise1.mat'); % Particular noise vector
-noise  = noises.bruit1;
+%noises = load('./noises/noise1.mat'); % Particular noise vector
+%noise  = noises.bruit1;
 %noise = randn(2*nnodes,1);
 
 % find the nodes in the corners and suppress the element :
@@ -83,7 +100,7 @@ f = loading(nbloq,nodes,boundary,neumann);
 uin = K\f;
 
 % Extract displacement and Lagrange multiplicators :
-uref = uin(1:2*nnodes,1);
+uref = uin(1:2*nnodes,1); fref  = Kinter*uref;
 lagr = uin(2*nnodes+1:end,1);
 
 urefb = ( 1 + br*noise ) .* uref;
@@ -471,16 +488,16 @@ if reduction ~= 0 % G \simeq Ut*Sigmat*Vt'; Ut'*Zd*Ut = 1; Vt'*M*Vt = 1;
    Mrhs = dirichletRhs2( rhs, 2, c2nodem, boundary, nnodes );
    Ut = Km\Mrhs; Ut = Ut(indexb,:);
    
-   % DEBUG : test the orthogonality of Ut
-   rhs = zeros(2*nnodes,size(Ut,2)); rhs(indexb,:) = Ut;
-   f11 = dirichletRhs2( rhs, 4, c2node1, boundaryp1, nnodes );
-   uin1 = K1\f11;
-   lagr1 = uin1(2*nnodes+1:end,:);
-   rhs = zeros(2*nnodes,size(Ut,2));
-   for i=1:size(Ut,2)
-      rhs(:,i) = lagr2forces2( lagr1(:,i), c2node1, 4, boundaryp1, nnodes );
-   end
-   rhs = rhs(indexb,:);
+%   % DEBUG : test the orthogonality of Ut
+%   rhs = zeros(2*nnodes,size(Ut,2)); rhs(indexb,:) = Ut;
+%   f11 = dirichletRhs2( rhs, 4, c2node1, boundaryp1, nnodes );
+%   uin1 = K1\f11;
+%   lagr1 = uin1(2*nnodes+1:end,:);
+%   rhs = zeros(2*nnodes,size(Ut,2));
+%   for i=1:size(Ut,2)
+%      rhs(:,i) = lagr2forces2( lagr1(:,i), c2node1, 4, boundaryp1, nnodes );
+%   end
+%   rhs = rhs(indexb,:);
 %   Ut'*rhs
 
    Gtilde = Ut*Sigmat*Vt';
@@ -567,36 +584,41 @@ if reduction == 2 % Linear Bayesian update (Kalman filter)
    sigmav = sqrt(diag(CD));
    meanD = Qb(:,1);
    
-%   meanU = Yt*meanD; % Back to the regular basis
-   meanU = Vt*((Vt'*Vt)\meanD); % Back to the regular basis
-   sCD   = CD^(1/2); sCU = Vt*((Vt'*Vt)\sCD); CU = sCU*sCU';
-%   CU    = Yt*CD*Yt';
-
-%   if precond == 1
-%      rhs = zeros(2*nnodes,1); rhs(indexa,:) = YmeanD;
-%      f11 = dirichletRhs2( rhs, 2, c2node1, boundaryp1, nnodes );
-%      uin1 = K1\f11; lagr1 = uin1(2*nnodes+1:end,:);
-%      meanU = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
-%      meanU = meanU(indexa,1);
-%      
-%      rhs = zeros(2*nnodes,size(sCD,2)); rhs(indexa,:) = YsCD;
-%      f11 = dirichletRhs2( rhs, 2, c2node1, boundaryp1, nnodes );
-%      uin1 = K1\f11;
-%      lagr1 = uin1(2*nnodes+1:end,:);
-%      sCU = zeros(2*nnodes,size(sCD,2));
-%      for i=1:size(sCD,2)
-%         sCU(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundaryp1, nnodes );
-%      end
-%      sCU = sCU(indexa,:); CU = sCU*sCU';
-%   else
-%      meanU = YmeanD; CU = YsCD*YsCD';
-%   end
+   %% Back to the regular basis
+   Qbu = Vt*((Vt'*Vt)\Qb); meanU = Qbu(:,1);
+   CU    = zeros(nindexa); % Posterior variance
+   for j=1:nindexa 
+      for i=1:chaosor
+         CU = CU + factorial(i)*Qbu(:,i+1+(j-1)*(chaosor))*Qbu(:,i+1+(j-1)*(chaosor))';
+      end
+   end
    sigmau = sqrt(diag(CU));
    
-   usoltot = zeros(2*nnodes,1); usoltot(indexa) = meanU;
-   usolmax = zeros(2*nnodes,1); usolmax(indexa) = meanU+sigmau;
-   usolmin = zeros(2*nnodes,1); usolmin(indexa) = meanU-sigmau;
-   
+%   meanU = Yt*meanD; % Back to the regular basis
+%   meanU = Vt*((Vt'*Vt)\meanD); % Back to the regular basis
+%   sCD   = CD^(1/2); sCU = Vt*((Vt'*Vt)\sCD); CU = sCU*sCU';
+%   CU    = Yt*CD*Yt';
+
+%%   if precond == 1
+%%      rhs = zeros(2*nnodes,1); rhs(indexa,:) = YmeanD;
+%%      f11 = dirichletRhs2( rhs, 2, c2node1, boundaryp1, nnodes );
+%%      uin1 = K1\f11; lagr1 = uin1(2*nnodes+1:end,:);
+%%      meanU = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+%%      meanU = meanU(indexa,1);
+%%      
+%%      rhs = zeros(2*nnodes,size(sCD,2)); rhs(indexa,:) = YsCD;
+%%      f11 = dirichletRhs2( rhs, 2, c2node1, boundaryp1, nnodes );
+%%      uin1 = K1\f11;
+%%      lagr1 = uin1(2*nnodes+1:end,:);
+%%      sCU = zeros(2*nnodes,size(sCD,2));
+%%      for i=1:size(sCD,2)
+%%         sCU(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundaryp1, nnodes );
+%%      end
+%%      sCU = sCU(indexa,:); CU = sCU*sCU';
+%%   else
+%%      meanU = YmeanD; CU = YsCD*YsCD';
+%%   end
+%   sigmau = sqrt(diag(CU));
 else % basic Kalman Filter
    %% Solve the stochastic forward problem to synthetize observations
    prior = zeros(nindexa,1+(chaosor)*nindexa);
@@ -651,39 +673,53 @@ else % basic Kalman Filter
    end
    
    % Build the PCE of the solution
-   Qb = prior + Cqy*Geai;
+   Qb = prior + Cqy*Geai; Qbu = Qb;
    
-   sigmav = zeros(nindexa,1);
-   CD     = zeros(nindexa); % Posterior variance
+   sigmau = zeros(nindexa,1);
+   CU     = zeros(nindexa); % Posterior variance
    for j=1:nindexa 
       for i=1:chaosor
-         CD = CD + factorial(i)*Qb(:,i+1+(j-1)*(chaosor))*Qb(:,i+1+(j-1)*(chaosor))';
+         CU = CU + factorial(i)*Qb(:,i+1+(j-1)*(chaosor))*Qb(:,i+1+(j-1)*(chaosor))';
       end
    end
-   sigmav = sqrt(diag(CD));
-   meanD = Qb(:,1);
-   
-   usoltot = zeros(2*nnodes,1); usoltot(indexa) = meanD;
-   usolmax = zeros(2*nnodes,1); usolmax(indexa) = meanD+sigmav;
-   usolmin = zeros(2*nnodes,1); usolmin(indexa) = meanD-sigmav;
+   sigmau = sqrt(diag(CU));
+   meanU = Qb(:,1);
 end
+
+usoltot = zeros(2*nnodes,1); usoltot(indexa) = meanU;
+usolmax = zeros(2*nnodes,1); usolmax(indexa) = meanU+sigmau;
+usolmin = zeros(2*nnodes,1); usolmin(indexa) = meanU-sigmau;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%
-%%% Final problem : compute u and f
-%% DN problem
-%dirichlet = [4,1,0;4,2,0;
-%             3,1,0;3,2,0;
-%             1,1,0;1,2,0;
-%             2,1,0;2,2,0];
-%neumann   = [];
-%[K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
-%fdir2 = dirichletRhs(ItereR, 2, C, boundary);
-%fdir4 = dirichletRhs(urefb, 4, C, boundary);
-%usoli = K \ (fdir4 + fdir2);
+%% Final problem : compute u and f : Rem : in the reduced case, it is possible to do it on M-1V (less dimensions)
+% DN problem
+dirichlet = [3,1,0;3,2,0;
+             1,1,0;1,2,0;
+             2,1,0;2,2,0];
+neumann   = [4,1,fscalar,0,-fscalar];
+[K,C,nbloq,node2c,c2node] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+rhs = zeros(2*nnodes,size(Qbu,2)); rhs(indexa,:) = Qbu;
+fdir2 = dirichletRhs2(rhs, 2, c2node, boundary,nnodes);
+flin4 = loading(nbloq,nodes,boundary,neumann);
+usol0 = K \ fdir2; usol1 = K\fdir2;
+
+usol = usol1(1:2*nnodes,1) + usol0(1:2*nnodes,1)*ones(1,size(Qbu,2));
+fsol = Kinter*usol; Qf = fsol(indexa,:);
 %
-%usol = usoli(1:2*nnodes,1);
-%fsol = Kinter*usol;
+sigmaf = zeros(nindexa,1);
+CF     = zeros(nindexa); % Posterior variance
+for j=1:nindexa 
+   for i=1:chaosor
+      CF = CF + factorial(i)*Qf(:,i+1+(j-1)*(chaosor))*Qf(:,i+1+(j-1)*(chaosor))';
+   end
+end
+sigmaf = sqrt(diag(CF));
+meanF = Qf(:,1);
+%
+fsoltot = zeros(2*nnodes,1); fsoltot(indexa) = meanF;
+fsolmax = zeros(2*nnodes,1); fsolmax(indexa) = meanF+sigmaf;
+fsolmin = zeros(2*nnodes,1); fsolmin(indexa) = meanF-sigmaf;
 %
 figure;
 hold on;
@@ -692,6 +728,14 @@ plot(uref(2*b2node2-1),'Color','green');
 plot(usolmax(2*b2node2-1),'Color','red');
 plot(usolmin(2*b2node2-1),'Color','red');
 legend('solution','reference');
+%
+figure;
+hold on;
+plot(fsoltot(2*b2node2-1),'Color','red');
+plot(fref(2*b2node2-1),'Color','green');
+plot(fsolmax(2*b2node2-1),'Color','red');
+plot(fsolmin(2*b2node2-1),'Color','red');
+legend('solution (force)','reference');
 %
 error0 = norm(ItereR(indexa)-uref(indexa))/norm(uref(indexa));
 error1 = norm(usoltot(indexa)-uref(indexa))/norm(uref(indexa));

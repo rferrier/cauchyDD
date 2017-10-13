@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.0;      % noise
+br      = 0.01;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [5];
+methods = [10];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -1980,6 +1980,10 @@ if find(methods==10)
    ratio   = .5e-100;  % Maximal ratio (for eigenfilter)
    epsilon = 1e-1;   % Convergence criterion for ritz value
    
+   %% For u error computation
+   dirichlet = [2,1,0;2,2,0];
+   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
+   
    %% Conjugate Gradient for the problem : (D20-D10) x = D1-D2
    Itere = zeros( 2*nnodes, 1 );
    d     = zeros( 2*nnodes, niter+1 );
@@ -2044,6 +2048,11 @@ if find(methods==10)
    error(1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
    regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
    
+%   % U error computation
+%   fdir3 = [ Itere ; zeros(nbloq,1) ];
+%   usoli = K \ fdir3;
+%   erroru(1) = norm(usoli(indexxy) - uref(indexxy)) / norm(uref(indexxy));
+   
    ritzval  = 0; % Last ritz value that converged
    oldtheta = 0;
    eta      = 0;
@@ -2075,6 +2084,11 @@ if find(methods==10)
        residual(iter+1) = norm(Res(indexxy,iter+1));
        error(iter+1)    = norm(Itere(indexxy) - fref(indexxy)) / norm(fref(indexxy));
        regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
+       
+%       % U error computation
+%       fdir3 = [ Itere ; zeros(nbloq,1) ];
+%       usoli = K \ fdir3;
+%       erroru(iter+1) = norm(usoli(indexxy) - uref(indexxy)) / norm(uref(indexxy));
        
        if precond == 1
           % Solve 1
@@ -2242,8 +2256,8 @@ if find(methods==10)
 %   xlabel('angle(rad)')
    
    %% Final problem
-   dirichlet = [2,1,0;2,2,0];
-   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
+%   dirichlet = [2,1,0;2,2,0];
+%   [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet,1);
    fdir3R = [ ItereR ; zeros(nbloq,1) ];
    fdir3 = [ Itere ; zeros(nbloq,1) ];
    usoli = K \ fdir3R ;

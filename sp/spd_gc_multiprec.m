@@ -12,7 +12,7 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 6;
 mu      = 0.;    % Regularization parameter
-br      = 0.;     % noise
+br      = 0.1;     % noise
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -65,7 +65,10 @@ lagr = uin(2*nnodes+1:end,1);
 
 fref = Kinter*uref;
 
-urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
+noises = load('./noises/noise0.mat'); % Particular noise vector
+noise  = noises.bruit1;
+%noise = randn(2*nnodes,1);
+urefb = ( 1 + br*noise ) .* uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
@@ -120,6 +123,7 @@ Ad2   = zeros( 2*nnodes, niter+1 );
 Res   = zeros( 2*nnodes, niter+1 );
 Zed1  = zeros( 2*nnodes, niter+1 );
 Zed2  = zeros( 2*nnodes, niter+1 );
+alpha = zeros( 2, niter+1 );
 
 %% Perform A x0 :
 % Solve 1
@@ -214,10 +218,10 @@ for iter = 1:niter
     %%
     Delta = ([Ad1(indexa,iter),Ad2(indexa,iter)]'*[d1(indexa,iter),d2(indexa,iter)]);
     gamma = ([Zed1(indexa,iter),Zed2(indexa,iter)]'*Res(indexa,iter));
-    alpha = Delta\gamma;
+    alpha(:,iter) = Delta\gamma;
 
-    Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha;
-    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha;
+    Itere         = Itere + [d1(:,iter),d2(:,iter)]*alpha(:,iter);
+    Res(:,iter+1) = Res(:,iter) - [Ad1(:,iter),Ad2(:,iter)]*alpha(:,iter);
      
     residual(iter+1) = norm(Res(indexa,iter+1));
     error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
