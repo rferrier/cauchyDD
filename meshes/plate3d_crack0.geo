@@ -7,13 +7,13 @@ R     = 2;   // Radius of the crack
 a     = 4;      // Center of the crack
 b     = 3;      //
 da    = pi/15; // angle of the crack
-H     = 5;  //  height of plate
+H     = 2;  //  height of plate
 L     = 7;  //  width of plate
 E     = 10; //E     = 7;
 
 // Discretization parameters
-lc1 = .5; // element size at the border
-lc2 = .5; // element size at the crack tip
+lc1 = .25; // element size at the border
+lc2 = .25; // element size at the crack tip
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc1};

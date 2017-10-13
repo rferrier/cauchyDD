@@ -1,12 +1,12 @@
 
 // Geometric parameters
-H   = 1;  //  height of plate
-L   = 1;  //  width of plate
-eps = L/30; // refined boundary
+H   = 10;  //  height of plate
+L   = 5;  //  width of plate
+eps = H/30; // refined boundary
 
 // Discretization parameters
-lc1 = .05; // element size at the interior
-lc2 = .05; // .002
+lc1 = .5; // element size at the interior
+lc2 = .5; // .002
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc2};

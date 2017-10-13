@@ -19,12 +19,13 @@ E       = 210000; % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
-regmu   = 0;      % Regularization parameter
-br      = .0;
+regmu   = 0;      % Regularization parameter;
+
+br      = .01;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 1; % Order of polynom
-ordpD     = 1; % Order of the differential H1 post-regularization whatsoever.
+ordp      = 6; % Order of polynom
+ordpD     = 6; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -38,15 +39,18 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % Line to add to store the fields
 % save('fields/McCoef1.mat','McCoef','ordp','Lx','Ly','L1x','L2x','L1y','L2y','Xs','Ys','X0','Y0');
+% save('fields/ref_mults.mat','uplo','uplo1');
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
 %cracked_mesh = 'meshes/rg3dm/platem6_c.msh';
 %uncracked_mesh = 'meshes/rg3dm/platem6.msh';
- cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
- uncracked_mesh = 'meshes/rg3dm/platemu.msh';
-%  cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-%  uncracked_mesh = 'meshes/rg3dm/platem.msh';
+%  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
+%  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
+ cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+ uncracked_mesh = 'meshes/rg3dm/platem.msh';
+%  cracked_mesh = 'meshes/rg3ds/plates_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds/plates.msh';
 % cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 % uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
@@ -135,8 +139,8 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
 % Add the noise
 if loadfield ~= 1 && loadfield ~= 4
     u1n = u1; u2n = u2;
-    br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
-%     noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
+%     br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+    noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
     u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
 end
            
@@ -435,8 +439,8 @@ Q = [ t , v , normal ];
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
 % Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
-% Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
-Qref = Q;
+Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
+% Qref = Q;
 
 %% Then the constant
 

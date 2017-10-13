@@ -14,7 +14,7 @@ eps   = .4;  //refining width
 
 // Discretization parameters
 lc1 = .5; // element size at the crack tip
-lc2 = .5; // element size in teh domain
+lc2 = .5; // element size in the domain
 lc3 = .2; // refining size
 
 // Domain construction

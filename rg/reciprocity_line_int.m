@@ -20,10 +20,10 @@ dolcurve   = 0;      % Do a L-curve or not
 br         = .0;      % Noise level
 
 usefourier = 1;
-usepolys   = 0;
+usepolys   = 1;
 
-nbase = 2; % Number of Fourier basis functions
-ordp = 8;  % Number of Polynomial basis functions
+nbase = 4; % Number of Fourier basis functions
+ordp = 15;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation
 
