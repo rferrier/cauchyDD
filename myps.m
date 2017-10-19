@@ -14,7 +14,7 @@ function ps = myps( u1, u2, K, belem, M, nodes)
      ps = u1'*M*u2;
  elseif index == 5 % int1d(3)(u1*u2)
      ps = u1'*norm_bound(u2, nodes, belem, 3);
- elseif index == 6; % K IP on the bound 3
+ elseif index == 6 % K IP on the bound 3
      ps = u1'*regul(u2, nodes, belem, 3);
  end
 end
