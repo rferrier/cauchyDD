@@ -15,7 +15,7 @@ fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = 0;      % Noise level
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
-ncrack     = 1;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+ncrack     = 11;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
                     % 51  : refined postpro mesh
                     % 101 : direct & integrals refined, basic crack
                     % 103 : idem for the small crack
@@ -27,8 +27,11 @@ niter      = 40;
 popmin     = 20;  % Nb of survivors at each step (20,30)
 multip     = 4;   % Population multiplicator at the mutation step (4,2)
 pop        = popmin*(multip+1); % Population before the selection step
-Lreg       = 20; % Regularization length (100)
-mugrad     = 40;   % Gradient penalization parameter (no unit)
+Lregm1     = 1/20;%1/20; % Regularization length (1/20 mm-1)
+mugrad     = 400;%10;%400;% Gradient penalization parameter (40 mm-1 or no unit (depends on gradnorm))
+gradnorm   = 2;    % if gradnorm = 1 : Total Variation, 2 : squared, etc...
+gradmode   = 0; % If gradmode == 1, use the normalized norm instead
+gradmodemu = .0005; % Regularization parameter associated with gradmode = 1
 
 %% In order to build the (Petrov-Galerkin) Left Hand Side
 if ncrack == 10001
@@ -546,26 +549,26 @@ if recompute == 1
 
 else
    if ncrack == 1
-      Anb = load('fields/matrix.mat');
+      Anb = load('fields/matrix_20.mat'); %Anb = load('fields/matrix.mat');
       % The mesh is still needed
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 2
-      Anb = load('fields/matrix2.mat');
+      Anb = load('fields/matrix2_20.mat'); %Anb = load('fields/matrix2.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc2.msh' );
    elseif ncrack == 3
-      Anb = load('fields/matrix3.mat');
+      Anb = load('fields/matrix3_20.mat'); %Anb = load('fields/matrix3.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc3.msh' );
    elseif ncrack == 5
-      Anb = load('fields/matrix5.mat');
+      Anb = load('fields/matrix5_20.mat'); % Anb = load('fields/matrix5.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 7
-      Anb = load('fields/matrix7.mat');
+      Anb = load('fields/matrix7_20.mat'); %Anb = load('fields/matrix7.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 9
-      Anb = load('fields/matrix9.mat');
+      Anb = load('fields/matrix9_20.mat'); %Anb = load('fields/matrix9.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
    elseif ncrack == 11
-      Anb = load('fields/matrix11.mat');
+      Anb = load('fields/matrix11_20.mat'); %Anb = load('fields/matrix11.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc11.msh' );
    elseif ncrack == 51
       Anb = load('fields/matrix51.mat');
@@ -618,6 +621,15 @@ ressum = zeros(pop,1); gradsum = zeros(pop,1);
 gradres1 = zeros(pop,1); gradres2 = zeros(pop,1);
 gradres3 = zeros(pop,1); gradres4 = zeros(pop,1);
 
+% Compute lengths and normals
+for k=1:nseg
+   no1 = segel(k,1); no2 = segel(k,2);
+   lengvect1(k) = sqrt( ( nodesu(no1,1)-nodesu(no2,1) )^2 +...
+                       ( nodesu(no1,2)-nodesu(no2,2) )^2 );
+   normalct1(k,:) = [ nodesu(no1,2)-nodesu(no2,2) ,...
+                   -(nodesu(no1,1)-nodesu(no2,1)) ] / lengvect1(k) ;
+end
+
 for j=1:pop % Randomly initialize the population
    thisseg = 1+floor(nseg*rand);
    oldauthorized{j} = thisseg;
@@ -640,7 +652,7 @@ for j=1:pop % Randomly initialize the population
 %   oldauthorized{j} = unique(zesegms');
 
 end
-
+tic
 for i=1:niter
    %% Selection stage : compute the criterion
 
@@ -741,12 +753,13 @@ for i=1:niter
       if jmax == 0
          jmax0 = size(Thetas,1);
          jmax1 = ind1; jmax2 = ind2; jmax3 = ind3; jmax4 = ind4;
+%         jmax1 = jmax0; jmax2 = jmax0; jmax3 = jmax0; jmax4 = jmax0;
       else
          jmax0 = min( size(Thetas,1) , jmax );
          jmax1 = jmax; jmax2 = jmax; jmax3 = jmax; jmax4 = jmax;
       end
       
-      ThetaT  = Thetas( 1:jmax0 , 1:jmax0 );
+      %ThetaT  = Thetas( 1:jmax0 , 1:jmax0 );
       ThetaT1 = Thetas( 1:jmax1 , 1:jmax1 );
       ThetaT2 = Thetas( 1:jmax2 , 1:jmax2 );
       ThetaT3 = Thetas( 1:jmax3 , 1:jmax3 );
@@ -769,52 +782,101 @@ for i=1:niter
 %      res2(j) = norm( A(authorized,authorized)*Solu2(authorized) - b2(authorized) ) / norm( b2(authorized) );
 %      res3(j) = norm( A(authorized,authorized)*Solu3(authorized) - b3(authorized) ) / norm( b3(authorized) );
 %      res4(j) = norm( A(authorized,authorized)*Solu4(authorized) - b4(authorized) ) / norm( b4(authorized) );
-      res1(j) = norm( A*Solu1 - b1 ) / norm( b1 );
-      res2(j) = norm( A*Solu2 - b2 ) / norm( b2 );
-      res3(j) = norm( A*Solu3 - b3 ) / norm( b3 );
-      res4(j) = norm( A*Solu4 - b4 ) / norm( b4 );
+      res1(j) = norm( A*Solu1 - b1 );% / norm( b1 );
+      res2(j) = norm( A*Solu2 - b2 );% / norm( b2 );
+      res3(j) = norm( A*Solu3 - b3 );% / norm( b3 );
+      res4(j) = norm( A*Solu4 - b4 );% / norm( b4 );
       
-      % Compute length of the crack
-      lres(j) = 0;
-      lengvect = zeros(size(oldauthorized0,1));
-      for k=1:size(oldauthorized0)
-         no1 = segel(oldauthorized0(k),1); no2 = segel(oldauthorized0(k),2);
-         lengvect(k) = sqrt( ( nodesu(no1,1)-nodesu(no2,1) )^2 +...
-                             ( nodesu(no1,2)-nodesu(no2,2) )^2 );
-         lres(j) = lres(j) + lengvect(k);
-      end
-      
-      % Compute gradient cost function
-      gradres1(j) = 0; gradres2(j) = 0; gradres3(j) = 0; gradres4(j) = 0;
-      for k=1:size(nodescrack0,1)
-         no1 = nodescrack0(k);
-         segs0 = rem( find(segel(oldauthorized0,:)==no1)-1 , size(oldauthorized0,1) )+1;
-         segs = oldauthorized0(segs0);
-         if size(segs,1) == 1
-            gradloc1 = [Solu1(2*segs-1);Solu1(2*segs)]/lengvect(segs0);
-            gradloc2 = [Solu2(2*segs-1);Solu2(2*segs)]/lengvect(segs0);
-            gradloc3 = [Solu3(2*segs-1);Solu3(2*segs)]/lengvect(segs0);
-            gradloc4 = [Solu4(2*segs-1);Solu4(2*segs)]/lengvect(segs0);
-         elseif size(segs,1) == 2
-            gradloc1 = ( [Solu1(2*segs(1)-1);Solu1(2*segs(1))] - ...
-                         [Solu1(2*segs(2)-1);Solu1(2*segs(2))] )/lengvect(segs0);
-            gradloc2 = ( [Solu2(2*segs(1)-1);Solu2(2*segs(1))] - ...
-                         [Solu2(2*segs(2)-1);Solu2(2*segs(2))] )/lengvect(segs0);
-            gradloc3 = ( [Solu3(2*segs(1)-1);Solu3(2*segs(1))] - ...
-                         [Solu3(2*segs(2)-1);Solu3(2*segs(2))] )/lengvect(segs0);
-            gradloc4 = ( [Solu4(2*segs(1)-1);Solu4(2*segs(1))] - ...
-                         [Solu4(2*segs(2)-1);Solu4(2*segs(2))] )/lengvect(segs0);
+      if gradmode == 1
+         % Compute gradient cost function
+         gradres1(j) = 0; gradres2(j) = 0; gradres3(j) = 0; gradres4(j) = 0;
+         for k=1:size(nodescrack0,1)
+            no1 = nodescrack0(k);
+            segs0 = rem( find(segel(oldauthorized0,:)==no1)-1 , size(oldauthorized0,1) )+1;
+            segs = oldauthorized0(segs0);
+            if size(segs,1) == 1
+               gradloc1 = 1/lengvect1(segs);
+               gradloc2 = 1/lengvect1(segs);
+               gradloc3 = 1/lengvect1(segs);
+               gradloc4 = 1/lengvect1(segs);
+            elseif size(segs,1) == 2
+               gradloc1 = ( [Solu1(2*segs(1)-1);Solu1(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu1(2*segs(2)-1);Solu1(2*segs(2))]'*normalct1(segs(2),:)' )...
+                          /( [Solu1(2*segs(1)-1);Solu1(2*segs(1))]'*normalct1(segs(1),:)' + ...
+                            [Solu1(2*segs(2)-1);Solu1(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+               gradloc2 = ( [Solu2(2*segs(1)-1);Solu2(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu2(2*segs(2)-1);Solu2(2*segs(2))]'*normalct1(segs(2),:)' )...
+                          /( [Solu2(2*segs(1)-1);Solu2(2*segs(1))]'*normalct1(segs(1),:)' + ...
+                            [Solu2(2*segs(2)-1);Solu2(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+               gradloc3 = ( [Solu3(2*segs(1)-1);Solu3(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu3(2*segs(2)-1);Solu3(2*segs(2))]'*normalct1(segs(2),:)' )...
+                          /( [Solu3(2*segs(1)-1);Solu3(2*segs(1))]'*normalct1(segs(1),:)' + ...
+                            [Solu3(2*segs(2)-1);Solu3(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+               gradloc4 = ( [Solu4(2*segs(1)-1);Solu4(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu4(2*segs(2)-1);Solu4(2*segs(2))]'*normalct1(segs(2),:)' )...
+                          /( [Solu4(2*segs(1)-1);Solu4(2*segs(1))]'*normalct1(segs(1),:)' + ...
+                            [Solu4(2*segs(2)-1);Solu4(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+            end
+            gradres1(j) = gradres1(j) + abs(gradloc1)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc1)^2;
+            gradres2(j) = gradres2(j) + abs(gradloc2)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc2)^2;
+            gradres3(j) = gradres3(j) + abs(gradloc3)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc3)^2;
+            gradres4(j) = gradres4(j) + abs(gradloc4)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc4)^2;
          end
-         gradres1(j) = gradres1(j) + norm(gradloc1)^2;
-         gradres2(j) = gradres2(j) + norm(gradloc2)^2;
-         gradres3(j) = gradres3(j) + norm(gradloc3)^2;
-         gradres4(j) = gradres4(j) + norm(gradloc4)^2;
+   
+         gradsum(j) = (gradres1(j)*co(1) + gradres2(j)*co(2) + gradres3(j)*co(3) + gradres4(j)*co(4)) / (sum(co));
+         ressum(j) = (res1(j)*co(1) + res2(j)*co(2) + res3(j)*co(3) + res4(j)*co(4)) / ...
+                     (norm(b1)*co(1) + norm(b2)*co(2) + norm(b3)*co(3) + norm(b4)*co(4));
+         
+         res0(j) = gradmodemu*gradsum(j) + ressum(j);
+         
+      else
+         % Compute length of the crack
+         lres(j) = 0;
+         for k=1:size(oldauthorized0)
+            lres(j) = lres(j) + lengvect1(oldauthorized0(k));
+         end
+         
+         % Compute gradient cost function
+         gradres1(j) = 0; gradres2(j) = 0; gradres3(j) = 0; gradres4(j) = 0;
+         for k=1:size(nodescrack0,1)
+            no1 = nodescrack0(k);
+            segs0 = rem( find(segel(oldauthorized0,:)==no1)-1 , size(oldauthorized0,1) )+1;
+            segs = oldauthorized0(segs0);
+            if size(segs,1) == 1
+               gradloc1 = ([Solu1(2*segs-1);Solu1(2*segs)]'*normalct1(segs,:)')/lengvect1(segs);
+               gradloc2 = ([Solu2(2*segs-1);Solu2(2*segs)]'*normalct1(segs,:)')/lengvect1(segs);
+               gradloc3 = ([Solu3(2*segs-1);Solu3(2*segs)]'*normalct1(segs,:)')/lengvect1(segs);
+               gradloc4 = ([Solu4(2*segs-1);Solu4(2*segs)]'*normalct1(segs,:)')/lengvect1(segs);
+            elseif size(segs,1) == 2
+               gradloc1 = ( [Solu1(2*segs(1)-1);Solu1(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu1(2*segs(2)-1);Solu1(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+               gradloc2 = ( [Solu2(2*segs(1)-1);Solu2(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu2(2*segs(2)-1);Solu2(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+               gradloc3 = ( [Solu3(2*segs(1)-1);Solu3(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu3(2*segs(2)-1);Solu3(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+               gradloc4 = ( [Solu4(2*segs(1)-1);Solu4(2*segs(1))]'*normalct1(segs(1),:)' - ...
+                            [Solu4(2*segs(2)-1);Solu4(2*segs(2))]'*normalct1(segs(2),:)' )...
+                            /mean(lengvect1(segs));
+            end
+            gradres1(j) = gradres1(j) + abs(gradloc1)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc1)^2;
+            gradres2(j) = gradres2(j) + abs(gradloc2)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc2)^2;
+            gradres3(j) = gradres3(j) + abs(gradloc3)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc3)^2;
+            gradres4(j) = gradres4(j) + abs(gradloc4)^gradnorm*mean(lengvect1(segs));%'*normalct(segs0,:)';%norm(gradloc4)^2;
+         end
+   
+         gradsum(j) = (gradres1(j)*co(1) + gradres2(j)*co(2) + gradres3(j)*co(3) + gradres4(j)*co(4)) / (sum(co));
+         ressum(j) = (res1(j)*co(1) + res2(j)*co(2) + res3(j)*co(3) + res4(j)*co(4)) / ...
+                     (norm(b1)*co(1) + norm(b2)*co(2) + norm(b3)*co(3) + norm(b4)*co(4));
+         
+         res0(j) = mugrad*gradsum(j) + ressum(j) + lres(j)*Lregm1;
       end
-
-      gradsum(j) = (gradres1(j)*co(1) + gradres2(j)*co(2) + gradres3(j)*co(3) + gradres4(j)*co(4)) / (sum(co));
-      ressum(j) = (res1(j)*co(1) + res2(j)*co(2) + res3(j)*co(3) + res4(j)*co(4)) / (sum(co));
-      
-      res0(j) = mugrad*gradsum(j) + ressum(j) + lres(j)/Lreg;
 
       % Re-loop over segments to build normal gap
 %      for k=1:nseg
@@ -1095,7 +1157,7 @@ for i=1:niter
       end
    end
 end
-
+disp([ 'Genetic algo terminated ', num2str(toc) ]);
 % Choose the best one
 %[minresid, chosen] = min(res0);
 chosen = 1;
@@ -1135,6 +1197,15 @@ colormap('default')
 h = colorbar();
 ytick = get (h, 'ytick');
 set (h, 'yticklabel', sprintf ( '%g|', maxn1*ytick+min(nogap10) ));
+
+%total = res0(1)
+%gradient = mugrad*gradsum(1)
+%no_reg = ressum(1)
+%length = lres(1)*Lregm1
+
+%total = res0(1)
+%gradient = gradmodemu*gradsum(1)
+%no_reg = ressum(1)
 
 %figure;
 %hold on;

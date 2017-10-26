@@ -22,7 +22,8 @@ ncrack     = 1;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise
                     % 103 : idem for the small crack
                     % 1001 : more test-functions
                     % 10001 : analysis on a mesh marking the crack
-co         = [1,1,0,0]; % Coefficients for each RG test-case
+% /!\ Only the n<50 use for sure the new test foncions
+co         = [1,1,1,1]; % Coefficients for each RG test-case
 recompute  = 0; % Recompute A and b
 
 % List of the operations :
@@ -34,11 +35,11 @@ recompute  = 0; % Recompute A and b
 %regD       = [0,0,0,.1,.2,.3,.4,.5];   
 % Minimal distance between 2 chains (0 means only one) 
 
-operations = [1,2,3,4,4,4,4];
-regD       = [0,0,0,.2,.4,.6,.8];
+%operations = [1,2,3,4,4,4,4];
+%regD       = [0,0,0,.2,.4,.6,.8];
 
-%operations = [1,2,3,4,4,4,4,4,4,4,4];
-%regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
+operations = [1,2,3,4,4,4,4,4,4,4,4];
+regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
 
 %operations = [1,2,3];
 %regD       = [0,0,0];
@@ -565,27 +566,26 @@ if recompute == 1
 
 else
    if ncrack == 1
-      Anb = load('fields/matrix.mat');
-%      Anb = load('fields/matrix_order_20.mat');
+      Anb = load('fields/matrix_20.mat'); %Anb = load('fields/matrix.mat');
       % The mesh is still needed
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 2
-      Anb = load('fields/matrix2.mat');
+      Anb = load('fields/matrix2_20.mat'); %Anb = load('fields/matrix2.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc2.msh' );
    elseif ncrack == 3
-      Anb = load('fields/matrix3.mat');
+      Anb = load('fields/matrix3_20.mat'); %Anb = load('fields/matrix3.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc3.msh' );
    elseif ncrack == 5
-      Anb = load('fields/matrix5.mat');
+      Anb = load('fields/matrix5_20.mat'); % Anb = load('fields/matrix5.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 7
-      Anb = load('fields/matrix7.mat');
+      Anb = load('fields/matrix7_20.mat'); %Anb = load('fields/matrix7.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
    elseif ncrack == 9
-      Anb = load('fields/matrix9.mat');
+      Anb = load('fields/matrix9_20.mat'); %Anb = load('fields/matrix9.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
    elseif ncrack == 11
-      Anb = load('fields/matrix11.mat');
+      Anb = load('fields/matrix11_20.mat'); %Anb = load('fields/matrix11.mat');
       [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc11.msh' );
    elseif ncrack == 51
       Anb = load('fields/matrix51.mat');
@@ -928,6 +928,9 @@ for i = 1:niter
       jmax0 = size(Thetas,1);
       %if cond(A(authorized,authorized)) > 1e12 % Trigger Ritz filtering only if the cond number is huge
          jmax1 = ind1(i); jmax2 = ind2(i); jmax3 = ind3(i); jmax4 = ind4(i);
+%         if 2*jmax <= size(Lhs,1) % No need to regularize
+%            jmax1 = jmax0; jmax2 = jmax0; jmax3 = jmax0; jmax4 = jmax0;
+%         end
       %else
        %  jmax1 = jmax0; jmax2 = jmax0; jmax3 = jmax0; jmax4 = jmax0;
       %end
@@ -1016,8 +1019,9 @@ end
 if ncrack == 11 || ncrack == 111
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);
-maxn1 = max(nogapp1);
+nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);% Solu1(2:2:end);
+alphamin = 0;%min(nogapp1);%0;
+maxn1 = max(nogapp1) - alphamin;
 %      for i=1:nseg
 for j=1:size(oldauthorized,1)
    i = oldauthorized(j);
@@ -1025,7 +1029,7 @@ for j=1:size(oldauthorized,1)
    x1 = nodesu(no1,1); y1 = nodesu(no1,2);
    x2 = nodesu(no2,1); y2 = nodesu(no2,2);
    
-   x = nogapp1(i)/maxn1;
+   x = (nogapp1(i)-alphamin)/maxn1;
    rgb = rgbmap(x);
    plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
 end
@@ -1034,7 +1038,7 @@ axis([0 1 0 1]);
 colormap("default")
 h = colorbar();
 ytick = get (h, "ytick");
-set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
+set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogapp1) ));
 
 %% Segments visu
 %figure;

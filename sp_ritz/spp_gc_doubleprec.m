@@ -255,6 +255,13 @@ for iter = 1:niter
     error(iter+1)    = norm(Itere(indexa) - fref(indexa)) / norm(fref(indexa));
     regulari(iter+1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
     
+%    % Compute the error in u :
+%    f1 = [Itere; zeros(nbloq1d,1)];
+%    uin1 = K1dr\f1;
+%    u1i = uin1(1:2*nnodes,1);
+%    u1 = keepField( u1i, 2, boundaryp1 );
+%    erroru(iter+1) = norm(u1(indexa) - uref(indexa)) / norm(uref(indexa));
+    
     % Needed values for the Ritz stuff
     alpha(iter) = num/sqrt(den);
     alpha2(iter) = num;
@@ -503,6 +510,9 @@ plot(uref(2*b2node2-1),'Color','green')
 legend('brutal solution','reference')
 
 total_error = norm(usol-uref)/norm(uref);
+
+errorx = abs((usol(2*b2node2-1)-uref(2*b2node2-1)))/max(abs(uref(2*b2node2-1)));
+
 % Compute stress :
 sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');

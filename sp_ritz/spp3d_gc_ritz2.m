@@ -14,10 +14,10 @@ niter   = 25;
 precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
-br      = 0.;    % noise
+br      = 0.1;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
-ntrunc  = 0;      % In case the algo finishes at niter
+ntrunc  = 13;      % In case the algo finishes at niter
 inhomog = 0;      % inhomogeneous medium
 assembl = 0;      % Shall I assemble the operators ?
 
