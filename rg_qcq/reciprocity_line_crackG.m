@@ -6,6 +6,8 @@ tic
 close all;
 clear all;
 
+warning('off','all'); % Because on matlab it's unbearable in picard stuff
+
 addpath(genpath('./tools'))
 
 % Parameters
@@ -58,9 +60,9 @@ end
 j = 1;
 while j <= nseg % Remove redundancy (I don't use unique because of inverted values)
    lis1 = find( segel(1:j-1,:) == segel(j,1) );
-   lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j+1;
+   lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j + 1;
    lis2 = find( segel(1:j-1,:) == segel(j,2) );
-   lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j+1;
+   lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j + 1;
    
    % also remove boundary elements
    lis3 = find( boundaryu(:,2:3) == segel(j,1) );
@@ -68,7 +70,7 @@ while j <= nseg % Remove redundancy (I don't use unique because of inverted valu
    lis4 = find( boundaryu(:,2:3) == segel(j,2) );
    lis4( find(lis4>nbu) ) = lis4( find(lis4>nbu) ) - nbu;
    
-   if size( intersect(lis1,lis2), 1 ) > 0 || size( intersect(lis3,lis4), 1 ) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
+   if min(size( intersect(lis1,lis2) )) > 0 || min(size( intersect(lis3,lis4) )) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
       segel(j,:) = [];
       j = j-1;
       nseg = nseg-1;

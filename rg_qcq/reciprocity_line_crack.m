@@ -31,7 +31,7 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc.msh' );
+[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc9.msh' );
 
 nnodes = size(nodes,1);
 
@@ -42,8 +42,6 @@ nnodes = size(nodes,1);
 [ node2b4, b2node4 ]   = mapBound( 4, boundary, nnodes );
 [ node2b5, b2node5 ]   = mapBound( 5, boundary, nnodes );
 [ node2b6, b2node6 ]   = mapBound( 6, boundary, nnodes );
-indexbound  = [2*b2node1-1 ; 2*b2node1 ; 2*b2node2-1 ; 2*b2node2 ;...
-               2*b2node3-1 ; 2*b2node3 ; 2*b2node4-1 ; 2*b2node4];
                
 % Then, build the stiffness matrix :
 [K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
@@ -151,6 +149,7 @@ nboun1 = size(boundary,1); nelem1 = size(elements,1);
 boun2vol1 = zeros( nboun1, 1 ); extnorm1 = zeros( nboun1, 2 );
 sigr1 = zeros( nboun1, 3*order ); sigr2 = zeros( nboun1, 3*order );
 urr1  = zeros( nboun1, 2+2*order ); urr2 = zeros( nboun1, 2+2*order );
+urr3  = zeros( nboun1, 2+2*order ); urr4 = zeros( nboun1, 2+2*order );
 for i=1:nboun1
    % Volumic element
    no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
@@ -188,9 +187,9 @@ tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Identify the crack
 % Build the polynomial test functions.
-load('conditions10_2d.mat','-ascii');
-M = spconvert(conditions10_2d); clear('conditions10_2d');
-nmax = 10;
+load('conditions20_2d.mat','-ascii');
+M = spconvert(conditions20_2d); clear('conditions20_2d');
+nmax = 20;
 ncoef =2*(nmax+1)^2; neq = ncoef;
 
 % Suppress the superior terms
@@ -236,9 +235,9 @@ end
 j = 1;
 while j <= nseg % Remove redundancy (I don't use unique because of inverted values)
    lis1 = find( segel(1:j-1,:) == segel(j,1) );
-   lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j+1;
+   lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j + 1;
    lis2 = find( segel(1:j-1,:) == segel(j,2) );
-   lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j+1;
+   lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j + 1;
    
    % also remove boundary elements
    lis3 = find( boundaryu(:,2:3) == segel(j,1) );
@@ -246,7 +245,7 @@ while j <= nseg % Remove redundancy (I don't use unique because of inverted valu
    lis4 = find( boundaryu(:,2:3) == segel(j,2) );
    lis4( find(lis4>nbu) ) = lis4( find(lis4>nbu) ) - nbu;
    
-   if size( intersect(lis1,lis2), 1 ) > 0 || size( intersect(lis3,lis4), 1 ) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
+   if min(size( intersect(lis1,lis2) )) > 0 || min(size( intersect(lis3,lis4) )) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
       segel(j,:) = [];
       j = j-1;
       nseg = nseg-1;
@@ -263,12 +262,12 @@ for j=1:nseg % Compute the 1D integrals
    x1  = nodesu(no1,1); y1 = nodesu(no1,2);
    x2  = nodesu(no2,1); y2 = nodesu(no2,2);
    nor(j,:) = [y1-y2 ; x2-x1]'; nor(j,:) = nor(j,:)/norm(nor(j,:));% Normal
-   % Orientate the normals
-   if nor(j,1) == 0
-      nor(j,:) = sign(nor(j,2))*nor(j,:);
-   else
-      nor(j,:) = sign(nor(j,1))*nor(j,:);
-   end
+%    % Orientate the normals
+%    if nor(j,1) == 0
+%       nor(j,:) = sign(nor(j,2))*nor(j,:);
+%    else
+%       nor(j,:) = sign(nor(j,1))*nor(j,:);
+%    end
 %   if nor(j,2) == 0
 %      nor(j,:) = sign(nor(j,1))*nor(j,:);
 %   else
@@ -289,10 +288,7 @@ for j=1:nseg % Compute the 1D integrals
       X = xgr(1)/Lx; Y = xgr(2)/Lx;
       
       for i=1:nftest
-         if norm(coef(1:(nmax+1)^2,i)) == 0 % Zero column : no need to continue
-            continue;
-         end
-         
+          
          coefa = coef(1:(nmax+1)^2,i);
          coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,i);
          
@@ -303,7 +299,7 @@ for j=1:nseg % Compute the 1D integrals
             % Compute sigma.n
             s11 = E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj;
             s22 = nu*E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj;
-            s12 = E/(2*(1+nu))*bij*ii*X^(ii-1)*X^jj;
+            s12 = E/(2*(1+nu))*bij*ii*X^(ii-1)*Y^jj;
             
             st = [s11,s12 ; s12,s22];
             ft = st*nor(j,:)';
@@ -328,12 +324,13 @@ for j=1:nseg % Compute the 1D integrals
          
          for ii=1:nmax
             for jj=1:nmax
+               if ii+jj>nmax continue; end % No need to add an other 0
                aij = coefa( (nmax+1)*ii + jj+1 );
                bij = coefb( (nmax+1)*ii + jj+1 );
                % Compute sigma.n
                s11 = E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj + nu*E/(1-nu^2)*bij*jj*X^ii*Y^(jj-1);
                s22 = nu*E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj + E/(1-nu^2)*bij*jj*X^ii*Y^(jj-1);
-               s12 = E/(2*(1+nu)) * (aij*jj*X^ii*Y^(jj-1) + bij*ii*X^(ii-1)*X^jj);
+               s12 = E/(2*(1+nu)) * (aij*jj*X^ii*Y^(jj-1) + bij*ii*X^(ii-1)*Y^jj);
  
                st = [s11,s12 ; s12,s22];
                ft = st*nor(j,:)';
@@ -355,7 +352,7 @@ Rhs3  = zeros(nftest,1);
 Rhs4  = zeros(nftest,1);
 
 for k=1:nftest
-
+         
    Rhs1(k) = 0; Rhs2(k) = 0;
    coefa = coef(1:(nmax+1)^2,k);
    coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
@@ -455,6 +452,7 @@ for k=1:nftest
          
          for ii=1:nmax
             for jj=1:nmax
+               if ii+jj > nmax continue; end % No need to add an other 0
                aij = coefa( (nmax+1)*ii + jj+1 );
                bij = coefb( (nmax+1)*ii + jj+1 );
                vloc1 = vloc1 + aij*X^ii*Y^jj;
@@ -727,11 +725,11 @@ bplo2 = Q'*Lhs'*Rhs2; bplo2 = bplo2(ninfty+1:imax);
 rplo2 = (Q'*Lhs'*Rhs2)./thetas; rplo2 = rplo2(1:imax);
 figure
 hold on;
-plot(log10(abs(tplo)),'Color','green','LineWidth',3);
-plot(log10(abs(bplo1)),'Color','red','LineWidth',3);
-plot(log10(abs(rplo1)),'Color','black','LineWidth',3);
-plot(log10(abs(bplo2)),'Color','magenta','LineWidth',3);
-plot(log10(abs(rplo2)),'Color','blue','LineWidth',3);
+plot(log10(abs(tplo)),'Color','green');
+plot(log10(abs(bplo1)),'Color','red');
+plot(log10(abs(rplo1)),'Color','black');
+plot(log10(abs(bplo2)),'Color','magenta');
+plot(log10(abs(rplo2)),'Color','blue');
 legend('Singular values','Rhs1','sol1','Rhs2','sol2');
 
 % Filter eigenvalues
@@ -752,9 +750,10 @@ ntoseg = zeros(nnodesu,1);
 Sgap   = zeros(nnodesu,1);
 for j=1:nseg
    no1 = segel(j,1); no2 = segel(j,2);
-   nogap1(j) = norm( Solu1( [2*j-1,2*j] ) ); 
+   nogap1(j) = norm( Solu1( [2*j-1,2*j] ) );
    nogap2(j) = norm( Solu2( [2*j-1,2*j] ) );
-   nogap(j)  = sqrt(nogap1(j)^2*nogap2(j)^2);
+%    nogap(j)  = sqrt(nogap1(j)^2*nogap2(j)^2);
+   nogap(j)  = .5*(nogap1(j)+nogap2(j));
 %   ntoseg(no1) = ntoseg(no1) + 1; ntoseg(no2) = ntoseg(no2) + 1;
 %   Sgap(no1) = Sgap(no1) + nogap(j); Sgap(no2) = Sgap(no2) + nogap(j);
 end
@@ -780,10 +779,10 @@ for i=1:nseg
    plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
 end
 %axis equal;
-colormap("default")
+colormap('default')
 h = colorbar();
-ytick = get (h, "ytick");
-set (h, "yticklabel", sprintf ( "%g|", maxn1*ytick+min(nogap1) ));
+ytick = get (h, 'ytick');
+set (h, 'yticklabel', sprintf ( '%g|', maxn1*ytick+min(nogap1) ));
 
 figure;
 hold on;
@@ -799,10 +798,10 @@ for i=1:nseg
    plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
 end
 %axis equal;
-colormap("default")
+colormap('default')
 h = colorbar();
-ytick = get (h, "ytick");
-set (h, "yticklabel", sprintf ( "%g|", maxn2*ytick+min(nogap2) ));
+ytick = get (h, 'ytick');
+set (h, 'yticklabel', sprintf ( '%g|', maxn2*ytick+min(nogap2) ));
 
 figure;
 hold on;
@@ -818,10 +817,10 @@ for i=1:nseg
    plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
 end
 %axis equal;
-colormap("default")
+colormap('default')
 h = colorbar();
-ytick = get (h, "ytick");
-set (h, "yticklabel", sprintf ( "%g|", maxn2*ytick+min(nogap2) ));
+ytick = get (h, 'ytick');
+set (h, 'yticklabel', sprintf ( '%g|', maxn2*ytick+min(nogap2) ));
 
 %% Per node visu
 %figure;
