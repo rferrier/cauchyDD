@@ -12,7 +12,7 @@ addpath(genpath('./tools'))
 
 % Parameters
 jmax       = 0;     % Eigenvalues truncation number (if 0, automatic Picard choose)
-ncrack     = 2;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
+ncrack     = 3;    % nb of cracks (odd : 1 crack, even : 2 cracks), 5 : 1% noise, 7 : 10% noise, 9 : corner crack, 11 : U crack
                     % 51  : refined postpro mesh
                     % 101 : direct & integrals refined, basic crack
                     % 103 : idem for the small crack

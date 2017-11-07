@@ -15,7 +15,7 @@ brt       = 0;      % "translation" noise
 inhomog   = 0;      % inhomogeneous medium
 nMC       = 100000; % nb of MC samples
 refined   = .5;      % Choose the mesh to use
-chaosor   = 1;      % Order of the polynomial chaos max = 10
+chaosor   = 10;      % Order of the polynomial chaos max = 10
 cornermes = 0;      % Take the encastred corners as measurement (or not)
 
 upperpr   = 1e-3;   % Bounds of the prior distribution
@@ -154,15 +154,15 @@ end
 % Determine the coeffs in the standard polynomial basis
 coefS = Hermite(1:chaosor+1,1:chaosor+1)'*coef;
 
-%% Plot the approximated theta
-%thetae  = randn(1,nMC);
-%toplo = 0;
-%for j=0:chaosor
-%   toplo = toplo + coefS(j+1)*thetae.^j;
-%end
-%figure;
-%hist(toplo,nMC/1000);
-
+% Plot the approximated theta
+thetae  = randn(1,nMC);
+toplo = 0;
+for j=0:chaosor
+   toplo = toplo + coefS(j+1)*thetae.^j;
+end
+figure;
+hist(toplo,nMC/1000);
+bug;
 %% Solve the stochastic forward problem to synthetize observations
 % Build the LHS
 dirichletm = [1,1,0; 1,2,0 ;

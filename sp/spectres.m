@@ -20,7 +20,8 @@ neumann   = [2,1,fscalar,0,fscalar;
              4,1,fscalar,0,-fscalar];
 
 % Import the mesh
-[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/platee.msh' );
+%[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/platee.msh' );
+[ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
 
 % find the nodes in the corners and suppress the element :
@@ -305,19 +306,19 @@ chibp = eibp./vpp; chiD = chibp; niter = size(chiD,1);
 %end
 %px = pol'*tt;
 
-%figure;
-%hold on;
-%plot(log10(vpp),'Color','red');
-%plot(log10(abs(eibp)),'Color','blue');
-%plot(log10(abs(eibp)./vpp),'Color','green');
-%%plot(t,px,'Color','cyan')
-%legend('primal prec','rhs','solution');%,'interpolation');
-
 figure;
 hold on;
-plot(log10(abs(eib)./vp),'Color','blue');
-plot(log10(abs(eibp)./vpp),'Color','black');
-legend('no prec','prec');
+plot(log10(vpp),'Color','red');
+plot(log10(abs(eibp)),'Color','blue');
+plot(log10(abs(eibp)./vpp),'Color','green');
+%plot(t,px,'Color','cyan')
+legend('primal prec','rhs','solution');%,'interpolation');
+
+%figure;
+%hold on;
+%plot(log10(abs(eib)./vp),'Color','blue');
+%plot(log10(abs(eibp)./vpp),'Color','black');
+%legend('no prec','prec');
 
 %% Dual noprec
 chid = eid./vd; chiD = chid; niter = size(chiD,1);
@@ -358,21 +359,21 @@ chidp = eidp./vdp; chiD = chidp; niter = size(chiD,1);
 %%plot(t,px,'Color','cyan')
 %legend('dual prec','rhs','solution');%,'interpolation');
 
-figure;
-hold on;
-plot(log10(abs(eid)./vd),'Color','blue');
-plot(log10(abs(eidp)./vdp),'Color','black');
-legend('no prec','prec');
-
-uptot = Vp*chib;
-up = Vp(:,1:30)*chib(1:30); tp = S1*up - Kgj*Ikjj*Krj'*ur;
-upp = Vpp(:,1:30)*chibp(1:30); tpp = S1*upp - Kgj*Ikjj*Krj'*ur;
-%chib2 = inv(Vpp'*Vpp)*Vpp'*uptot;
-
-tdtot = Vd*chid;
-td = Vd(:,1:30)*chid(1:30); ud = D1*td + Ikgg*Kgj*Il*Kjr*ur;
-tdp = Vdp(:,1:30)*chidp(1:30); udp = D1*tdp + Ikgg*Kgj*Il*Kjr*ur;
-%chid2 = inv(Vdp'*Vdp)*Vdp'*tdtot;
+%figure;
+%hold on;
+%plot(log10(abs(eid)./vd),'Color','blue');
+%plot(log10(abs(eidp)./vdp),'Color','black');
+%legend('no prec','prec');
+%
+%uptot = Vp*chib;
+%up = Vp(:,1:30)*chib(1:30); tp = S1*up - Kgj*Ikjj*Krj'*ur;
+%upp = Vpp(:,1:30)*chibp(1:30); tpp = S1*upp - Kgj*Ikjj*Krj'*ur;
+%%chib2 = inv(Vpp'*Vpp)*Vpp'*uptot;
+%
+%tdtot = Vd*chid;
+%td = Vd(:,1:30)*chid(1:30); ud = D1*td + Ikgg*Kgj*Il*Kjr*ur;
+%tdp = Vdp(:,1:30)*chidp(1:30); udp = D1*tdp + Ikgg*Kgj*Il*Kjr*ur;
+%%chid2 = inv(Vdp'*Vdp)*Vdp'*tdtot;
 
 %figure;
 %hold on;

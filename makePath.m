@@ -11,3 +11,4 @@ addpath( genpath('./rg_qcq') );
 addpath( genpath('./cauchyDD') );
 addpath( genpath('./sp_r') );
 addpath( genpath('./bayesian') );
+addpath( genpath('./rg_cauchy_crack') );

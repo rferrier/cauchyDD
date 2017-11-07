@@ -1019,7 +1019,8 @@ end
 if ncrack == 11 || ncrack == 111
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);% Solu1(2:2:end);
+%nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);% Solu1(2:2:end);
+nogapp1 = nogap1.^co(1) .* nogap2.^co(2) .* nogap3.^co(3) .* nogap4.^co(4);
 alphamin = 0;%min(nogapp1);%0;
 maxn1 = max(nogapp1) - alphamin;
 %      for i=1:nseg
