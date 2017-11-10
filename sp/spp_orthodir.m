@@ -1,5 +1,5 @@
 % 24/03/2016
-% Algo Steklov-Poincar� primal avec Orthodir
+% Algo Steklov-Poincaré primal avec Orthodir
 
 close all;
 clear all;
@@ -10,10 +10,12 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 5;
+niter   = 20;
 precond = 0;      % Use a dual precond
 mu      = 0;    % Regularization parameter
-br      = 0.;     % noise
+br      = 0.0;     % noise
+omega   = 0;%5e9;      % s-1 : pulsation (dynamic case)
+rho     = 7500e-9; % kg.mm-3 : volumic mass
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -51,7 +53,9 @@ boundarym = suppressBound( boundarym, [no1], 1 );
 % Then, build the stiffness matrix :
 [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
 Kinter = K(1:2*nnodes, 1:2*nnodes);
-M      = mass_mat(nodes, elements);
+M0 = mass_mat(nodes, elements);
+M0 = rho*M0;
+M = [ M0 , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
 [node2b4, b2node4] = mapBound(4, boundaryp1, nnodes);
 [node2b3, b2node3] = mapBound(3, boundaryp1, nnodes);
 [node2b1, b2node1] = mapBound(1, boundarym, nnodes);
@@ -61,7 +65,7 @@ b2node12 = [b2node1;b2node2];
 f = loading(nbloq,nodes,boundary,neumann);
 
 % Solve the problem :
-uin = K\f;
+uin = (K-omega*M)\f;
 
 % Extract displacement and Lagrange multiplicators :
 uref = uin(1:2*nnodes,1);
@@ -70,7 +74,7 @@ lagr = uin(2*nnodes+1:end,1);
 urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
 
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
-plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'reference');
+plotGMSH({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'output/reference');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Definition of the operators
@@ -82,7 +86,7 @@ dirichlet1 = [4,1,0;4,2,0;
               1,1,0;1,2,0];
 
 [K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundaryp1,dirichlet1);
-
+M1 = [ M0 , zeros(2*nnodes,nbloq1) ; zeros(2*nnodes,nbloq1)' , zeros(nbloq1) ];
 % Second problem
 dirichlet2 = [4,1,0;4,2,0;
               3,1,0;3,2,0];
@@ -90,7 +94,7 @@ neumann2   = [1,2,fscalar;
               2,1,fscalar];
 neumann0   = [];
 [K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundaryp2,dirichlet2);
-
+M2 = [ M0 , zeros(2*nnodes,nbloq2) ; zeros(2*nnodes,nbloq2)' , zeros(nbloq2) ];
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
 regulari = zeros(niter+1,1);
@@ -101,11 +105,11 @@ dirichlet1d = [4,1,0;4,2,0;
                2,1,0;2,2,0;
                1,1,0;1,2,0];
 [K1d,C1d,nbloq1d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1d);
-
+M1d = [ M0 , zeros(2*nnodes,nbloq1d) ; zeros(2*nnodes,nbloq1d)' , zeros(nbloq1d) ];
 % Second problem
 dirichlet2d = [4,1,0;4,2,0];
 [K2d,C2d,nbloq2d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2d);
-
+M2d = [ M0 , zeros(2*nnodes,nbloq2d) ; zeros(2*nnodes,nbloq2d)' , zeros(nbloq2d) ];
 %% Anti-cancellation trick
 index = [2*b2node3-1; 2*b2node3];
 K1(index,index) = 0;
@@ -258,14 +262,14 @@ Zed   = zeros( 2*nnodes, niter+1 );
 %% Perform A x0 :
 % Solve 1
 f1 = dirichletRhs2( Itere, 3, c2node1, boundaryp1, nnodes );
-uin1 = K1\f1;
+uin1 = (K1-omega*M1)\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 3, boundaryp1 );
+lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp1, nnodes );
 % Solve 2
 f2 = dirichletRhs2( Itere, 3, c2node2, boundaryp2, nnodes );
-uin2 = K2\f2;
+uin2 = (K2-omega*M2)\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 3, boundaryp2 );
+lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp2, nnodes );
 % Regularization term
 Nu = regul(Itere, nodes, boundary, 3);
 %
@@ -276,12 +280,12 @@ Axz = mu*Nu+lamb1-lamb2;
 f11 = dirichletRhs2( urefb, 1, c2node1, boundary, nnodes );
 f12 = dirichletRhs2( urefb, 2, c2node1, boundary, nnodes );
 f1 = assembleDirichlet( [f11,f12] );
-uin1 = K1\f1;
+uin1 = (K1-omega*M1)\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
 lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp1, nnodes );
 % Solve 2
 f2 = loading(nbloq2,nodes,boundary,neumann2);
-uin2 = K2\f2;
+uin2 = (K2-omega*M2)\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
 lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp2, nnodes );
 %
@@ -320,16 +324,16 @@ Res(:,1) = b - Axz;
 if precond == 1
     % Solve 1
     f1 = [Res(:,1)/2; zeros(nbloq1d,1)];
-    uin1 = K1d\f1;
+    uin1 = (K1d-omega*M1d)\f1;
     u1i = uin1(1:2*nnodes,1);
     u1 = keepField( u1i, 3, boundaryp1 );
-    % Solve 2
-    f2 = [Res(:,1)/2; zeros(nbloq2d,1)];
-    uin2 = K2d\f2;
-    u2i = uin2(1:2*nnodes,1);
-    u2 = keepField( u2i, 3, boundaryp2 );
+%    % Solve 2
+%    f2 = [Res(:,1)/2; zeros(nbloq2d,1)];
+%    uin2 = (K2d-omega*M2d)\f2;
+%    u2i = uin2(1:2*nnodes,1);
+%    u2 = keepField( u2i, 3, boundaryp2 );
     %
-    Zed(:,1) = u1/2-u2/2;
+    Zed(:,1) = u1/2;%-u2/2;
 else
     Zed(:,1) = Res(:,1);
 end
@@ -344,15 +348,15 @@ regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 3) );
 
 %% Perform Q1 = A P1 :
 % Solve 1
-f1 = dirichletRhs(p(:,1), 3, C1, boundaryp1);
-uin1 = K1\f1;
+f1 = dirichletRhs2(p(:,1), 3, c2node1, boundaryp1, nnodes);
+uin1 = (K1-omega*M1)\f1;
 lagr1 = uin1(2*nnodes+1:end,1);
-lamb1 = lagr2forces( lagr1, C1, 3, boundaryp1 );
+lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp1, nnodes );
 % Solve 2
-f2 = dirichletRhs(p(:,1), 3, C2, boundaryp2);
-uin2 = K2\f2;
+f2 = dirichletRhs2(p(:,1), 3, c2node2, boundaryp2, nnodes);
+uin2 = (K2-omega*M2)\f2;
 lagr2 = uin2(2*nnodes+1:end,1);
-lamb2 = lagr2forces( lagr2, C2, 3, boundaryp2 );
+lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp2, nnodes );
 % Regularization term
 Nu = regul(p(:,1), nodes, boundary, 3);
 %
@@ -371,16 +375,16 @@ for iter = 1:niter
     if precond == 1
         % Solve 1
         f1 = [Res(:,iter+1)/2; zeros(nbloq1d,1)];
-        uin1 = K1d\f1;
+        uin1 = (K1d-omega*M1d)\f1;
         u1i = uin1(1:2*nnodes,1);
         u1 = keepField( u1i, 3, boundaryp1 );
-        % Solve 2
-        f2 = [Res(:,iter+1)/2; zeros(nbloq2d,1)];
-        uin2 = K2d\f2;
-        u2i = uin2(1:2*nnodes,1);
-        u2 = keepField( u2i, 3, boundaryp2 );
+%        % Solve 2
+%        f2 = [Res(:,iter+1)/2; zeros(nbloq2d,1)];
+%        uin2 = (K2d-omega*M2d)\f2;
+%        u2i = uin2(1:2*nnodes,1);
+%        u2 = keepField( u2i, 3, boundaryp2 );
         %
-        Zed(:,iter+1) = u1/2-u2/2;
+        Zed(:,iter+1) = u1/2;%-u2/2;
     else
         Zed(:,iter+1) = Res(:,iter+1);
     end
@@ -394,16 +398,16 @@ for iter = 1:niter
     %% Perform Ari = A*Res
     % Solve 1
     rhs1 = Zed(:,iter+1);
-    f1 = dirichletRhs(rhs1, 3, C1, boundaryp1);
-    uin1 = K1\f1;
+    f1 = dirichletRhs2(rhs1, 3, c2node1, boundaryp1, nnodes);
+    uin1 = (K1-omega*M1)\f1;
     lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces( lagr1, C1, 3, boundaryp1 );
+    lamb1 = lagr2forces2( lagr1, c2node1, 3, boundaryp1, nnodes );
     % Solve 2
     rhs2 = Zed(:,iter+1);
-    f2 = dirichletRhs(rhs2, 3, C2, boundaryp2);
-    uin2 = K2\f2;
+    f2 = dirichletRhs2(rhs2, 3, c2node2, boundaryp2, nnodes);
+    uin2 = (K2-omega*M2)\f2;
     lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces( lagr2, C2, 3, boundaryp2 );
+    lamb2 = lagr2forces2( lagr2, c2node2, 3, boundaryp2, nnodes );
     % Regularization term
     Nu = regul(Zed(:,iter+1), nodes, boundaryp2, 3);
     %
@@ -428,10 +432,10 @@ hold on
 plot(log10(error),'Color','blue')
 plot(log10(residual),'Color','red')
 legend('error (log)','residual (log)')
-figure;
+%figure;
 % L-curve :
-loglog(residual,regulari);
-figure
+%loglog(residual,regulari);
+%figure
 %%%%
 %% Final problem : compute u
 % DN problem
@@ -441,17 +445,18 @@ dirichlet = [4,1,0;4,2,0;
              2,1,0;2,2,0];
 neumann   = [];
 [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
+M = [ M0 , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
 fdir1 = dirichletRhs(urefb, 1, C, boundary);
 fdir2 = dirichletRhs(urefb, 2, C, boundary);
 fdir3 = dirichletRhs(Itere, 3, C, boundary);
-usoli = K \ assembleDirichlet( [fdir1+fdir3,fdir2] );%( max(fdir1, max(fdir2, fdir3)) );
+usoli = (K-omega*M) \ assembleDirichlet( [fdir1+fdir3,fdir2] );%( max(fdir1, max(fdir2, fdir3)) );
 
 usol = usoli(1:2*nnodes,1);
-fsol = Kinter*usol;
+fsol = (Kinter-omega*M0)*usol;
 
-plot(fsol(2*b2node3))
+%plot(fsol(2*b2node3))
 
 total_error = norm(usol-uref)/norm(uref);
 % Compute stress :
 sigma = stress(usol,E,nu,nodes,elements,order,1,ntoelem);
-plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'solution');
+plotGMSH({usol,'U_vect';sigma,'stress'}, elements, nodes, 'output/solution');

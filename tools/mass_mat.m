@@ -1,6 +1,5 @@
 function M = mass_mat(nodes, elements)
- % This function computes a norm on a boundary
- % M is such as u'Mu is a mesure of the magnitude of u
+ % This function computes the mass matrix in 2D
  
  nnodes = size(nodes,1);
  M = sparse(2*nnodes, 2*nnodes);

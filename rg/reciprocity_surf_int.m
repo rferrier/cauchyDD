@@ -24,15 +24,15 @@ regmu   = 0;      % Regularization parameter;
 br      = .0;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 6; % Order of polynom
-ordpD     = 6; % Order of the differential H1 post-regularization whatsoever.
+ordp      = 2; % Order of polynom
+ordpD     = 2; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
                % If 4 : meshes are conformal, read the u field
 
 usefourier = 0;
-usepolys   = 0;
+usepolys   = 1;
 plotref    = 0;
 comperror  = 0;
 Norm       = 0; % 0 means no derivative stuff (and not zero norm)

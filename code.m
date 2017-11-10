@@ -1,5 +1,5 @@
 %15/03/2016
-%Code FEM 3D
+%Code FEM 2D/3D
 
 close all;
 clear all;
@@ -51,11 +51,71 @@ addpath(genpath('./tools'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Parameters
-%E       = 200000; % MPa : Young modulus
-%nu      = 0.3;    % Poisson ratio
-%fscalar = 250;    % N.mm-2 : Loading on the plate
+% Parameters
+E       = 210000;  % MPa : Young modulus
+nu      = 0.3;     % Poisson ratio
+fscalar = 250;     % N.mm-2 : Loading on the plate
+rho     = 7500e-9; % kg.mm-3 : volumic mass
 %mat = [2, E, nu, 0.1, 1];
+mat     = [0, E, nu];
+dt      = 2e-5;      % s : time discrteization parameter
+
+% Boundary conditions
+% first index  : index of the boundary
+% second index : 1=x, 2=y
+% third        : value
+% [0,1,value] marks a dirichlet regularization therm on x
+dirichlet = [ 0,1,0 ; 1,2,0 ];
+neumann   = [ 3,2,fscalar ];
+
+% First, import the mesh
+[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
+nnodes = size(nodes,1);
+
+% Then, build the stiffness matrix :
+[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+Kinter = K(1:2*nnodes,1:2*nnodes);
+M = mass_mat(nodes, elements);
+M = rho*M;
+M = [ M , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
+C = zeros(size(M));
+%[ node2b, b2node ] = mapBound( 1, boundary, nnodes );
+% The right hand side :
+f  = loading(nbloq,nodes,boundary,neumann);
+T = 1:1:25;  fa = f*T/T(end);
+
+u0 = zeros(2*nnodes+nbloq,1); v0 = zeros(2*nnodes+nbloq,1); a0 = zeros(2*nnodes+nbloq,1);
+
+%f = volumicLoad( nbloq, nodes, elements, 2, fscalar );
+%udir = ones( 2*nnodes );
+%udi = keepField( udir, 4, boundary, 2 );
+%f = [ zeros(2*nnodes) ; C'*udi ];
+
+uin = Newmark (M, C, K, fa, u0, v0, a0, dt, .25, .5);
+
+% Extract displacement :
+u = uin(1:2*nnodes,:);
+%ux = zeros(nnodes,size(u,2)); uy = zeros(nnodes,size(u,2));
+ux = u(1:2:end-1,:); uy = u(2:2:end,:); 
+
+% Compute stress :
+sigma = stress(u,E,nu,nodes,elements,order,1,ntoelem);
+
+% Output :
+% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
+plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Parameters
+%E       = 210000;  % MPa : Young modulus
+%nu      = 0.3;     % Poisson ratio
+%fscalar = 250;     % N.mm-2 : Loading on the plate
+%rho     = 7500e-9; % kg.mm-3 : volumic mass
+%%mat = [2, E, nu, 0.1, 1];
+%mat     = [0, E, nu];
+%omega   = 1e10;      % s-2 : square of the pulsation
 %
 %% Boundary conditions
 %% first index  : index of the boundary
@@ -66,12 +126,16 @@ addpath(genpath('./tools'))
 %neumann   = [3,2,fscalar];
 %
 %% First, import the mesh
-%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/cvg_mesh/plate02.msh' );
 %%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
 %nnodes = size(nodes,1);
 %
 %% Then, build the stiffness matrix :
 %[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+%Kinter = K(1:2*nnodes,1:2*nnodes);
+%M = mass_mat(nodes, elements);
+%M = rho*M;
+%M = [ M , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
 %%[ node2b, b2node ] = mapBound( 1, boundary, nnodes );
 %% The right hand side :
 %f  = loading(nbloq,nodes,boundary,neumann);
@@ -84,7 +148,7 @@ addpath(genpath('./tools'))
 %%boundary = suppressBound( boundary, [1], 4 );
 %
 %% Solve the problem :
-%uin = K\f;
+%uin = (K-omega*M)\f;
 %
 %% Extract displacement :
 %u = uin(1:2*nnodes,1);
@@ -95,7 +159,7 @@ addpath(genpath('./tools'))
 %
 %% Output :
 %% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
-%plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'linear_field');
+%plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -321,14 +385,14 @@ addpath(genpath('./tools'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Parameters
-E       = 200000; % MPa : Young modulus
-nu      = 0.3;    % Poisson ratio
-Slim    = 250;    % MPa : elasticity limit
-alpha   = 30000;  % MPa : Isotropic hardening coefficient 1000000
-H       = 0000;  % MPa : Cinematic hardening (not implemented
-fscalar = 330;    % N.mm-2 : Loading on the plate
-mat = [10, E, nu, Slim, alpha, H]; % Elasto-plastic with linear isotropic hardening
+%% Parameters
+%E       = 200000; % MPa : Young modulus
+%nu      = 0.3;    % Poisson ratio
+%Slim    = 250;    % MPa : elasticity limit
+%alpha   = 30000;  % MPa : Isotropic hardening coefficient 1000000
+%H       = 0000;  % MPa : Cinematic hardening (not implemented
+%fscalar = 330;    % N.mm-2 : Loading on the plate
+%mat = [10, E, nu, Slim, alpha, H]; % Elasto-plastic with linear isotropic hardening
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -338,66 +402,66 @@ mat = [10, E, nu, Slim, alpha, H]; % Elasto-plastic with linear isotropic harden
 %dirichlet = [ 1,1,0 ; 1,2,0 ];
 %dirichlet = [ 0,1,0 ; 1,2,0 ];
 %dirichlet = [ 1,1,0 ; 1,2,0 ];% 2,1,0 ; 4,1,0 ];
-dirichlet = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ];
-%dirichlet = [ 0,1,0 ; 1,2,0 ; 3,2,0 ];% 2,1,0 ; 4,1,0 ];
-neumann   = [ 3,2,fscalar ];
-
-% First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
-nnodes = size(nodes,1); nelem = size(elements,1);
-
-% Then, build the stiffness matrix :
-[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,[0, E, nu],order,boundary,dirichlet,1);
-% The right hand side :
-%f1 = loading(nbloq,nodes,boundary,neumann);
-f1 = volumicLoad( nbloq, nodes, elements, 2, 30 );
-udi = zeros( nnodes, 1 );
-ind = 2:2:2*nnodes;
-udi(ind,1) = 0.02;
-udi = keepField( udi, 3, boundary );
-f1 = [ zeros(2*nnodes,1) ; C'*udi ];
-
-%% Proportionnal loading
-%T = 1:1:10;
-%f = f1*T/T(end);
-
-% Cyclic loading
-T = 1:1:25;
-fa = f1*T/T(end); fb = f1*(1-T/T(end)); f = fa;
-T = 1:1:75; f = [fa,fb,-fa];
-%f = [fa,fb,-fa,-fb];%,fa];%,fb,-fa,-fb,fa];
-
-% Solve the problem :
-%uin = K\f;
-[uin,sigm,pe,lam] = Elastoplast( mat, K, f, T, nodes, elements, order, 1e-6, 10, 1, 0 );
-% Extract displacement :
-u = uin(1:2*nnodes,end);
-ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
-
-% pass sigma on the nodes
-Red = zeros(nnodes,nelem);
-for i=1:size(elements,1)
-   Xloc = nodes(elements(i,:),:);    % Extract coords
-   nno = size(Xloc,1);
-
-   ne = size(elements,2);
-   for j=1:ne
-      nod = elements(i,j);
-      Red( nod, i ) = Red( nod, i ) + 1/ntoelem(nod,1);
-   end
-end
-sigma(1:3:3*nnodes-2,:) = Red*sigm(1:3:3*nelem-2,:);
-sigma(2:3:3*nnodes-1,:) = Red*sigm(2:3:3*nelem-1,:);
-sigma(3:3:3*nnodes,:)   = Red*sigm(3:3:3*nelem,:);
-p                       = Red*pe;
-
-sigma = sigma(:,end); p = p(:,end);
-
-% Output :
-plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress';p,'cumulated plasticity'},...
-          elements, nodes, 'output/elasto_plastic');
-          
-% Plot traction curve at node 3
-f = -[ lam(:,2:end) ; zeros( size(uin,1)-size(u,1) , size(T,2) ) ];
-up = uin(6,1:end); fp = [0,f(6,:)];
-plot(up, fp);
+%dirichlet = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ];
+%%dirichlet = [ 0,1,0 ; 1,2,0 ; 3,2,0 ];% 2,1,0 ; 4,1,0 ];
+%neumann   = [ 3,2,fscalar ];
+%
+%% First, import the mesh
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+%nnodes = size(nodes,1); nelem = size(elements,1);
+%
+%% Then, build the stiffness matrix :
+%[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,[0, E, nu],order,boundary,dirichlet,1);
+%% The right hand side :
+%%f1 = loading(nbloq,nodes,boundary,neumann);
+%f1 = volumicLoad( nbloq, nodes, elements, 2, 30 );
+%udi = zeros( nnodes, 1 );
+%ind = 2:2:2*nnodes;
+%udi(ind,1) = 0.02;
+%udi = keepField( udi, 3, boundary );
+%f1 = [ zeros(2*nnodes,1) ; C'*udi ];
+%
+%%% Proportionnal loading
+%%T = 1:1:10;
+%%f = f1*T/T(end);
+%
+%% Cyclic loading
+%T = 1:1:25;
+%fa = f1*T/T(end); fb = f1*(1-T/T(end)); f = fa;
+%T = 1:1:75; f = [fa,fb,-fa];
+%%f = [fa,fb,-fa,-fb];%,fa];%,fb,-fa,-fb,fa];
+%
+%% Solve the problem :
+%%uin = K\f;
+%[uin,sigm,pe,lam] = Elastoplast( mat, K, f, T, nodes, elements, order, 1e-6, 10, 1, 0 );
+%% Extract displacement :
+%u = uin(1:2*nnodes,end);
+%ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
+%
+%% pass sigma on the nodes
+%Red = zeros(nnodes,nelem);
+%for i=1:size(elements,1)
+%   Xloc = nodes(elements(i,:),:);    % Extract coords
+%   nno = size(Xloc,1);
+%
+%   ne = size(elements,2);
+%   for j=1:ne
+%      nod = elements(i,j);
+%      Red( nod, i ) = Red( nod, i ) + 1/ntoelem(nod,1);
+%   end
+%end
+%sigma(1:3:3*nnodes-2,:) = Red*sigm(1:3:3*nelem-2,:);
+%sigma(2:3:3*nnodes-1,:) = Red*sigm(2:3:3*nelem-1,:);
+%sigma(3:3:3*nnodes,:)   = Red*sigm(3:3:3*nelem,:);
+%p                       = Red*pe;
+%
+%sigma = sigma(:,end); p = p(:,end);
+%
+%% Output :
+%plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress';p,'cumulated plasticity'},...
+%          elements, nodes, 'output/elasto_plastic');
+%          
+%% Plot traction curve at node 3
+%f = -[ lam(:,2:end) ; zeros( size(uin,1)-size(u,1) , size(T,2) ) ];
+%up = uin(6,1:end); fp = [0,f(6,:)];
+%plot(up, fp);

@@ -18,6 +18,7 @@ jmax       = 40;     % Eigenvalues truncation number
 regular    = 0;      % Use the regularization matrix
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
+recompute  = 1;      % Recompute the operators
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -30,10 +31,10 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0 = []
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
-%neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-neumann0   = [4,1,0 ; 4,2,0];
+dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [4,1,0 ; 4,2,0];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
@@ -69,6 +70,7 @@ f1 = Kinter*u1; f2 = Kinter*u2; f3 = Kinter*u3; f4 = Kinter*u4;
 ui = reshape(u1,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 
 u1ref = u1; u2ref = u2; u3ref = u3; u4ref = u4;
+f1ref = f1; f2ref = f2; f3ref = f3; f4ref = f4;
 
 % Compute stress :
 sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
@@ -132,21 +134,22 @@ plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
 %% Build the maps of the Dirichlet and Neumann bounds
 %b2nodesD = cell(4,2); % nb of boundaries * nb of dimensions
 %b2nodesN = cell(4,2);
-b2nodesD = []; b2nodesTOT = [];
+b2nodesD = []; b2nodesN = []; b2nodesTOT = [];
 for i=1:4
    [~, b2node] = mapBound(i, boundary, nnodes);
    dofD = dirichlet0(find(dirichlet0(:,1)==i),2); % dof of the given dirichlet
-%   dofN = neumann0(find(neumann0(:,1)==i),2); % dof of the given neumann
+   dofN = neumann0(find(neumann0(:,1)==i),2); % dof of the given neumann
    for j=1:size(dofD,1)
       b2nodesD = [b2nodesD ; 2*b2node-2+dofD(j)];
    end
    b2nodesTOT = [b2nodesTOT ; 2*b2node-1 ; 2*b2node];
 %   if max(size(dofN)) > 0
-%   for j=1:size(dofN,1)
-%      b2nodesN = [b2nodesN ; 2*b2node-2+dofN(j)];
-%   end
+   for j=1:size(dofN,1)
+      b2nodesN = [b2nodesN ; 2*b2node-2+dofN(j)];
+   end
 end
 b2nodesnoD = setdiff(b2nodesTOT,b2nodesD);  % Missing Dirichlet conditions
+b2nodesnoN = setdiff(b2nodesTOT,b2nodesN);  % Missing Neumann conditions (unused except for visualization)
 % Put u to 0 at those missing BCs
 u1(b2nodesnoD) = 0; u2(b2nodesnoD) = 0; u3(b2nodesnoD) = 0; u4(b2nodesnoD) = 0;
 
@@ -228,254 +231,261 @@ for i=1:nboun2
    boun2dof(i,4) = nodes2dof(2*boundary(i,3));
 end
 
-disp([ 'Direct problem solved and data management ', num2str(toc) ]);
-tic
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Solve via reciprocity gap
-% Build the polynomial test functions.
-load('conditions20_2d.mat','-ascii');
-M = spconvert(conditions20_2d); clear('conditions20_2d');
-nmax = 20;
-ncoef =2*(nmax+1)^2; neq = ncoef;
-
-% Suppress the superior terms
-if upper_term == 0 % Rem : there will be lots of 0 in coef
-   for i=0:nmax
-      for j=0:nmax
-         if i+j>nmax
-            M((nmax+1)*i+j+1,:) = 0;
-            M((nmax+1)*i+j+1,(nmax+1)*i+j+1) = 1;
-         end
-      end
-   end
-end
-
-% Suppress zeros rows
-toremove = [];
-for k=1:size(M,1)
-  if norm(M(k,:)) == 0
-     toremove(end+1) = k;
-  end
-end
-M(toremove,:) = [];
-
-coef   = null(full(M));
-nftest = size(coef,2); % Nb of avaliable test functions
-
-%% Build the (Petrov-Galerkin) Left Hand Side
 [ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
 nnodesu = size(nodesu,1);
 
-nelemu = size(elementsu,1); nn = size(elementsu,2); %nn=3
-
-% Build the list of segment elements
-nseg = nn*nelemu; segel = zeros(nseg,2); nbu = size(boundaryu,1);
-for j=1:nelemu
-   segel(nn*(j-1)+1,1) = elementsu(j,2);
-   segel(nn*(j-1)+1,2) = elementsu(j,3);
-   segel(nn*(j-1)+2,1) = elementsu(j,1);
-   segel(nn*(j-1)+2,2) = elementsu(j,3);
-   segel(nn*(j-1)+3,1) = elementsu(j,2);
-   segel(nn*(j-1)+3,2) = elementsu(j,1);
-end
-j = 1;
-while j <= nseg % Remove redundancy (I don't use unique because of inverted values)
-   lis1 = find( segel(1:j-1,:) == segel(j,1) );
-   lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j + 1;
-   lis2 = find( segel(1:j-1,:) == segel(j,2) );
-   lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j + 1;
+disp([ 'Direct problem solved and data management ', num2str(toc) ]);
+if recompute == 1
+   tic
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %% Solve via reciprocity gap
+   % Build the polynomial test functions.
+   load('conditions20_2d.mat','-ascii');
+   M = spconvert(conditions20_2d); clear('conditions20_2d');
+   nmax = 20;
+   ncoef =2*(nmax+1)^2; neq = ncoef;
    
-   % also remove boundary elements
-   lis3 = find( boundaryu(:,2:3) == segel(j,1) );
-   lis3( find(lis3>nbu) ) = lis3( find(lis3>nbu) ) - nbu;
-   lis4 = find( boundaryu(:,2:3) == segel(j,2) );
-   lis4( find(lis4>nbu) ) = lis4( find(lis4>nbu) ) - nbu;
-   
-   if min(size( intersect(lis1,lis2) )) > 0 || min(size( intersect(lis3,lis4) )) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
-      segel(j,:) = [];
-      j = j-1;
-      nseg = nseg-1;
+   % Suppress the superior terms
+   if upper_term == 0 % Rem : there will be lots of 0 in coef
+      for i=0:nmax
+         for j=0:nmax
+            if i+j>nmax
+               M((nmax+1)*i+j+1,:) = 0;
+               M((nmax+1)*i+j+1,(nmax+1)*i+j+1) = 1;
+            end
+         end
+      end
    end
-   j = j+1;
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Compute the RG and the Lhs
-Rhs1  = zeros(nftest,1); Rhs2  = zeros(nftest,1);
-Rhs3  = zeros(nftest,1); Rhs4  = zeros(nftest,1);
-LhsA  = zeros(nftest,szD); LhsB  = zeros(nftest,0);
-
-for k=1:nftest
-   Rhs1(k) = 0; Rhs2(k) = 0;
-   coefa = coef(1:(nmax+1)^2,k);
-   coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
    
-   szA = 0; szB = 0;
-   for i=1:nboun2
-      bonod = boundary2(i,:); exno = extnorm2(i,:)';
+   % Suppress zeros rows
+   toremove = [];
+   for k=1:size(M,1)
+     if norm(M(k,:)) == 0
+        toremove(end+1) = k;
+     end
+   end
+   M(toremove,:) = [];
    
-      no1 = bonod(2); no2 = bonod(3); boname = bonod(1);
-      x1 = nodes2(no1,1); y1 = nodes2(no1,2);
-      x2 = nodes2(no2,1); y2 = nodes2(no2,2);
-      len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
+   coef   = null(full(M));
+   nftest = size(coef,2); % Nb of avaliable test functions
+   
+   %% Build the (Petrov-Galerkin) Left Hand Side
+   nelemu = size(elementsu,1); nn = size(elementsu,2); %nn=3
+   
+   % Build the list of segment elements
+   nseg = nn*nelemu; segel = zeros(nseg,2); nbu = size(boundaryu,1);
+   for j=1:nelemu
+      segel(nn*(j-1)+1,1) = elementsu(j,2);
+      segel(nn*(j-1)+1,2) = elementsu(j,3);
+      segel(nn*(j-1)+2,1) = elementsu(j,1);
+      segel(nn*(j-1)+2,2) = elementsu(j,3);
+      segel(nn*(j-1)+3,1) = elementsu(j,2);
+      segel(nn*(j-1)+3,2) = elementsu(j,1);
+   end
+   j = 1;
+   while j <= nseg % Remove redundancy (I don't use unique because of inverted values)
+      lis1 = find( segel(1:j-1,:) == segel(j,1) );
+      lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j + 1;
+      lis2 = find( segel(1:j-1,:) == segel(j,2) );
+      lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j + 1;
       
-      dirichletDof = boun2dof(i,:);
-      suppressInDD = find(dirichletDof==0); % remove the zeros
-      keepInDD = setdiff([1;2;3;4],suppressInDD);
+      % also remove boundary elements
+      lis3 = find( boundaryu(:,2:3) == segel(j,1) );
+      lis3( find(lis3>nbu) ) = lis3( find(lis3>nbu) ) - nbu;
+      lis4 = find( boundaryu(:,2:3) == segel(j,2) );
+      lis4( find(lis4>nbu) ) = lis4( find(lis4>nbu) ) - nbu;
       
-      if max(size(dirichlet0))>0
-         urdof = dirichlet0(find(dirichlet0(:,1)==boname),2) ;  % Dof of the given u
-      else
-         urdof = [];
+      if min(size( intersect(lis1,lis2) )) > 0 || min(size( intersect(lis3,lis4) )) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
+         segel(j,:) = [];
+         j = j-1;
+         nseg = nseg-1;
       end
-      if max(size(neumann0))>0
-         frdof = neumann0(find(neumann0(:,1)==boname),2) ;  % Dof of the given f
-      else
-         frdof = [];
-      end
-      umdof = setdiff([1;2],urdof);  % Dof of the unknown u
-      fmdof = setdiff([1;2],frdof);  % Dof of the unknown f
+      j = j+1;
+   end
+   
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %% Compute the RG and the Lhs
+   Rhs1  = zeros(nftest,1); Rhs2  = zeros(nftest,1);
+   Rhs3  = zeros(nftest,1); Rhs4  = zeros(nftest,1);
+   LhsA  = zeros(nftest,szD); LhsB  = zeros(nftest,0);
+   
+   for k=1:nftest
+      Rhs1(k) = 0; Rhs2(k) = 0;
+      coefa = coef(1:(nmax+1)^2,k);
+      coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
       
-      indicesA = dirichletDof( keepInDD );
-      indicesB = szB+1:szB+size(fmdof,1);
-      %LhsA(k,indicesA) = zeros(1,size(umdof,1));
-      LhsB(k,indicesB) = zeros(1,size(fmdof,1));
+      szA = 0; szB = 0;
+      for i=1:nboun2
+         bonod = boundary2(i,:); exno = extnorm2(i,:)';
       
-      if order==1
-         Ng = 2; % Max (anyway, it's inexact)
-      elseif order==2
-         Ng  = 2; no3 = bonod(4);
-         x3  = nodes2(no3,1); y3 = nodes2(no3,2);
-      end
-      [ Xg, Wg ] = gaussPt1d( Ng );
-                
-      for j=1:Ng
-         xg = Xg(j); wg = Wg(j);
+         no1 = bonod(2); no2 = bonod(3); boname = bonod(1);
+         x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+         x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+         len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
          
-         % Interpolations
-         if order == 1
-            uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
-            uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
-            uer3 = transpose( (1-xg)*urr3(i,1:2) + xg*urr3(i,3:4) ); % [ux;uy] on the
-            uer4 = transpose( (1-xg)*urr4(i,1:2) + xg*urr4(i,3:4) ); % Gauss point
-            xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
-         elseif order == 2
-            uer1 = transpose( urr1(i,1:2) + ...
-                   xg*(4*urr1(i,5:6)-3*urr1(i,1:2)-urr1(i,3:4)) + ...   % [ux;uy] on the
-                   xg^2*(2*urr1(i,3:4)+2*urr1(i,1:2)-4*urr1(i,5:6)) ); % Gauss point
-            uer2 = transpose( urr2(i,1:2) + ...
-                   xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
-                   xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
-            uer3 = transpose( urr3(i,1:2) + ...
-                   xg*(4*urr3(i,5:6)-3*urr3(i,1:2)-urr3(i,3:4)) + ...   % [ux;uy] on the
-                   xg^2*(2*urr3(i,3:4)+2*urr3(i,1:2)-4*urr3(i,5:6)) ); % Gauss point
-            uer4 = transpose( urr4(i,1:2) + ...
-                   xg*(4*urr4(i,5:6)-3*urr4(i,1:2)-urr4(i,3:4)) + ...  
-                   xg^2*(2*urr4(i,3:4)+2*urr4(i,1:2)-4*urr4(i,5:6)) );
-            xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
-                   xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+         dirichletDof = boun2dof(i,:);
+         suppressInDD = find(dirichletDof==0); % remove the zeros
+         keepInDD = setdiff([1;2;3;4],suppressInDD);
+         
+         if max(size(dirichlet0))>0
+            urdof = dirichlet0(find(dirichlet0(:,1)==boname),2) ;  % Dof of the given u
+         else
+            urdof = [];
          end
-   
-         % Reference force from the BC's
-         if exno(1) == 1 % Bound 2
-            fer1 = [0;0]; fer2 = [fscalar;0];
-            fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
-         elseif exno(1) == -1 % Bound 4
-            fer1 = [0;0]; fer2 = -[fscalar;0];
-            fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
-         elseif exno(2) == 1 % Bound 3
-            fer1 = [0;fscalar]; fer2 = [0;0];
-            fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];
-         elseif exno(2) == -1 % Bound 1
-            fer1 = -[0;fscalar]; fer2 = [0;0];
-            fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+         if max(size(neumann0))>0
+            frdof = neumann0(find(neumann0(:,1)==boname),2) ;  % Dof of the given f
+         else
+            frdof = [];
          end
+         umdof = setdiff([1;2],urdof);  % Dof of the unknown u
+         fmdof = setdiff([1;2],frdof);  % Dof of the unknown f
          
-         X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
+         indicesA = dirichletDof( keepInDD );
+         indicesB = szB+1:szB+size(fmdof,1);
+         %LhsA(k,indicesA) = zeros(1,size(umdof,1));
+         LhsB(k,indicesB) = zeros(1,size(fmdof,1));
          
-         % Build the test field
-         vloc1 = 0; vloc2 = 0;
-         sloc11 = 0; sloc12 = 0; sloc22 = 0;
-
-         % It is vital to separate the cases ii=0 and jj=0 to avoid 1/0
-         ii = 0; jj = 0;
-         aij = coefa( (nmax+1)*ii + jj+1 );
-         bij = coefb( (nmax+1)*ii + jj+1 );
-         vloc1 = vloc1 + aij*X^ii*Y^jj;
-         vloc2 = vloc2 + bij*X^ii*Y^jj;
+         if order==1
+            Ng = 2; % (anyway, it's inexact)
+         elseif order==2
+            Ng  = 2; no3 = bonod(4);
+            x3  = nodes2(no3,1); y3 = nodes2(no3,2);
+         end
+         [ Xg, Wg ] = gaussPt1d( Ng );
+                   
+         for j=1:Ng
+            xg = Xg(j); wg = Wg(j);
+            
+            % Interpolations
+            if order == 1
+               uer1 = transpose( (1-xg)*urr1(i,1:2) + xg*urr1(i,3:4) ); % [ux;uy] on the
+               uer2 = transpose( (1-xg)*urr2(i,1:2) + xg*urr2(i,3:4) ); % Gauss point
+               uer3 = transpose( (1-xg)*urr3(i,1:2) + xg*urr3(i,3:4) ); % [ux;uy] on the
+               uer4 = transpose( (1-xg)*urr4(i,1:2) + xg*urr4(i,3:4) ); % Gauss point
+               xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
+            elseif order == 2
+               uer1 = transpose( urr1(i,1:2) + ...
+                      xg*(4*urr1(i,5:6)-3*urr1(i,1:2)-urr1(i,3:4)) + ...   % [ux;uy] on the
+                      xg^2*(2*urr1(i,3:4)+2*urr1(i,1:2)-4*urr1(i,5:6)) ); % Gauss point
+               uer2 = transpose( urr2(i,1:2) + ...
+                      xg*(4*urr2(i,5:6)-3*urr2(i,1:2)-urr2(i,3:4)) + ...  
+                      xg^2*(2*urr2(i,3:4)+2*urr2(i,1:2)-4*urr2(i,5:6)) );
+               uer3 = transpose( urr3(i,1:2) + ...
+                      xg*(4*urr3(i,5:6)-3*urr3(i,1:2)-urr3(i,3:4)) + ...   % [ux;uy] on the
+                      xg^2*(2*urr3(i,3:4)+2*urr3(i,1:2)-4*urr3(i,5:6)) ); % Gauss point
+               uer4 = transpose( urr4(i,1:2) + ...
+                      xg*(4*urr4(i,5:6)-3*urr4(i,1:2)-urr4(i,3:4)) + ...  
+                      xg^2*(2*urr4(i,3:4)+2*urr4(i,1:2)-4*urr4(i,5:6)) );
+               xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
+                      xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+            end
       
-         ii = 0;
-         for jj=1:nmax
+            % Reference force from the BC's
+            if exno(1) == 1 % Bound 2
+               fer1 = [0;0]; fer2 = [fscalar;0];
+               fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
+            elseif exno(1) == -1 % Bound 4
+               fer1 = [0;0]; fer2 = -[fscalar;0];
+               fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
+            elseif exno(2) == 1 % Bound 3
+               fer1 = [0;fscalar]; fer2 = [0;0];
+               fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];
+            elseif exno(2) == -1 % Bound 1
+               fer1 = -[0;fscalar]; fer2 = [0;0];
+               fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+            end
+            
+            X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
+            
+            % Build the test field
+            vloc1 = 0; vloc2 = 0;
+            sloc11 = 0; sloc12 = 0; sloc22 = 0;
+   
+            % It is vital to separate the cases ii=0 and jj=0 to avoid 1/0
+            ii = 0; jj = 0;
             aij = coefa( (nmax+1)*ii + jj+1 );
             bij = coefb( (nmax+1)*ii + jj+1 );
             vloc1 = vloc1 + aij*X^ii*Y^jj;
             vloc2 = vloc2 + bij*X^ii*Y^jj;
-            sloc11 = sloc11 + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-            sloc22 = sloc22 + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-            sloc12 = sloc12 + E/(2*(1+nu)) * jj*X^ii*Y^(jj-1)*aij;
-         end
          
-         jj = 0;
-         for ii=1:nmax
-            aij = coefa( (nmax+1)*ii + jj+1 );
-            bij = coefb( (nmax+1)*ii + jj+1 );
-            vloc1 = vloc1 + aij*X^ii*Y^jj;
-            vloc2 = vloc2 + bij*X^ii*Y^jj;
-            sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
-            sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
-            sloc12 = sloc12 + E/(2*(1+nu)) * ii*X^(ii-1)*Y^jj*bij;
-         end
-         
-         for ii=1:nmax
+            ii = 0;
             for jj=1:nmax
-               if ii+jj > nmax continue; end % No need to add an other 0
                aij = coefa( (nmax+1)*ii + jj+1 );
                bij = coefb( (nmax+1)*ii + jj+1 );
                vloc1 = vloc1 + aij*X^ii*Y^jj;
                vloc2 = vloc2 + bij*X^ii*Y^jj;
-               sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij ...
-                               + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-               sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij ...
-                               + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-               sloc12 = sloc12 + E/(2*(1+nu)) * ...
-                                 ( jj*X^ii*Y^(jj-1)*aij + ii*X^(ii-1)*Y^jj*bij );
+               sloc11 = sloc11 + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
+               sloc22 = sloc22 + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
+               sloc12 = sloc12 + E/(2*(1+nu)) * jj*X^ii*Y^(jj-1)*aij;
             end
+            
+            jj = 0;
+            for ii=1:nmax
+               aij = coefa( (nmax+1)*ii + jj+1 );
+               bij = coefb( (nmax+1)*ii + jj+1 );
+               vloc1 = vloc1 + aij*X^ii*Y^jj;
+               vloc2 = vloc2 + bij*X^ii*Y^jj;
+               sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
+               sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
+               sloc12 = sloc12 + E/(2*(1+nu)) * ii*X^(ii-1)*Y^jj*bij;
+            end
+            
+            for ii=1:nmax
+               for jj=1:nmax
+                  if ii+jj > nmax continue; end % No need to add an other 0
+                  aij = coefa( (nmax+1)*ii + jj+1 );
+                  bij = coefb( (nmax+1)*ii + jj+1 );
+                  vloc1 = vloc1 + aij*X^ii*Y^jj;
+                  vloc2 = vloc2 + bij*X^ii*Y^jj;
+                  sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij ...
+                                  + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
+                  sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij ...
+                                  + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
+                  sloc12 = sloc12 + E/(2*(1+nu)) * ...
+                                    ( jj*X^ii*Y^(jj-1)*aij + ii*X^(ii-1)*Y^jj*bij );
+               end
+            end
+            
+            vloc = [ vloc1 ; vloc2 ];
+            vpa = vloc;
+   
+            sloc = 1/Lx*[sloc11,sloc12;sloc12,sloc22];
+            spa = sloc;
+            fpa = spa*exno;
+   
+            % Remove missing info
+            fer1(fmdof) = 0; fer2(fmdof) = 0; fer3(fmdof) = 0; fer4(fmdof) = 0;
+            
+            Rhs1(k) = Rhs1(k) + len * wg * ( fer1'*vpa - fpa'*uer1 );
+            Rhs2(k) = Rhs2(k) + len * wg * ( fer2'*vpa - fpa'*uer2 );
+            Rhs3(k) = Rhs3(k) + len * wg * ( fer3'*vpa - fpa'*uer3 );
+            Rhs4(k) = Rhs4(k) + len * wg * ( fer4'*vpa - fpa'*uer4 );
+            
+            fpaTimesPhitest = [fpa(1)*(1-xg);fpa(2)*(1-xg);fpa(1)*xg;fpa(2)*xg]; 
+            fpaTimesPhitest = fpaTimesPhitest( keepInDD );
+   
+            LhsA(k,indicesA) = LhsA(k,indicesA) + len * wg * fpaTimesPhitest';
+            LhsB(k,indicesB) = LhsB(k,indicesB) - len * wg * vpa(fmdof)';
          end
-         
-         vloc = [ vloc1 ; vloc2 ];
-         vpa = vloc;
-
-         sloc = 1/Lx*[sloc11,sloc12;sloc12,sloc22];
-         spa = sloc;
-         fpa = spa*exno;
-
-         % Remove missing info
-         fer1(fmdof) = 0; fer2(fmdof) = 0; fer3(fmdof) = 0; fer4(fmdof) = 0;
-         
-         Rhs1(k) = Rhs1(k) + len * wg * ( fer1'*vpa - fpa'*uer1 );
-         Rhs2(k) = Rhs2(k) + len * wg * ( fer2'*vpa - fpa'*uer2 );
-         Rhs3(k) = Rhs3(k) + len * wg * ( fer3'*vpa - fpa'*uer3 );
-         Rhs4(k) = Rhs4(k) + len * wg * ( fer4'*vpa - fpa'*uer4 );
-         
-         fpaTimesPhitest = [fpa(1)*(1-xg);fpa(2)*(1-xg);fpa(1)*xg;fpa(2)*xg]; 
-         fpaTimesPhitest = fpaTimesPhitest( keepInDD );
-
-         LhsA(k,indicesA) = LhsA(k,indicesA) + len * wg * fpaTimesPhitest';
-         LhsB(k,indicesB) = LhsB(k,indicesB) - len * wg * vpa(fmdof)';
+         szA = szA + size(umdof,1);  szB = szB + size(fmdof,1);
       end
-      szA = szA + size(umdof,1);  szB = szB + size(fmdof,1);
    end
+   disp([ 'Right hand side generated ', num2str(toc) ]);
+else
+   Anb  = load('rg_cauchy_crack/reciprocity_direct_hat.mat');
+   LhsA  = Anb.LhsA; LhsB  = Anb.LhsB;
+   Rhs1 = Anb.Rhs1; Rhs2 = Anb.Rhs2; Rhs3 = Anb.Rhs3; Rhs4 = Anb.Rhs4;
 end
+tic
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Solve the linear system and recover the unknowns
 if froreg == 1
    kB = norm(LhsA,'fro')/norm(LhsB,'fro'); % In order to regularize the stuff
 else
    kB = 1;
 end
 Lhs = [LhsA,kB*LhsB];
-disp([ 'Right hand side generated ', num2str(toc) ]);
-tic
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Solve the linear system and recover the unknowns
+
 Rhs = Rhs1;
 A = Lhs'*Lhs; b = Lhs'*Rhs;
 
@@ -575,9 +585,39 @@ h = colorbar();
 ytick = get (h, 'ytick');
 set (h, 'yticklabel', sprintf ( '%g|', (maxn1-minn1)*ytick+minn1 ));
 
+% Compute the values of f at the dofs
+fsolu1no = zeros(2*nnodes);
+for i=1:size(b2nodesnoN)
+   b2nodesnoNi = b2nodesnoN(i);
+   noode  = floor((b2nodesnoNi+1)/2); % node
+   boound = rem( find(boundary2(:,2:3)==noode)-1, nboun2 )+1; % boundaries
+   
+   % Compute lengths
+   n1 = boundary2(boound(1),2); n2 = boundary2(boound(1),3);
+   len1 = sqrt( (nodes2(n1,1)-nodes2(n2,1))^2 + (nodes2(n1,2)-nodes2(n2,2))^2 );
+   n1 = boundary2(boound(2),2); n2 = boundary2(boound(2),3);
+   len2 = sqrt( (nodes2(n1,1)-nodes2(n2,1))^2 + (nodes2(n1,2)-nodes2(n2,2))^2 );
+   
+   if rem(b2nodesnoNi,2)==0
+      fsolu1no(b2nodesnoNi) = .5*( fsolu1(2*boound(1))*len1 + fsolu1(2*boound(2))*len2 );
+   else
+      fsolu1no(b2nodesnoNi) = .5*( fsolu1(2*boound(1)-1)*len1 + fsolu1(2*boound(2)-1)*len2 );
+   end
+end
+
 % Graph for u
 toplot = usolu1(b2nodesnoD); toplot2 = u1ref(b2nodesnoD);
 figure;
 hold on;
 plot(toplot(2:2:end),'Color','red');
 plot(toplot2(2:2:end),'Color','blue');
+
+% Graph for f
+toplot = fsolu1no(b2nodesnoN); toplot2 = f1ref(b2nodesnoN);
+figure;
+hold on;
+plot(toplot(2:2:end),'Color','red');
+plot(toplot2(2:2:end),'Color','blue');
+
+erroru = norm(usolu1(b2nodesnoD)-u1ref(b2nodesnoD))   / norm(u1ref(b2nodesnoD));
+errorf = norm(fsolu1no(b2nodesnoN)-f1ref(b2nodesnoN)) / norm(f1ref(b2nodesnoN));

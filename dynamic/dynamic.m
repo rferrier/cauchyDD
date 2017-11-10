@@ -1,5 +1,5 @@
-%21/03/2016
-%Algo KMF
+%10/11/2017
+%Cauchy Dynamique
 
 close all;
 clear all;
@@ -13,17 +13,21 @@ fscalar = 1;       % N.mm-1 : Loading on the plate
 niter   = 20;
 br      = 0.;      % noise
 relax   = 0;       % Use a relaxation paramter
+dt      = 2e-5;      % s : time discrteization parameter
+rho     = 7500e-9; % kg.mm-3 : volumic mass
+
+mat     = [0, E, nu];
 
 % Boundary conditions
 % first index  : index of the boundary
 % second index : 1=x, 2=y
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
-dirichlet = [4,1,0;
-             4,2,0];
-neumann   = [1,2,fscalar;
-             2,1,fscalar;
-             3,2,fscalar];
+dirichlet = [ 1,1,0; 1,2,0
+              3,1,0; 3,2,0 ];
+%neumann   = [ 2,1,fscalar;
+%              4,1,fscalar ];
+neumann   = [ 2,1,fscalar,0,fscalar ];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
@@ -37,28 +41,36 @@ index    = index(size(index):-1:1);
 % Then, build the stiffness matrix :
 [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
 Kinter = K(1:2*nnodes,1:2*nnodes);
-M = mass_mat(nodes, elements);
+
+% Mass and (zero) damping matrices
+M = rho * mass_mat(nodes, elements);
+M = [ M , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
+C = zeros(size(M));
 
 % The right hand side :
 f = loading(nbloq,nodes,boundary,neumann);
+T = 1:1:25;  fa = [ f*T/T(end) , f*(1-T/T(end)) ];
+u0 = zeros(2*nnodes+nbloq,1); v0 = zeros(2*nnodes+nbloq,1);
+a0 = zeros(2*nnodes+nbloq,1);
 
 % Solve the problem :
-uin = K\f;
+uin = Newmark (M, C, K, fa, u0, v0, a0, dt, .25, .5);
 
 % Extract displacement and Lagrange multiplicators :
-uref = uin(1:2*nnodes,1);
-lagr = uin(2*nnodes+1:end,1);
-urefb = ( 1 + br*randn(2*nnodes,1) ) .* uref;
-lagrb = ( 1 + br*randn(nbloq,1) ) .* lagr;
-fref = f( 1:2*nnodes,1 ); % Reaction forces
+uref = uin(1:2*nnodes,:);
+lagr = uin(2*nnodes+1:end,:);
+urefb = ( 1 + br*randn(2*nnodes,size(uref,2)) ) .* uref;
+lagrb = ( 1 + br*randn(nbloq,size(uref,2)) ) .* lagr;
+fref = f( 1:2*nnodes,: ); % Reaction forces
 
 % Compute stress :
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 % Output :
-plotGMSH({uref,'U_vect';sigma,'stress'}, elements, nodes(:,[1,2]), 'output/reference');
+plotGMSH({uref,'U_vect';sigma,'stress'}, elements, nodes, 'output/reference');
 % patch('Faces',elements(:,1:3),'Vertices',nodes,'FaceAlpha',0);
 % axis equal
 % figure
+bug
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % init :
 u1    = uref-uref;

@@ -600,10 +600,10 @@ usolmin = zeros(2*nnodes,1); usolmin(indexa) = meanU-sigmau;
 %
 figure;
 hold on;
-plot(usoltot(2*b2node2-1),'Color','red');
-plot(uref(2*b2node2-1),'Color','green');
-plot(usolmax(2*b2node2-1),'Color','red');
-plot(usolmin(2*b2node2-1),'Color','red');
+plot(usoltot(2*b2node2-1),'Color','red','linewidth',3);
+plot(uref(2*b2node2-1),'Color','green','linewidth',3);
+plot(usolmax(2*b2node2-1),'Color','red','linewidth',3);
+plot(usolmin(2*b2node2-1),'Color','red','linewidth',3);
 legend('solution','reference');
 %
 error0 = norm(ItereR(indexa)-uref(indexa))/norm(uref(indexa));
