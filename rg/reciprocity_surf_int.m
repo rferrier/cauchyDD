@@ -21,11 +21,11 @@ fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter;
 
-br      = .0;
+br      = .1;
 
 nbase     = 2; % Number of Fourier basis functions
-ordp      = 2; % Order of polynom
-ordpD     = 2; % Order of the differential H1 post-regularization whatsoever.
+ordp      = 15; % Order of polynom
+ordpD     = 0; % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
                % If 2 : meshes are conformal, do everything
                % If 3 : meshes are conformal, store the u field
@@ -33,8 +33,8 @@ loadfield = 2; % If 0 : recompute the reference problem and re-pass mesh
 
 usefourier = 0;
 usepolys   = 1;
-plotref    = 0;
-comperror  = 0;
+plotref    = 1;
+comperror  = 1;
 Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % Line to add to store the fields
@@ -51,8 +51,8 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
  uncracked_mesh = 'meshes/rg3dm/platem.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/plates.msh';
-% cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
-% uncracked_mesh = 'meshes/rg3dm/platemu.msh';
+%  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
+%  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
 centCrack = [4;3;1]; % Point on the crack (for reference)
 
@@ -450,9 +450,9 @@ Q = [ t , v , normal ];
 % if Q(3,1)<0, Q = Q'; end
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
-% Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
+Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
 % Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
-Qref = Q;
+% Qref = Q;
 
 %% Then the constant
 
@@ -900,8 +900,11 @@ if usepolys == 1
    Xyz = Q'*xyz; Xs = Xyz(1,:)/Lx; Ys = Xyz(2,:)/Lx; Zs = (Xyz(3,:)+Cte)/Lx;
    X0 = (max(Xs)+min(Xs))/2; Y0 = (max(Ys)+min(Ys))/2;
    Xso = Xs-X0; Yso = Ys-Y0;
+   Xx = Xyz(1,:); Yy = Xyz(2,:); Zz = Xyz(3,:)+Cte; Zzo = Zz/max(abs(Zz));
 
    nodes2b = transpose(Q'*nodes2'); %[Xso',Yso',Zs'];
+   
+%    mat2 = [0, E, 0]; % Trial with an uncoupled stuff
    [K2b,~,~,~,~] = Krig3D (nodes2b,elements2,mat,order2,boundary2,[]);
    Kinter2b = K2b( 1:3*nnodes2, 1:3*nnodes2 );
    
@@ -1059,35 +1062,90 @@ if usepolys == 1
          ka = zeros(floor((k+1)/2)*(floor(l/2)+1),1);
          kb = zeros(floor(k/2)*(floor((l+1)/2)+1),1);
          kc = zeros(floor(k/2)*(floor(l/2)+1),1);
+%          ka = zeros(floor((k+1)/2)*(floor(l/2)+1));
+%          kb = zeros(floor(k/2)*(floor((l+1)/2)+1));
+%          kc = zeros(floor(k/2)*(floor(l/2)+1));
+
+%          for ii = 0:floor((k+1)/2)
+%             for jj = 0:floor(l/2)a
+%                for kk = 0:floor((k+1)/2)
+%                   for ll = 0:floor(l/2)
+%                      ui = Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj);
+%                      uk = Xso.^(k+1-2*kk).*Yso.^(l-2*ll).*Zs.^(2*kk+2*ll);
+%                      ui = reshape([ui;ui-ui;ui-ui],1,[])';
+%                      uk = reshape([uk;uk-uk;uk-uk],1,[])';
+%                      fk = Kinter2b*uk;
+%                      ui(~indexbound2) = 0; fk(~indexbound2) = 0;  % Rem : field is harmonic => no internal energy
+%                      ka( 1+jj+ii*(floor(l/2)+1), 1+ll+kk*(floor(l/2)+1) ) = ui'*fk;%u'*rand(size(f));%; %f'*rand(size(u));%
+%                   end
+%                end
+%             end
+%          end
+%          for ii = 0:floor(k/2)
+%             for jj = 0:floor((l+1)/2)
+%                for kk = 0:floor(k/2)
+%                   for ll = 0:floor((l+1)/2)
+%                      ui = Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj);
+%                      uk = Xso.^(k-2*kk).*Yso.^(l+1-2*ll).*Zs.^(2*kk+2*ll);
+%                      ui = reshape([ui;ui-ui;ui-ui],1,[])';
+%                      uk = reshape([uk;uk-uk;uk-uk],1,[])';
+%                      fk = Kinter2b*uk;
+%                      ui(~indexbound2) = 0; fk(~indexbound2) = 0;  % Rem : field is harmonic => no internal energy
+%                      kb( 1+jj+ii*(floor((l+1)/2)+1), 1+ll+kk*(floor((l+1)/2)+1) ) = ui'*fk;
+%                   end
+%                end
+%             end
+%          end
+%          for ii = 0:floor(k/2)
+%             for jj = 0:floor(l/2)
+%                for kk = 0:floor(k/2)
+%                   for ll = 0:floor(l/2)
+%                      ui = Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1);
+%                      uk = Xso.^(k-2*kk).*Yso.^(l-2*ll).*Zs.^(2*kk+2*ll+1);
+%                      ui = reshape([ui;ui-ui;ui-ui],1,[])';
+%                      uk = reshape([uk;uk-uk;uk-uk],1,[])';
+%                      fk = Kinter2b*uk;
+%                      ui(~indexbound2) = 0; fk(~indexbound2) = 0;  % Rem : field is harmonic => no internal energy
+%                      kc( 1+jj+ii*(floor(l/2)+1), 1+ll+kk*(floor(l/2)+1) ) = ui'*fk;
+%                   end
+%                end
+%             end
+%          end
          
          for ii = 0:floor((k+1)/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k+1-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj);
+%                u = Xx.^(k+1-2*ii).*Yy.^(l-2*jj).*Zz.^(2*ii+2*jj);
+%                u = Zzo.^(2*ii+2*jj);
                u = reshape([u;u-u;u-u],1,[])';
                f = Kinter2b*u;
-               u(~indexbound2) = 0; f(~indexbound2) = 0; 
-               ka( 1+jj+ii*(floor(l/2)+1), 1 ) =...
-                         u'*f;
+               u(~indexbound2) = 0; f(~indexbound2) = 0;  % Rem : field is harmonic => no internal energy
+               ka( 1+jj+ii*(floor(l/2)+1), 1 ) = abs(u'*rand(size(f))/(u'*ones(size(f))));
+               %u'*f;%u'*rand(size(f));%; %f'*rand(size(u))/(u'*ones(size(f)));
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor((l+1)/2)
                u = Xso.^(k-2*ii).*Yso.^(l+1-2*jj).*Zs.^(2*ii+2*jj);
+%                u = Xx.^(k-2*ii).*Yy.^(l+1-2*jj).*Zz.^(2*ii+2*jj);
+%                u = Zzo.^(2*ii+2*jj);
                u = reshape([u-u;u;u-u],1,[])';
                f = Kinter2b*u;
                u(~indexbound2) = 0; f(~indexbound2) = 0; 
-               kb( 1+jj+ii*(floor((l+1)/2)+1), 1 ) =...
-                        u'*f;
+               kb( 1+jj+ii*(floor((l+1)/2)+1), 1 ) = abs(u'*rand(size(f))/(u'*ones(size(f))));
+               %u'*f;%u'*rand(size(f));%; %f'*rand(size(u))/(u'*ones(size(f)))
             end
          end
          for ii = 0:floor(k/2)
             for jj = 0:floor(l/2)
                u = Xso.^(k-2*ii).*Yso.^(l-2*jj).*Zs.^(2*ii+2*jj+1);
+%                u = Xx.^(k-2*ii).*Yy.^(l-2*jj).*Zz.^(2*ii+2*jj+1);
+%                u = Zzo.^(2*ii+2*jj+1);
                u = reshape([u-u;u-u;u],1,[])';
                f = Kinter2b*u;
                u(~indexbound2) = 0; f(~indexbound2) = 0; 
-               kc( 1+jj+ii*(floor(l/2)+1), 1 ) =...
-                        u'*f;
+               kc( 1+jj+ii*(floor(l/2)+1), 1 ) = abs(u'*rand(size(f))/(u'*ones(size(f))));
+               %u'*f;%u'*rand(size(f));%; %f'*rand(size(u))/(u'*ones(size(f)))
             end
          end
 
@@ -1096,7 +1154,8 @@ if usepolys == 1
          zbc = zeros( size(kb,1), size(kc,1) );
       
          % Mm consists in minimizing the worst amplification for each a, b or c (E^2 just for condition number)
-         Mm = [ diag(ka),zab,zac ; zab',diag(kb),zbc ; zac',zbc',diag(kc) ]*E; %*E^2
+%          Mm = [ diag(ka),zab,zac ; zab',diag(kb),zbc ; zac',zbc',diag(kc) ]*E; %*E^2
+         Mm = eye( size(ka,1)+size(kb,1)+size(kc,1) , size(ka,1)+size(kb,1)+size(kc,1) );
 %         Mm = [ diag(ka).^2,zab,zac ; zab',diag(kb).^2,zbc ; zac',zbc',diag(kc).^2 ];
          
 %         % Computation via Gauss Points
@@ -1850,7 +1909,7 @@ end
 figure;
 hold on;
 nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = 4;
+Y = min(Ys):nys:max(Ys); X = -4;
 
 if usefourier == 1
    solu = 0;
