@@ -12,7 +12,7 @@ b     = 2;      //
 c     = 4;      //
 d     = 7;      //
 da    = pi/15; // angle of the cracks
-H     = 10;  //  height of plate 2-6
+H     = 6;  //  height of plate 2-6
 L     = 7;  //  width of plate
 E     = 10; //E     = 7;
 
@@ -62,27 +62,16 @@ Line Loop(106) = {4,9,8,-12};
 Plane Surface(6) = {106};
 
 // Crack construction
-Point(9) = {a,b,H/2,lc1};
-Point(10) = {a,b+b1,H/2,lc1};
-Point(11) = {a-a1*Cos(da),b,-a1*Sin(da)+H/2,lc1};
-Point(12) = {a,b-b1,H/2,lc1};
-Point(13) = {a+a1*Cos(da),b,a1*Sin(da)+H/2,lc1};
+Point(9) = {c,d,H/2,lc1};
+Point(10) = {c+a2,d+b2,H/2,lc1};
+Point(11) = {c-a2*Cos(da),d+b2,-a2*Sin(da)+H/2,lc1};
+Point(12) = {c-a2,d-b2,H/2,lc1};
+Point(13) = {c+a2*Cos(da),d-b2,a2*Sin(da)+H/2,lc1};
 
-Ellipse(13) = {10,9,11,11};  //{start,center,major,end}
-Ellipse(14) = {11,9,11,12};
-Ellipse(15) = {12,9,11,13};
-Ellipse(16) = {13,9,11,10};
-
-//Point(14) = {c,d,H/2,lc1};
-//Point(15) = {c,d+b2,H/2,lc1};
-//Point(16) = {c-a2*Cos(da),d,-a2*Sin(da)+H/2,lc1};
-//Point(17) = {c,d-b2,H/2,lc1};
-//Point(18) = {c+a2*Cos(da),d,a2*Sin(da)+H/2,lc1};
-
-//Ellipse(17) = {15,14,16,16};  //{start,center,major,end}
-//Ellipse(18) = {16,14,16,17};
-//Ellipse(19) = {17,14,16,18};
-//Ellipse(20) = {18,14,16,15};
+Line(13) = {10,11};
+Line(14) = {11,12};
+Line(15) = {12,13};
+Line(16) = {13,10};
 
 Line Loop(107) = {13,14,15,16};
 Plane Surface(7) = {107};

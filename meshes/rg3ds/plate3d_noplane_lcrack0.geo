@@ -3,16 +3,16 @@ Geometry.AutoCoherence = 0;
 
 // Geometric parameters
 pi    = 3.1415926535;  // What I love to make learn a number useful to wises
-a1    = 2;   // Elliptic crack
-b1    = 1;
+a1    = 1.5;   // Elliptic crack
+b1    = 2.5;
 a2    = 1.5;   // Elliptic crack
 b2    = 2.5;
 a     = 4;      // Centers of the cracks
-b     = 2;      //
+b     = 5;      //
 c     = 4;      //
 d     = 7;      //
-da    = pi/15; // angle of the cracks
-H     = 10;  //  height of plate 2-6
+da    = pi/20; // angle of the cracks
+H     = 6;  //  height of plate 2-6
 L     = 7;  //  width of plate
 E     = 10; //E     = 7;
 
@@ -66,35 +66,25 @@ Point(9) = {a,b,H/2,lc1};
 Point(10) = {a,b+b1,H/2,lc1};
 Point(11) = {a-a1*Cos(da),b,-a1*Sin(da)+H/2,lc1};
 Point(12) = {a,b-b1,H/2,lc1};
-Point(13) = {a+a1*Cos(da),b,a1*Sin(da)+H/2,lc1};
+Point(13) = {a+a1*Cos(da),b,-a1*Sin(da)+H/2,lc1};
 
 Ellipse(13) = {10,9,11,11};  //{start,center,major,end}
 Ellipse(14) = {11,9,11,12};
 Ellipse(15) = {12,9,11,13};
 Ellipse(16) = {13,9,11,10};
+Line(17)    = {10,12};
 
-//Point(14) = {c,d,H/2,lc1};
-//Point(15) = {c,d+b2,H/2,lc1};
-//Point(16) = {c-a2*Cos(da),d,-a2*Sin(da)+H/2,lc1};
-//Point(17) = {c,d-b2,H/2,lc1};
-//Point(18) = {c+a2*Cos(da),d,a2*Sin(da)+H/2,lc1};
-
-//Ellipse(17) = {15,14,16,16};  //{start,center,major,end}
-//Ellipse(18) = {16,14,16,17};
-//Ellipse(19) = {17,14,16,18};
-//Ellipse(20) = {18,14,16,15};
-
-Line Loop(107) = {13,14,15,16};
+Line Loop(107) = {13,14,-17};
+Line Loop(108) = {15,16,17};
 Plane Surface(7) = {107};
-//Line Loop(108) = {17,18,19,20};
-//Plane Surface(8) = {108};
+Plane Surface(8) = {108};
 
 // Physical stuff
 Surface Loop(1001) = {1,2,3,4,5,6};
 Volume(9) = {1001};
 
 Surface{7} In Volume{9};
-//Surface{8} In Volume{9};
+Surface{8} In Volume{9};
 
 Physical Surface(1) = {1};
 Physical Surface(2) = {2};
@@ -102,6 +92,6 @@ Physical Surface(3) = {3};
 Physical Surface(4) = {4};
 Physical Surface(5) = {5};
 Physical Surface(6) = {6};
-Physical Surface(7) = {7};
+Physical Surface(7) = {7,8};
 
 Physical Volume(9) = {9};
