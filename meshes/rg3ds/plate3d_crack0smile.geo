@@ -3,16 +3,12 @@ Geometry.AutoCoherence = 0;
 
 // Geometric parameters
 pi    = 3.1415926535;  // What I love to make learn a number useful to wises
-a1    = 2;   // Elliptic crack
-b1    = 1;
-a2    = 1.5;   // Elliptic crack
-b2    = 2.5;
+R1    = 2;   // Circular crack
+R2    = 1;
 a     = 4;      // Centers of the cracks
-b     = 2;      //
-c     = 4;      //
-d     = 7;      //
+b     = 4;      //
 da    = pi/15; // angle of the cracks
-H     = 10;  //  height of plate 2-6
+H     = 6;  //  height of plate 2-6
 L     = 7;  //  width of plate
 E     = 10; //E     = 7;
 
@@ -63,30 +59,31 @@ Plane Surface(6) = {106};
 
 // Crack construction
 Point(9) = {a,b,H/2,lc1};
-Point(10) = {a,b+b1,H/2,lc1};
-Point(11) = {a-a1*Cos(da),b,-a1*Sin(da)+H/2,lc1};
-Point(12) = {a,b-b1,H/2,lc1};
-Point(13) = {a+a1*Cos(da),b,a1*Sin(da)+H/2,lc1};
+Point(10) = {a,b+R1,H/2,lc1};
+Point(11) = {a-R1*Cos(da),b,-R1*Sin(da)+H/2,lc1};
+Point(12) = {a,b-R1,H/2,lc1};
+Point(13) = {a+R1*Cos(da),b,R1*Sin(da)+H/2,lc1};
 
-Ellipse(13) = {10,9,11,11};  //{start,center,major,end}
-Ellipse(14) = {11,9,11,12};
-Ellipse(15) = {12,9,11,13};
-Ellipse(16) = {13,9,11,10};
+Circle(13) = {10,9,11};  //{start,center,major,end}
+Circle(14) = {11,9,12};
+Circle(15) = {12,9,13};
+Circle(16) = {13,9,10};
 
-//Point(14) = {c,d,H/2,lc1};
-//Point(15) = {c,d+b2,H/2,lc1};
-//Point(16) = {c-a2*Cos(da),d,-a2*Sin(da)+H/2,lc1};
-//Point(17) = {c,d-b2,H/2,lc1};
-//Point(18) = {c+a2*Cos(da),d,a2*Sin(da)+H/2,lc1};
+Point(14) = {a,b,H/2,lc1};
+Point(15) = {a,b-R2,H/2,lc1};
+Point(16) = {a-R2*Cos(da),b,-R2*Sin(da)+H/2,lc1};
+//Point(17) = {a,b-R2,H/2,lc1};
+Point(18) = {a+R2*Cos(da),b,R2*Sin(da)+H/2,lc1};
 
-//Ellipse(17) = {15,14,16,16};  //{start,center,major,end}
-//Ellipse(18) = {16,14,16,17};
-//Ellipse(19) = {17,14,16,18};
-//Ellipse(20) = {18,14,16,15};
+Circle(17) = {15,14,16};  //{start,center,major,end}
+//Circle(18) = {16,14,17};
+//Circle(19) = {17,14,18};
+Line(18) = {16,18};
+Circle(20) = {18,14,15};
 
 Line Loop(107) = {13,14,15,16};
-Plane Surface(7) = {107};
-//Line Loop(108) = {17,18,19,20};
+Line Loop(108) = {17,18,20};
+Plane Surface(7) = {107,108};
 //Plane Surface(8) = {108};
 
 // Physical stuff
