@@ -12,12 +12,12 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
 niter   = 15;
 precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
-br      = 0.;    % noise
+br      = 0.1;    % noise
 brt     = 0;      % "translation" noise
-ntrunc  = 0;     % Nb of Ritz modes (+1)
+ntrunc  = 13;     % Nb of Ritz modes (+1)
 %inhomog = 0;      % inhomogeneous medium
-disc_me = 0;      % Use only a limited number of points as measure
-disc_id = 1;      % Identify only a limited number of points
+disc_me = 1;      % Use only a limited number of points as measure
+disc_id = 0;      % Identify only a limited number of points
 R2      = 15;     % Exterior radius (gemoetrical data)
 R1      = 5;      % Interior radius
 

@@ -17,13 +17,13 @@ mat        = [0, E, nu];
 mu         = 0;%1e-5;%5e-3;     % Regularization coef
 %mu         = 3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
-br         = .0;      % Noise level
+br         = .01;      % Noise level
 
 usefourier = 1;
 usepolys   = 1;
 
-nbase = 4; % Number of Fourier basis functions
-ordp = 15;  % Number of Polynomial basis functions
+nbase = 1; % Number of Fourier basis functions
+ordp = 5;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation
 
@@ -140,8 +140,8 @@ fr2(indexbound2) = f2(indexbound);
 
 % Add the noise
 u1n = u1; u2n = u2;
-br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
-% noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
+%br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
+ noise = load('noises/rg2d2.mat'); br1 = noise.br1; br2 = noise.br2;
 u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
 
 %plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
@@ -469,10 +469,19 @@ Qref = Q;
 % Plot the normal
 figure
 hold on;
-ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
+%ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
 x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+Xmin = min(nodes(:,1)); Xmax = max(nodes(:,1));
+Ymin = min(nodes(:,2)); Ymax = max(nodes(:,2));
+
 xc = .5*(max(nodes(:,1)) + min(nodes(:,1)));
 yc = .5*(max(nodes(:,2)) + min(nodes(:,2)));
+
+% Rectangle
+plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
+plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
+plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
+plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
 
 x2 = xc + 3*normal(1); y2 = yc + 3*normal(2);
 xn = xc + 3*n1; yn = yc + 3*n2;
@@ -578,12 +587,20 @@ Cte2 = min( Rt2/normT2, -Rt2/normT2 ) - K;  %  /!\ The sign depends on the test 
 % Plot the crack, and its estimated lines (there are Y +/- Cte)
 figure
 hold on;
-ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
+%ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
+Xmin = min(nodes(:,1)); Xmax = max(nodes(:,1));
+Ymin = min(nodes(:,2)); Ymax = max(nodes(:,2));
 x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
 
 Vp1 = [20;-Cte]; Vp2 = [-20;-Cte];
 Vm1 = [20;-Cte2]; Vm2 = [-20;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
+
+% Rectangle
+plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
+plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
+plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
+plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
 
 plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',3);
 plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',3);
@@ -780,21 +797,21 @@ if usefourier == 1
    %plotGMSH({ux,'U_x';uy,'U_y';imag(vp),'U_vect'}, elements2, nodes2, 'test field');
    
    % Plot the reference normal displacement (first test case)
-   solu = fourn(1) + sum ( [0*newX' ;...  % Hack in case there is 1 element only
+   soluf = fourn(1) + sum ( [0*newX' ;...  % Hack in case there is 1 element only
               akan.*cos(lambda(2:end)*newX') + bkan.*sin(lambda(2:end)*newX') ] );
-   solu = solu';
+   soluf = soluf';
    
    figure
    hold on;
    set(gca, 'fontsize', 20);
    plot(newX, [0*newXo;ubase(:,2);0*newXo],'linewidth',3)
-   plot(newX, solu, 'Color', 'red','linewidth',3)
+   plot(newX, soluf, 'Color', 'red','linewidth',3)
    legend('Reference gap','reconstructed gap')
    xlabel('X')
    ylabel('[[u]]')
-   
+
    %% Error computation
-   ref = [0*newXo;ubase(:,2);0*newXo]; errorU = ref - solu;
+   ref = [0*newXo;ubase(:,2);0*newXo]; errorU = ref - soluf;
    nelem = size(newX,1)-1;
    nerrnonrom = 0; nnormaliz = 0; % Well those are ugly names...
    for i=1:nelem
@@ -805,7 +822,6 @@ if usefourier == 1
       nnormaliz  = nnormaliz  + uer'*Me*uer;
    end
    four_error = nerrnonrom / nnormaliz;
-   
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Mean square polynoms
