@@ -23,7 +23,7 @@ regmu   = 0;      % Regularization parameter;
 
 br      = .0;
 
-nbase     = 2;  % Number of Fourier basis functions
+nbase     = 1;  % Number of Fourier basis functions
 ordp      = 15;
 
 ordpD     = 0;  % Order of the differential H1 post-regularization whatsoever.
@@ -33,7 +33,7 @@ loadfield = 2;  % If 0 : recompute the reference problem and re-pass mesh
                 % If 4 : meshes are conformal, read the u field
 
 usefourier = 0;
-usepolys   = 1;
+usepolys   = 0;
 plotref    = 1;
 comperror  = 1;
 Norm       = 0; % 0 means no derivative stuff (and not zero norm)
@@ -44,34 +44,32 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-%cracked_mesh = 'meshes/rg3dm/platem6_c.msh';
-%uncracked_mesh = 'meshes/rg3dm/platem6.msh';
+% cracked_mesh = 'meshes/rg3dm/platem4_c.msh';
+% uncracked_mesh = 'meshes/rg3dm/platem4.msh';
 %  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 %  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 %  cracked_mesh = 'meshes/rg3dm/platem_c.msh';
 %  uncracked_mesh = 'meshes/rg3dm/platem.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/plates.msh';
-%  cracked_mesh = 'meshes/rg3ds/plates2_c.msh';
-%  uncracked_mesh = 'meshes/rg3ds/plates2.msh';
+ cracked_mesh = 'meshes/rg3ds/plates2_c.msh';
+ uncracked_mesh = 'meshes/rg3ds/plates2.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates10_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/plates10.msh';
 %  cracked_mesh = 'meshes/rg3ds/platelosange6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platelosange6.msh';
 %  cracked_mesh = 'meshes/rg3ds/platelosangel6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platelosangel6.msh';
- cracked_mesh = 'meshes/rg3ds/platelosange2l6_c.msh';
- uncracked_mesh = 'meshes/rg3ds/platelosange2l6.msh';
+%  cracked_mesh = 'meshes/rg3ds/platelosange2l6_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds/platelosange2l6.msh';
 %  cracked_mesh = 'meshes/rg3ds/platesmile6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platesmile6.msh';
 %  cracked_mesh = 'meshes/rg3ds/platenoplane6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platenoplane6.msh';
 %  cracked_mesh = 'meshes/rg3ds/platenoplanel6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platenoplanel6.msh';
-%  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
-%  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
 
-centCrack = [4;5;3]; % Point on the crack (for reference)
+centCrack = [4;5;1]; % Point on the crack (for reference)
 
 if loadfield ~= 1 && loadfield ~= 4
    tic
@@ -156,7 +154,8 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
 % Add the noise
 if loadfield ~= 1 && loadfield ~= 4
     u1n = u1; u2n = u2;
-    br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+%     br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+    noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de6s.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
@@ -470,8 +469,8 @@ Q = [ t , v , normal ];
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
 % Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
-% Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
-Qref = Q;
+Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
+% Qref = Q;
 % Q = Qref;
 %% Then the constant
 
@@ -780,13 +779,13 @@ if usefourier == 1
                % Fourier coefficients
                if sx==1 && sy==1
                   % Don't worry about the 4 warning : NAN gets overwritten
-                  fournpp(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp; 
+                  fournpp(kpx,kpy) = (1+nu)/(4*E*Lx*Ly*lambda^2)*Rp; 
                elseif sx==1 && sy==-1
-                  fournpm(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+                  fournpm(kpx,kpy) = (1+nu)/(4*E*Lx*Ly*lambda^2)*Rp;
                elseif sx==-1 && sy==1
-                  fournmp(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+                  fournmp(kpx,kpy) = (1+nu)/(4*E*Lx*Ly*lambda^2)*Rp;
                elseif sx==-1 && sy==-1
-                  fournmm(kpx,kpy) = (1+nu)/(2*E*Lx*Ly*lambda^2)*Rp;
+                  fournmm(kpx,kpy) = (1+nu)/(4*E*Lx*Ly*lambda^2)*Rp;
                end
 
             end
@@ -805,13 +804,13 @@ if usefourier == 1
    
    for kp=2:nbase+1
       akan(kp,1) = real(fournpp(kp,1) + ...% fournpm(kp,1) +...
-                           fournmp(kp,1) )/2;% + fournmm(kp,1));
+                           fournmp(kp,1) );% + fournmm(kp,1));
       ckan(kp,1) = imag(fournpp(kp,1) -...%+ fournpm(kp,1) -...
-                           fournmp(kp,1) )/2 ;%- fournmm(kp,1));
+                           fournmp(kp,1) ) ;%- fournmm(kp,1));
                        
-      akan(1,kp) = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) )/2;% +...
+      akan(1,kp) = real(fournpp(1,kp) + fournpm(1,kp) );% +...
                               %fournmp(kpx,kpy) + fournmm(kpx,kpy));
-      bkan(1,kp) = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) )/2;% +...
+      bkan(1,kp) = imag(fournpp(1,kp) - fournpm(1,kp) );% +...
                               %fournmp(kpx,kpy) - fournmm(kpx,kpy));
    end
          
@@ -819,13 +818,13 @@ if usefourier == 1
        for kpy=2:nbase+1
          % u = acoscos+bcossin+csincos+dsinsin
          akan(kpx,kpy)   = real(fournpp(kpx,kpy) + fournpm(kpx,kpy) +...
-                              fournmp(kpx,kpy) + fournmm(kpx,kpy))/2;
+                              fournmp(kpx,kpy) + fournmm(kpx,kpy));
          bkan(kpx,kpy)   = imag(fournpp(kpx,kpy) - fournpm(kpx,kpy) +...
-                              fournmp(kpx,kpy) - fournmm(kpx,kpy))/2;
+                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
          ckan(kpx,kpy)   = imag(fournpp(kpx,kpy) + fournpm(kpx,kpy) -...
-                              fournmp(kpx,kpy) - fournmm(kpx,kpy))/2;
+                              fournmp(kpx,kpy) - fournmm(kpx,kpy));
          dkan(kpx,kpy)   = -real(fournpp(kpx,kpy) - fournpm(kpx,kpy) -...
-                               fournmp(kpx,kpy) + fournmm(kpx,kpy))/2;
+                               fournmp(kpx,kpy) + fournmm(kpx,kpy));
       end
    end
    
@@ -882,7 +881,7 @@ if usefourier == 1
 
       solu2 = reshape(solu,[],1);
       four_error = norm( solu2-uplo(3:3:end) ) / norm(uplo(3:3:end)); % the mesh is regular
-      bug
+
 %       % DEBUG plots
 %      uplo1 = reshape(uplo(3:3:end),[],size(Yp,2));
 %      figure;

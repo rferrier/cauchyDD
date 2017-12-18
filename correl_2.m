@@ -6,7 +6,7 @@ E     = 70000; Ey = E;
 nu    = 0.3;
 alpha = 100/E^2;%1000/E^2; % Regularization parameter
 mat   = [0,E,nu];
-niter = 15;
+niter = 30;
 
 load('e3_r0_000-015-Mesh.mat'); %15
 
