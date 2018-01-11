@@ -5,19 +5,21 @@ clear all;
 close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
-pm4        = 4; % Position of the 1d line
-mu         = 1e-4;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
+pm4        = -4; % Position of the 1d line
+mu         = 1e-3;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
 %mu         = 1e-1;
-ordp       = 11;
+ordp       = 12;
 normU      = 1;   % Use L1 or L2 minimization
 jmax       = 20;  % Coefficient for Picard stuff (if normU == 3)
-upper_term = 1;
-kUzawa     = 1e-1; % Uzawa parameter
-nuzawa     = 5000
+upper_term = 0;
+kUzawa     = 1e-1;%2e-7; % Uzawa parameter
+nuzawa     = 5000;
+id_crack   = 0;  % Should I identify the crack (binary stuff) ?
+threshold  = .1;  % Threshold for the crack
 
-%VAR = load('fields/AnBm15b10.mat');
+VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
-VAR = load('fields/AnBs15.mat');
+%VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs15b1.mat');
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
@@ -183,9 +185,15 @@ Isum = Is2*Is2'; Isum = Isum(:);
 if normU == 1 && mu ~= 0
    M = [ zeros(1,(ordp+1)^2) , Isum' , Isum' ]';
    
-   invA = Lhs\eye(size(Lhs)); % This is better than inv for some reason
-   b = -Rhs;
-   G = [Ax;Ay];
+   if upper_term==0
+      G = [Ax(:,tokeep);Ay(:,tokeep)];
+      invA = Lhs(tokeep,tokeep)\eye(size(tokeep,2)); % This is better than inv for some reason
+      b = -Rhs(tokeep);
+   else
+      G = [Ax;Ay];
+      invA = Lhs\eye(size(Lhs)); % This is better than inv for some reason
+      b = -Rhs;
+   end
    
    GAG   = G*invA*G';
    GAbmu = G*invA*b/mu;
@@ -199,7 +207,10 @@ if normU == 1 && mu ~= 0
    K = null(GAG); P = K*((K'*K)\K'); %(normally, (K'*K) = 1 but never trust the matrix)
    sol2 = GAG\GAbmu; sol2 = sol2-P*sol2;
    k = kUzawa;
-   C = [ eye(size(GAG,1)) ; -eye(size(GAG,1)) ]; d = [Isum;Isum;Isum;Isum];
+   C = [ eye(size(GAG,1)) ; -eye(size(GAG,1)) ]; 
+   
+   IsumIsum = [Isum;Isum];% - P*[Isum;Isum];
+   d = [IsumIsum;IsumIsum];
    f = zeros(2*size(sol0,1),1); fc = zeros(size(C,1),1);
    critd = [0;0];
    for i=1:nuzawa
@@ -216,8 +227,20 @@ if normU == 1 && mu ~= 0
       sol2 = sol2-P*sol2;
    end
    
-   sol = Lhs\(b-mu*G'*sol2);
-   fctestE = .5*sol'*Lhs*sol + sol'*Rhs + mu*(Isum'*abs(Ax*sol)+Isum'*abs(Ay*sol));
+   if upper_term == 0
+      sol = zeros(size(Lhs,1),1);
+      sol(tokeep) = Lhs(tokeep,tokeep)\(b-mu*G'*sol2);
+   else
+      sol = Lhs\(b-mu*G'*sol2);
+   end
+   
+   fctestE = .5*sol(tokeep)'*Lhs(tokeep,tokeep)*sol(tokeep) +...
+             sol(tokeep)'*Rhs(tokeep) +...
+             mu*(Isum'*abs(Ax(:,tokeep)*sol(tokeep))+...
+                 Isum'*abs(Ay(:,tokeep)*sol(tokeep)));
+                 
+   nor = .5*sol'*Lhs*sol+ sol'*Rhs;
+   reg = mu*(Isum'*abs(Ax*sol)+Isum'*abs(Ay*sol));
 % Quadratic programming
 elseif normU == 11
     M = [ zeros(1,(ordp+1)^2) , Isum' , Isum' ]'; %ones(1,2*(sideL+1)^2)
@@ -641,9 +664,47 @@ axis('equal');
 
 toc
 
-error0 = norm(solu0-uplo1)/norm(uplo1);
-error1 = norm(solup-uplo1)/norm(uplo1);
-gap    = norm(solup-solu0)/norm(solu0);
+error0 = norm(solu0(:)-uplo1(:))/norm(uplo1(:));
+error1 = norm(solup(:)-uplo1(:))/norm(uplo1(:));
+gap    = norm(solup(:)-solu0(:))/norm(solu0(:));
+
+if id_crack == 1 % Identify the crack
+   crackID = zeros(size(solup));
+   maxto = max(max(solup))*threshold;
+   tofind = find( solup>maxto )-1;
+   indicei = rem( tofind , size(solup,1) )+1;
+   indicej = floor( tofind / size(solup,1) )+1;
+   
+   for i = 1:size(tofind,1)
+      crackID(indicei(i),indicej(i)) = 1;
+   end
+   
+   crackRef = zeros(size(uplo1));
+   maxto = max(max(uplo1))*1e-5;
+   tofind = find( uplo1>maxto )-1;
+   indicei = rem( tofind , size(uplo1,1) )+1;
+   indicej = floor( tofind / size(uplo1,1) )+1;
+   
+   for i = 1:size(tofind,1)
+      crackRef(indicei(i),indicej(i)) = 1;
+   end
+
+   figure;
+   hold on;
+   surf(X,Y,crackRef);
+   shading interp;
+   colorbar();
+   axis('equal');
+
+   figure;
+   hold on;
+   surf(X,Y,crackID);
+   shading interp;
+   colorbar();
+   axis('equal');
+   
+   errorID = norm(crackID(:)-crackRef(:))/norm(crackRef(:));
+end
 
 % Plot on the line X = 4
 figure;

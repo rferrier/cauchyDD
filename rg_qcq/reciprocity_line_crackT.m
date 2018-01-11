@@ -45,8 +45,8 @@ regD       = [0,0,0,.1,.2,.3,.4,.5,.6,.7,.8];
 %regD       = [0,0,0];
 %operations = [1,2];
 %regD       = [0,0];
-operations = 1;
-regD       = 0;
+%operations = 1;
+%regD       = 0;
 
 niter = size(operations,2);
 
@@ -837,7 +837,8 @@ for i = 1:niter
    oldauthorized = authorized;
    authorized = unique( [ 2*authorized-1 ; 2*authorized ] );
 
-   [Q,Theta] = eig( A(authorized,authorized) );%,L); Q = Q*(Q'*L*Q)^(-1/2);
+   [Q,Theta,V] = svd(A(authorized,authorized));
+%   [Q,Theta] = eig( A(authorized,authorized) );%,L); Q = Q*(Q'*L*Q)^(-1/2);
    thetas = diag(Theta);
    [thetas,Ind] = sort( thetas,'descend' );
    Q = Q(:,Ind);
@@ -1019,8 +1020,8 @@ end
 if ncrack == 11 || ncrack == 111
    plot( [nodes(7,1),nodes(8,1)], [nodes(7,2),nodes(8,2)], 'Color', [.6,.6,.6], 'LineWidth', 5 );
 end
-%nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);% Solu1(2:2:end);
-nogapp1 = nogap1.^co(1) .* nogap2.^co(2) .* nogap3.^co(3) .* nogap4.^co(4);
+nogapp1 = nogap1*co(1) + nogap2*co(2) + nogap3*co(3) + nogap4*co(4);% Solu1(2:2:end);
+%nogapp1 = nogap1.^co(1) .* nogap2.^co(2) .* nogap3.^co(3) .* nogap4.^co(4);
 alphamin = 0;%min(nogapp1);%0;
 maxn1 = max(nogapp1) - alphamin;
 %      for i=1:nseg

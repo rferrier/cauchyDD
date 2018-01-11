@@ -490,5 +490,7 @@ Slinexy = reshape(Sline,2,[])';  Slinex = Slinexy(:,1);  Sliney = Slinexy(:,2);
 ref = loadV(1,1) + loadV(2,1)*Y + loadV(3,1)*Y.^2 + loadV(4,1)*Y.^3;
 figure;
 hold on;
-plot(Y,Sliney);
-plot(Y,ref,'Color','red')
+set(gca, 'fontsize', 20);
+plot(Y,Sliney,'LineWidth',3);
+plot(Y,ref,'Color','red','LineWidth',3);
+legend('identification','reference');

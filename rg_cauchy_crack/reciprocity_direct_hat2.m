@@ -1,6 +1,6 @@
-% 02/11/2017
+% 18/12/2017
 % Problèmes directs et de Cauchy par écart à la réciprocité, 
-% identification par fonctions chapeau
+% implémentation matricielle
 
 tic
 close all;
@@ -14,11 +14,14 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmax       = 40;     % Eigenvalues truncation number
-regular    = 0;      % Use the regularization matrix
+jmaxRG     = 35;     % Eigenvalues truncation number
+jmaxSP     = 100;
+jmaxRGSP   = 120;
+regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 1;      % Recompute the operators
+RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -30,7 +33,7 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
               
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0 = []
+%neumann0 = [];
 dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
@@ -123,11 +126,16 @@ fr4(indexbound2) = f4(indexbound);
 
 % Add the noise
 u1n = u1; u2n = u2; u3n = u3; u4n = u4;
+am1 = sqrt(mean(u1.^2)); am2 = sqrt(mean(u2.^2));
+am3 = sqrt(mean(u3.^2)); am4 = sqrt(mean(u4.^2));
 br1 = randn(2*nnodes,1); br2 = randn(2*nnodes,1);
 br3 = randn(2*nnodes,1); br4 = randn(2*nnodes,1);
-% noise = load('noises/105.mat'); br1 = noise.br1; br2 = noise.br2;
-u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
-u3 = ( 1 + br*br3 ) .* u3; u4 = ( 1 + br*br4 ) .* u4;
+%noise = load('noises/cauchyRG.mat');
+%br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
+%u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
+%u3 = ( 1 + br*br3 ) .* u3; u4 = ( 1 + br*br4 ) .* u4;
+u1 = u1 + am1*br*br1; u2 = u2 + am1*br*br2;
+u3 = u3 + am3*br*br3; u4 = u4 + am4*br*br4;
 
 plotGMSH({ur1,'U_bound'}, elements2, nodes2, 'bound');
 
@@ -225,11 +233,41 @@ end
 % ...and then give a dof to each element
 boun2dof = zeros(nboun2,1);
 for i=1:nboun2
-   boun2dof(i,1) = nodes2dof(2*boundary(i,2)-1);
-   boun2dof(i,2) = nodes2dof(2*boundary(i,2));
-   boun2dof(i,3) = nodes2dof(2*boundary(i,3)-1);
-   boun2dof(i,4) = nodes2dof(2*boundary(i,3));
+   boun2dof(i,1) = nodes2dof(2*boundary2(i,2)-1);
+   boun2dof(i,2) = nodes2dof(2*boundary2(i,2));
+   boun2dof(i,3) = nodes2dof(2*boundary2(i,3)-1);
+   boun2dof(i,4) = nodes2dof(2*boundary2(i,3));
 end
+
+%% Order the dofs : force and displacement on the boundary
+nodesbound2 = unique(boundary2(:)); % Nodes on the boundary
+nnbound2    = size(nodesbound2,1);
+boun2doftot = zeros(nboun2,2);
+
+for i=1:nboun2 % Stores the nodes associated to each element of bound2 (in boundary numbering)
+   boun2doftot(i,1) = find(nodesbound2==boundary2(i,2)); % Rem : boundary2(i,1) is the no of boundary
+   boun2doftot(i,2) = find(nodesbound2==boundary2(i,3));
+end
+
+knownD = [];
+knownN = [];
+for i=1:nboun2 % Chooses the known displacement dofs
+   index = boundary2(i,1);
+   isimposed = find( dirichlet0(:,1) == index );
+   dofs = dirichlet0(isimposed,2);
+   knownD = [ knownD ; 2*boun2doftot(i,1)-2+dofs ];
+   knownD = [ knownD ; 2*boun2doftot(i,2)-2+dofs ];
+   
+   isimposed = find( neumann0(:,1) == index );
+   dofs = neumann0(isimposed,2);
+   knownN = [ knownN ; 2*i-2+dofs ];
+end
+
+knownD = unique(knownD); knownN = unique(knownN); % Remove redondnacy
+
+tofindD = setdiff( 1:2*nnbound2 , knownD );
+tofindN = setdiff( 1:2*nnbound2 , knownN );
+%%
 
 [ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
 nnodesu = size(nodesu,1);
@@ -240,9 +278,9 @@ if recompute == 1
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Solve via reciprocity gap
    % Build the polynomial test functions.
-   load('conditions20_2d.mat','-ascii');
-   M = spconvert(conditions20_2d); clear('conditions20_2d');
-   nmax = 20;
+   load('conditions10_2d.mat','-ascii');
+   M = spconvert(conditions10_2d); clear('conditions10_2d');
+   nmax = 10;
    ncoef =2*(nmax+1)^2; neq = ncoef;
    
    % Suppress the superior terms
@@ -309,12 +347,13 @@ if recompute == 1
    Rhs3  = zeros(nftest,1); Rhs4  = zeros(nftest,1);
    LhsA  = zeros(nftest,szD); LhsB  = zeros(nftest,0);
    
+   Ru = zeros(nftest,2*nnbound2); Rf = zeros(nftest,2*nboun2);
+   
    for k=1:nftest
       Rhs1(k) = 0; Rhs2(k) = 0;
       coefa = coef(1:(nmax+1)^2,k);
       coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
       
-      szA = 0; szB = 0;
       for i=1:nboun2
          bonod = boundary2(i,:); exno = extnorm2(i,:)';
       
@@ -323,32 +362,14 @@ if recompute == 1
          x2 = nodes2(no2,1); y2 = nodes2(no2,2);
          len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
          
-         dirichletDof = boun2dof(i,:);
-         suppressInDD = find(dirichletDof==0); % remove the zeros
-         keepInDD = setdiff([1;2;3;4],suppressInDD);
-         
-         if max(size(dirichlet0))>0
-            urdof = dirichlet0(find(dirichlet0(:,1)==boname),2) ;  % Dof of the given u
-         else
-            urdof = [];
-         end
-         if max(size(neumann0))>0
-            frdof = neumann0(find(neumann0(:,1)==boname),2) ;  % Dof of the given f
-         else
-            frdof = [];
-         end
-         umdof = setdiff([1;2],urdof);  % Dof of the unknown u
-         fmdof = setdiff([1;2],frdof);  % Dof of the unknown f
-         
-         indicesA = dirichletDof( keepInDD );
-         indicesB = szB+1:szB+size(fmdof,1);
-         %LhsA(k,indicesA) = zeros(1,size(umdof,1));
-         LhsB(k,indicesB) = zeros(1,size(fmdof,1));
+         indDtot = [2*boun2doftot(i,1)-1,2*boun2doftot(i,1),...
+                    2*boun2doftot(i,2)-1,2*boun2doftot(i,2)]; % U dofs the element is associated to
+         indNtot = [2*i-1,2*i]; % F dofs the element is associated to
          
          if order==1
-            Ng = 2; % (anyway, it's inexact)
+            Ng = 1; % (anyway, it's inexact)
          elseif order==2
-            Ng  = 2; no3 = bonod(4);
+            Ng  = 1; no3 = bonod(4);
             x3  = nodes2(no3,1); y3 = nodes2(no3,2);
          end
          [ Xg, Wg ] = gaussPt1d( Ng );
@@ -452,33 +473,138 @@ if recompute == 1
             sloc = 1/Lx*[sloc11,sloc12;sloc12,sloc22];
             spa = sloc;
             fpa = spa*exno;
-   
-            % Remove missing info
-            fer1(fmdof) = 0; fer2(fmdof) = 0; fer3(fmdof) = 0; fer4(fmdof) = 0;
             
-            Rhs1(k) = Rhs1(k) + len * wg * ( fer1'*vpa - fpa'*uer1 );
-            Rhs2(k) = Rhs2(k) + len * wg * ( fer2'*vpa - fpa'*uer2 );
-            Rhs3(k) = Rhs3(k) + len * wg * ( fer3'*vpa - fpa'*uer3 );
-            Rhs4(k) = Rhs4(k) + len * wg * ( fer4'*vpa - fpa'*uer4 );
+            fpaTimesPhitest0 = [fpa(1)*(1-xg);fpa(2)*(1-xg);fpa(1)*xg;fpa(2)*xg]; 
             
-            fpaTimesPhitest = [fpa(1)*(1-xg);fpa(2)*(1-xg);fpa(1)*xg;fpa(2)*xg]; 
-            fpaTimesPhitest = fpaTimesPhitest( keepInDD );
-   
-            LhsA(k,indicesA) = LhsA(k,indicesA) + len * wg * fpaTimesPhitest';
-            LhsB(k,indicesB) = LhsB(k,indicesB) - len * wg * vpa(fmdof)';
+            Ru(k,indDtot) = Ru(k,indDtot) + len * wg * fpaTimesPhitest0';
+            Rf(k,indNtot) = Rf(k,indNtot) + len * wg * vpa';
          end
-         szA = szA + size(umdof,1);  szB = szB + size(fmdof,1);
       end
    end
+
+   % Cut LhsA
+   LhsA = LhsA( :, find(sum(LhsA.^2)) );
+   
+   %%
+   % Transform the given data in the proper format
+   f_known1 = zeros(2*nboun2,1); u_known1 = zeros(2*nnbound2,1);
+   f_known2 = zeros(2*nboun2,1); u_known2 = zeros(2*nnbound2,1);
+   f_known3 = zeros(2*nboun2,1); u_known3 = zeros(2*nnbound2,1);
+   f_known4 = zeros(2*nboun2,1); u_known4 = zeros(2*nnbound2,1);
+   
+   for i=1:nboun2
+      bonod = boundary2(i,:); exno = extnorm2(i,:)';
+      % Reference force from the BC's
+      if exno(1) == 1 % Bound 2
+         fer1 = [0;0]; fer2 = [fscalar;0];
+         fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
+      elseif exno(1) == -1 % Bound 4
+         fer1 = [0;0]; fer2 = -[fscalar;0];
+         fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
+      elseif exno(2) == 1 % Bound 3
+         fer1 = [0;fscalar]; fer2 = [0;0];
+         fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];
+      elseif exno(2) == -1 % Bound 1
+         fer1 = -[0;fscalar]; fer2 = [0;0];
+         fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+      end
+      
+      indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
+      indicesGlo = [2*boundary(i,[2,3])-1,2*boundary(i,[2,3])]; % Global Displacement dofs
+      
+      u_known1(indicesLoc) = u1(indicesGlo);
+      u_known2(indicesLoc) = u2(indicesGlo);
+      u_known3(indicesLoc) = u3(indicesGlo);
+      u_known4(indicesLoc) = u4(indicesGlo);
+      
+      f_known1([2*i-1,2*i]) = fer1;
+      f_known2([2*i-1,2*i]) = fer2;
+      f_known3([2*i-1,2*i]) = fer3;
+      f_known4([2*i-1,2*i]) = fer4;
+   end
+   %%
+   % Restrict the data on the given part (not necessary, but cleaner)
+   f_known1(tofindN) = 0; f_known2(tofindN) = 0;
+   f_known3(tofindN) = 0; f_known4(tofindN) = 0;
+   u_known1(tofindD) = 0; u_known2(tofindD) = 0;
+   u_known3(tofindD) = 0; u_known4(tofindD) = 0;
+
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
-   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat.mat');
-   LhsA  = Anb.LhsA; LhsB  = Anb.LhsB;
-   Rhs1 = Anb.Rhs1; Rhs2 = Anb.Rhs2; Rhs3 = Anb.Rhs3; Rhs4 = Anb.Rhs4;
+   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat');
+   Rf  = Anb.Rf; Ru  = Anb.Ru;
+   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
+   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
 end
 tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Solve the linear system and recover the unknowns
+
+%% Restrict the operators
+Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
+Rum = Ru(:,tofindD); Rur = Ru(:,knownD);
+
+LhsA = -Rum;
+LhsB = Rfm;
+Rhs1 = Rur*u_known1(knownD) - Rfr*f_known1(knownN);
+Rhs2 = Rur*u_known2(knownD) - Rfr*f_known2(knownN);
+Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
+Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
+
+% Build the matrix that passes f on dofs on the nodes from the bound
+Fntob = zeros( 2*nnbound2, 2*nboun2 );
+for i=1:nboun2
+   coef = [ boun2doftot(i,1), boun2doftot(i,2) ];
+   len = norm(nodes2(boundary2(i,2),:) - nodes2(boundary2(i,3),:));
+   Fntob( 2*i-1, 2*coef-1 ) = len/2 * [1,1];
+   Fntob( 2*i, 2*coef )     = len/2 * [1,1];
+end
+
+% If needed, use the differential regularization matrix
+if regular == 2
+   Du = Kinter( [2*nodesbound2-1,2*nodesbound2] , [2*nodesbound2-1,2*nodesbound2] );
+   Df = Fntob;
+   Du0 = Du; Df0 = Df;
+   
+   if froreg == 1
+      kB = norm(LhsA,'fro')/norm(LhsB,'fro');
+   else
+      kB = 1;
+   end
+   
+   Dut  = Du0(tofindD,tofindD); Dft  = kB*Df0(tofindN,tofindN);
+   Duk  = Du0(knownD,knownD);   Dfk  = kB*Df0(knownN,knownN);
+   Dutk = Du0(tofindD,knownD);  Dftk = kB*Df0(tofindN,knownN);
+   
+   Zutft = zeros(size(Dut,1),size(Dft,2));
+   Zutuk = zeros(size(Dut,1),size(Duk,2));
+   Zutfk = zeros(size(Dut,1),size(Dft,2));
+   Zftuk = zeros(size(Dut,1),size(Dft,2));
+   Zftfk = zeros(size(Dut,1),size(Dft,2));
+   Zukfk = zeros(size(Dut,1),size(Dft,2));
+
+   Du = Dut; Df = Dft;
+   
+elseif regular == 1
+   Du = zeros(2*nnbound2);
+   Df = eye(2*nboun2); % No derivative for f
+   for i=1:nboun2
+      coefU = [ boun2doftot(i,1) , boun2doftot(i,2) ];
+      Du( 2*coefU-1, 2*coefU-1 ) = Du( 2*coefU-1, 2*coefU-1 ) + [1,-1;-1,1];
+      Du( 2*coefU, 2*coefU )     = Du( 2*coefU, 2*coefU ) + [1,-1;-1,1];
+   end
+%   for i=1:nnbound2
+%      coefF = [ find(boun2doftot(:,1)==i) , find(boun2doftot(:,2)==i) ];
+%      Df( 2*coefF-1, 2*coefF-1 ) = Df( 2*coefF-1, 2*coefF-1 ) + [-1,1;1,-1];
+%      Df( 2*coefF, 2*coefF )     = Df( 2*coefF, 2*coefF ) + [-1,1;1,-1];
+%   end
+   
+   Du0 = Du; Df0 = Df;
+   Du  = Du0(tofindD,tofindD); Df  = Df0(tofindN,tofindN);
+   Duk = Du0(knownD,knownD);   Dfk = Df0(knownN,knownN);
+end
+
+%% Pure RG : Solve the linear system and recover the unknowns
+jmax = jmaxRG;
 if froreg == 1
    kB = norm(LhsA,'fro')/norm(LhsB,'fro'); % In order to regularize the stuff
 else
@@ -489,9 +615,23 @@ Lhs = [LhsA,kB*LhsB];
 Rhs = Rhs1;
 A = Lhs'*Lhs; b = Lhs'*Rhs;
 
-L = eye(size(A));
+if regular == 2
+   Dtot = [ Dut , Zutft ;...
+            Zutft' , Dft ];
+   L = Dtot'*Dtot;
+elseif regular == 1
+   Dtot = [ Du , zeros( size(Du,1) , size(Df,2) ) ;...
+            zeros( size(Df,1) , size(Du,2) ) , Df ];
+   L = Dtot'*Dtot;
+else
+   L = eye(size(A));
+end
 ninfty = 0;
 
+%L = eye(size(A));
+
+%[~,Theta,Q] = svd(Lhs,L); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
+%[Q,Theta] = eig(Lhs'*L*Lhs); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
 [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
 thetas = diag(Theta);
 [thetas,Ind] = sort( thetas,'descend' );
@@ -499,7 +639,7 @@ Q = Q(:,Ind);
 Thetas = diag(thetas); 
 Theta = Theta(Ind,Ind);
 
-disp([ 'Rectangular system pinversed ', num2str(toc) ]);
+disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
 % Plot the Picard stuff
 imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
 if size(imax,1) == 0
@@ -530,10 +670,183 @@ bT2 = Q'*Lhs'*Rhs2; bT2 = bT2(ninfty+1:jmax);
 bT3 = Q'*Lhs'*Rhs1; bT3 = bT3(ninfty+1:jmax);
 bT4 = Q'*Lhs'*Rhs2; bT4 = bT4(ninfty+1:jmax);
 
-Solu1 = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
-Solu2 = Q(:,ninfty+1:jmax) * (ThetaT\bT2);
-Solu3 = Q(:,ninfty+1:jmax) * (ThetaT\bT3);
-Solu4 = Q(:,ninfty+1:jmax) * (ThetaT\bT4);
+Solu1RG = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
+Solu2RG = Q(:,ninfty+1:jmax) * (ThetaT\bT2);
+Solu3RG = Q(:,ninfty+1:jmax) * (ThetaT\bT3);
+Solu4RG = Q(:,ninfty+1:jmax) * (ThetaT\bT4);
+
+%% Pure SP : Solve the linear system and recover the unknowns
+jmax = jmaxSP;
+if froreg == 1
+   kB = norm(Rum,'fro')/norm(Rfm,'fro'); % In order to regularize the stuff
+else
+   kB = 1;
+end
+Lhs  = [ -Rum,kB*Rfm,zeros(size(Rur)),kB*Rfr ;...
+         -Rum,kB*Rfm,-Rur,zeros(size(Rfr)) ];
+Rhs1 = [ Rur*u_known1(knownD) ; -Rfr*f_known1(knownN) ];
+Rhs2 = [ Rur*u_known2(knownD) ; -Rfr*f_known2(knownN) ];
+Rhs3 = [ Rur*u_known3(knownD) ; -Rfr*f_known3(knownN) ];
+Rhs4 = [ Rur*u_known4(knownD) ; -Rfr*f_known4(knownN) ];
+
+A = Lhs'*Lhs;
+
+if regular == 1 || regular == 2
+   Zuf   = zeros( size(Du,1) , size(Df,2) );
+   Zuuk  = zeros( size(Du,1) , size(Duk,2) );
+   Zufk  = zeros( size(Du,1) , size(Dfk,2) );
+   Zfuk  = zeros( size(Df,1) , size(Duk,2) );
+   Zffk  = zeros( size(Df,1) , size(Dfk,2) );
+   Zukfk = zeros( size(Duk,1) , size(Dfk,2) );
+   Dtot = [ Du ,Zuf , Zuuk, Zufk ;...
+            Zuf', Df , Zfuk, Zffk ;...
+            Zuuk', Zfuk', Duk, Zukfk ;...
+            Zufk', Zffk', Zukfk', Dfk ];
+   L = Dtot'*Dtot;
+%   L = Dtot;
+else
+   L = eye(size(A));
+end
+ninfty = 0;
+
+[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+thetas = diag(Theta);
+[thetas,Ind] = sort( thetas,'descend' );
+Q = Q(:,Ind);
+Thetas = diag(thetas); 
+Theta = Theta(Ind,Ind);
+
+disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
+% Plot the Picard stuff
+imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
+if size(imax,1) == 0
+    imax = size(thetas,1);
+end
+
+tplo = thetas(ninfty+1:imax); bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
+rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
+bplo2 = Q'*Lhs'*Rhs2; bplo2 = bplo2(ninfty+1:imax);
+rplo2 = (Q'*Lhs'*Rhs2)./thetas; rplo2 = rplo2(1:imax);
+figure
+hold on;
+plot(log10(abs(tplo)),'Color','green');
+plot(log10(abs(bplo1)),'Color','red');
+plot(log10(abs(rplo1)),'Color','black');
+plot(log10(abs(bplo2)),'Color','magenta');
+plot(log10(abs(rplo2)),'Color','blue');
+legend('Singular values','Rhs1','sol1','Rhs2','sol2');
+
+% Filter eigenvalues
+if jmax == 0
+   jmax = size(Thetas,1);
+end
+ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
+
+bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
+bT2 = Q'*Lhs'*Rhs2; bT2 = bT2(ninfty+1:jmax);
+bT3 = Q'*Lhs'*Rhs1; bT3 = bT3(ninfty+1:jmax);
+bT4 = Q'*Lhs'*Rhs2; bT4 = bT4(ninfty+1:jmax);
+
+Solu1SP = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
+Solu2SP = Q(:,ninfty+1:jmax) * (ThetaT\bT2);
+Solu3SP = Q(:,ninfty+1:jmax) * (ThetaT\bT3);
+Solu4SP = Q(:,ninfty+1:jmax) * (ThetaT\bT4);
+
+%% SP+RG : Solve the linear system and recover the unknowns
+jmax = jmaxRGSP;
+Rhs1 = Rur*u_known1(knownD) - Rfr*f_known1(knownN);
+Rhs2 = Rur*u_known2(knownD) - Rfr*f_known2(knownN);
+Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
+Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
+if froreg == 1
+   kB = norm(Rum,'fro')/norm(Rfm,'fro'); % In order to regularize the stuff
+else
+   kB = 1;
+end
+Lhs  = [ -Rum,kB*Rfm,zeros(size(Rur)),zeros(size(Rfr));...
+         -Rum,kB*Rfm,zeros(size(Rur)),kB*Rfr ;...
+         -Rum,kB*Rfm,-Rur,zeros(size(Rfr)) ];
+Rhs1 = [ Rur*u_known1(knownD) - Rfr*f_known1(knownN) ;...
+         Rur*u_known1(knownD) ; -Rfr*f_known1(knownN) ];
+Rhs2 = [ Rur*u_known2(knownD) - Rfr*f_known2(knownN) ;...
+         Rur*u_known2(knownD) ; -Rfr*f_known2(knownN) ];
+Rhs3 = [ Rur*u_known3(knownD) - Rfr*f_known3(knownN) ;...
+         Rur*u_known3(knownD) ; -Rfr*f_known3(knownN) ];
+Rhs4 = [ Rur*u_known4(knownD) - Rfr*f_known4(knownN) ;...
+         Rur*u_known4(knownD) ; -Rfr*f_known4(knownN) ];
+
+A = Lhs'*Lhs;
+
+if regular == 1 || regular == 2
+   Zuf   = zeros( size(Du,1) , size(Df,2) );
+   Zuuk  = zeros( size(Du,1) , size(Duk,2) );
+   Zufk  = zeros( size(Du,1) , size(Dfk,2) );
+   Zfuk  = zeros( size(Df,1) , size(Duk,2) );
+   Zffk  = zeros( size(Df,1) , size(Dfk,2) );
+   Zukfk = zeros( size(Duk,1) , size(Dfk,2) );
+   Dtot = [ Du ,Zuf , Zuuk, Zufk ;...
+            Zuf', Df , Zfuk, Zffk ;...
+            Zuuk', Zfuk', Duk, Zukfk ;...
+            Zufk', Zffk', Zukfk', Dfk ];
+   L = Dtot'*Dtot;
+else
+   L = eye(size(A));
+end
+
+ninfty = 0;
+
+[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+thetas = diag(Theta);
+[thetas,Ind] = sort( thetas,'descend' );
+Q = Q(:,Ind);
+Thetas = diag(thetas); 
+Theta = Theta(Ind,Ind);
+
+disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
+% Plot the Picard stuff
+imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
+if size(imax,1) == 0
+    imax = size(thetas,1);
+end
+
+tplo = thetas(ninfty+1:imax); bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
+rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
+bplo2 = Q'*Lhs'*Rhs2; bplo2 = bplo2(ninfty+1:imax);
+rplo2 = (Q'*Lhs'*Rhs2)./thetas; rplo2 = rplo2(1:imax);
+figure
+hold on;
+plot(log10(abs(tplo)),'Color','green');
+plot(log10(abs(bplo1)),'Color','red');
+plot(log10(abs(rplo1)),'Color','black');
+plot(log10(abs(bplo2)),'Color','magenta');
+plot(log10(abs(rplo2)),'Color','blue');
+legend('Singular values','Rhs1','sol1','Rhs2','sol2');
+
+% Filter eigenvalues
+if jmax == 0
+   jmax = size(Thetas,1);
+end
+ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
+
+bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
+bT2 = Q'*Lhs'*Rhs2; bT2 = bT2(ninfty+1:jmax);
+bT3 = Q'*Lhs'*Rhs1; bT3 = bT3(ninfty+1:jmax);
+bT4 = Q'*Lhs'*Rhs2; bT4 = bT4(ninfty+1:jmax);
+
+Solu1RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
+Solu2RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT2);
+Solu3RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT3);
+Solu4RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT4);
+
+%% Choose the solution
+if RGorSP == 1
+   Solu1 = Solu1RG; Solu2 = Solu2RG; Solu3 = Solu3RG; Solu4 = Solu4RG;
+elseif RGorSP == 2
+   Solu1 = Solu1SP; Solu2 = Solu2SP; Solu3 = Solu3SP; Solu4 = Solu4SP;
+else %RGorSP == 3
+   Solu1 = Solu1RGSP; Solu2 = Solu2RGSP; Solu3 = Solu3RGSP; Solu4 = Solu4RGSP;
+end
+%%
 
 % Post-process : reconstruct u and f from Solu
 fsolu1 = zeros(2*nboun2,1); usolu1 = zeros(2*nnodes,1);
@@ -541,6 +854,7 @@ fsolu2 = zeros(2*nboun2,1); usolu2 = zeros(2*nnodes,1);
 fsolu3 = zeros(2*nboun2,1); usolu3 = zeros(2*nnodes,1);
 fsolu4 = zeros(2*nboun2,1); usolu4 = zeros(2*nnodes,1);
 szB = 0;
+szD = size(LhsA,2);
 for i=1:szD
    usolu1(dof2nodes(i)) = Solu1(i);
    usolu2(dof2nodes(i)) = Solu2(i);
@@ -611,6 +925,7 @@ figure;
 hold on;
 plot(toplot(2:2:end),'Color','red');
 plot(toplot2(2:2:end),'Color','blue');
+legend('Uy identified', 'Uy reference');
 
 % Graph for f
 toplot = fsolu1no(b2nodesnoN); toplot2 = f1ref(b2nodesnoN);
@@ -618,6 +933,7 @@ figure;
 hold on;
 plot(toplot(2:2:end),'Color','red');
 plot(toplot2(2:2:end),'Color','blue');
+legend('Fy identified', 'Fy reference');
 
 erroru = norm(usolu1(b2nodesnoD)-u1ref(b2nodesnoD))   / norm(u1ref(b2nodesnoD));
 errorf = norm(fsolu1no(b2nodesnoN)-f1ref(b2nodesnoN)) / norm(f1ref(b2nodesnoN));

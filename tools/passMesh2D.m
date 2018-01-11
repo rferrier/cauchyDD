@@ -14,12 +14,18 @@ function u2 = passMesh2D (nodes1, elements1, nodes2, elements2, u1, varargin)
  u2 = zeros( 2*nnodes2, s2 );
  
  if numel(varargin) > 0
+    onlybound = cell2mat(varargin(1));
+ else
+    onlybound = 0;
+ end
+ 
+ if onlybound == 1
     boundary = cell2mat(varargin(1));
-    [ ~ , list ] = mapBound3D( 0, boundary, nnodes2 ); list = list';
+    [ ~ , list ] = mapBound( 0, boundary, nnodes2 ); list = list';
  else
     list = 1:nnodes2;
  end
- 
+
  % Parfor is only for ornament on Octave
  for i = list % Find the triangle for this node
     x = nodes2(i,1); y = nodes2(i,2);
@@ -37,6 +43,7 @@ function u2 = passMesh2D (nodes1, elements1, nodes2, elements2, u1, varargin)
     j2 = find(D0.*D2 >= 0);
     j3 = find(D0.*D3 >= 0);
     j = intersect( intersect(j1,j2) , j3);
+
     % A node can be at a frontier, in that case, choose a random element (the first one)
     if size(j) >= 1
        j = j(1);

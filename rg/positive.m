@@ -6,15 +6,19 @@ close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
 pm4        = 4; % Position of the 1d line
-kpen       = 1e4;%Penalization parameter
-ordp       = 8;
+kpen       = 0;%Penalization parameter
+ordp       = 13;
 upper_term = 0;
 
-VAR = load('fields/AnBnoplane615.mat');
+%VAR = load('fields/AnBnoplane615.mat');
 %VAR = load('fields/AnBm15b2.mat');
-%VAR = load('fields/AnBm15.mat');
+VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs15b1.mat');
+solpoly = csvread('fields/rg3d_four.csv');
+linesolpoly = load('fields/fourier3D2D.mat');
+lpoly = linesolpoly.solu;
+
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
 L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
@@ -117,6 +121,13 @@ shading interp;
 colorbar();
 axis('equal');
 
+figure;
+hold on;
+surf(X,Y,solpoly);
+shading interp;
+colorbar();
+axis('equal');
+
 toc
 
 error0 = norm(solu0-uplo1)/norm(uplo1);
@@ -139,5 +150,6 @@ end
 
 plot( Y, solup, 'Color', 'black' );
 plot( Y, solu0, 'Color', 'blue' );
+plot( Y, lpoly, 'Color', 'green' );
 plot( Y, uplo(3:3:end), 'Color', 'red' );
-legend('filtred','unfiltred','reference');
+legend('filtred','unfiltred','fourier','reference');

@@ -1,5 +1,5 @@
 % 02/11/2017
-% Problèmes d'identification de fissure avec données manquantes par RG
+% Problèmes d'identification de fissure avec données manquantes par RG (pas fini)
 
 tic
 close all;

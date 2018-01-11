@@ -6,16 +6,19 @@ close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
 pm4        = 4; % Position of the 1d line
-mu         = 1e-4;%5e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
+mu         = 1e-3;%1e-4;%5e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
 %mu         = 0;%1e-2;
 epsilon    = 1e-7; % Regularization parameter for TV
-ordp       = 11;
+ordp       = 12;
 normU      = 1;   % Use L1 or L2 minimization
 jmax       = 20;  % Coefficient for Picard stuff (if normU == 3)
-upper_term = 1;
+upper_term = 0;
+id_crack   = 0;  % Should I identify the crack (binary stuff) ?
+threshold  = .1;  % Threshold for the crack
 
-VAR = load('fields/AnBs15.mat');
-%VAR = load('fields/AnBm15b10.mat');
+%VAR = load('fields/AnBnoplanel615.mat');
+%VAR = load('fields/AnBs15.mat');
+VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs1013.mat');
@@ -23,6 +26,7 @@ VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBlosangel615.mat');
 %VAR = load('fields/AnBlosange2l615.mat');
 %VAR = load('fields/AnBsmile615.mat');
+%VAR = load('fields/AnBs215b1.mat');
 
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
@@ -159,7 +163,7 @@ Isum = Isum*nxs*nys;
 %   figure;
 %   plot(log10(nres(1:i)));
    
-%% Steepest descent
+%% Relaxed Newton %Steepest descent
 if normU == 1
    sol   = zeros(size(Rhs),1); % Initialize
    crit  = zeros(100,1); crit2 = zeros(100,1); diff = zeros(100,1);
@@ -179,11 +183,12 @@ if normU == 1
                   mu*(Isum'*sqrt((Ax*sol).^2+epsilon)+Isum'*sqrt((Ay*sol).^2+epsilon));
    
    i = 1;
-   for j=1:10000
+   for j=1:5000
       % Compute signs
       ix = Ax*solp; iy = Ay*solp;
 %      Sx = sign(ix); Sy = sign(iy);
       Sx = ix./(sqrt(ix.^2)+epsilon); Sy = iy./(sqrt(iy.^2)+epsilon);
+      Ux = epsilon/(ix.^2+epsilon).^(3/2); Uy = epsilon/(iy.^2+epsilon).^(3/2);
       Xr(:,i) = ix; Yr(:,i) = iy;
       
       Sxr(:,i) = Sx; Syr(:,i) = Sy;
@@ -191,14 +196,17 @@ if normU == 1
       % Right hand side
       b = mu*transpose( (Isum.*Sx)'*Ax + (Isum.*Sy)'*Ay );
 
+      Atan = Lhs + mu*( Ax'*(Isum.*Ux)*(Isum.*Ux)'*Ax +...
+                        Ay'*(Isum.*Uy)*(Isum.*Ux)'*Ay );
+      
       dire = zeros(size(Rhs));
-      dire(tokeep) = solp(tokeep) + Lhs(tokeep,tokeep)\(b(tokeep)+Rhs(tokeep)); % preconditionned steepest descent direction
+      dire(tokeep) = solp(tokeep) + Atan(tokeep,tokeep)\(b(tokeep)+Rhs(tokeep)); % preconditionned steepest descent direction
 %      dire = Lhs*solp + b + Rhs; % steepest descent direction
 
       sol = solp - relax*dire;
       
       relaxrec(i)  = relax;
-      quadratic(i) = .5*sol'*Lhs*sol + sol'*Rhs;
+      quadratic(i) = .5*sol(tokeep)'*Lhs(tokeep,tokeep)*sol(tokeep) + sol(tokeep)'*Rhs(tokeep);
       absolute(i)  = mu*(Isum'*sqrt((Ax*sol).^2+epsilon)+Isum'*sqrt((Ay*sol).^2+epsilon));
       fctest(i)    = quadratic(i) + absolute(i);
       
@@ -324,9 +332,47 @@ axis('equal');
 
 toc
 
-error0 = norm(solu0-uplo1)/norm(uplo1);
-error1 = norm(solup-uplo1)/norm(uplo1);
-gap    = norm(solup-solu0)/norm(solu0);
+error0 = norm(solu0(:)-uplo1(:))/norm(uplo1(:));
+error1 = norm(solup(:)-uplo1(:))/norm(uplo1(:));
+gap    = norm(solup(:)-solu0(:))/norm(solu0(:));
+
+if id_crack == 1 % Identify the crack
+   crackID = zeros(size(solup));
+   maxto = max(max(solup))*threshold;
+   tofind = find( solup>maxto )-1;
+   indicei = rem( tofind , size(solup,1) )+1;
+   indicej = floor( tofind / size(solup,1) )+1;
+   
+   for i = 1:size(tofind,1)
+      crackID(indicei(i),indicej(i)) = 1;
+   end
+   
+   crackRef = zeros(size(uplo1));
+   maxto = max(max(uplo1))*1e-5;
+   tofind = find( uplo1>maxto )-1;
+   indicei = rem( tofind , size(uplo1,1) )+1;
+   indicej = floor( tofind / size(uplo1,1) )+1;
+   
+   for i = 1:size(tofind,1)
+      crackRef(indicei(i),indicej(i)) = 1;
+   end
+
+   figure;
+   hold on;
+   surf(X,Y,crackRef);
+   shading interp;
+   colorbar();
+   axis('equal');
+
+   figure;
+   hold on;
+   surf(X,Y,crackID);
+   shading interp;
+   colorbar();
+   axis('equal');
+   
+   errorID = norm(crackID(:)-crackRef(:))/norm(crackRef(:));
+end
 
 % Plot on the line X = 4
 figure;

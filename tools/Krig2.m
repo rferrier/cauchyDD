@@ -11,6 +11,7 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
  
  % mat = [0, E, nu] if isotropic
  % mat = [1, Ex, Ey, nuxy, Gxy] TODO : add rotation of the axis
+ % mat = [1.5, k11, k12, k22, k33] orthotropic, but with identification coefficients
  
  % output : K    : global stiffness matrix
  %          ntot : number of nodes on the uy=0 border
@@ -43,9 +44,18 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
     end
  elseif mat(1) == 1
     Ex = mat(2); Ey = mat(3); nuxy = mat(4); Gxy = mat(5);
-    S = [1/Ex, -nuxy/E1, 0;...
-         -nuxy/E1, 1/Ey, 0;...
+    S = [1/Ex, -nuxy/Ex, 0;...  % Rem : nuxy/Ex = nuyx/Ey
+         -nuxy/Ex, 1/Ey, 0;...
          0, 0, 1/Gxy];
+    Sm1 = inv(S);
+    if mo == 1   % TODO : difference between plan constraints and deformations.
+       warning('Using plane deformation, not plane constraints as required')
+    end
+ elseif mat(1) == 1.5
+    k11 = mat(2); k12 = mat(3); k22 = mat(4); k33 = mat(5);
+    Sm1 = [k11, k12, 0;... 
+         k12, k22, 0;...
+         0, 0, k33];
     if mo == 1   % TODO : difference between plan constraints and deformations.
        warning('Using plane deformation, not plane constraints as required')
     end

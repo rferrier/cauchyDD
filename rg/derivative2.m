@@ -4,22 +4,25 @@
 clear all;
 close all;
  
-Norm       = 2;
-ordpD      = 11;
-ordp       = 11;
+Norm       = 1;
+ordpD      = 15;
+ordp       = 15;
 sideL      = 20; % Nb of points on the domain (for integral approximation)
 pm4        = 4; % Position of the 1d line
 upper_term = 0; % If 0 : keep only terms st i+j<ordp
+id_crack   = 0;  % Should I identify the crack (binary stuff) ?
+threshold  = .1;  % Threshold for the crack
 
 %VAR = load('fields/AnBnoplanel615.mat');
 %VAR = load('fields/AnBsmile615.mat');
 %VAR = load('fields/AnBlosange2l615.mat');
 %VAR = load('fields/AnBlosange615.mat');
-%VAR = load('fields/AnBm15b10.mat');
+%VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBs1013.mat');
-%VAR = load('fields/AnBm15.mat');
-VAR = load('fields/AnBs15.mat');
+VAR = load('fields/AnBm15.mat');
+%VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs15b1.mat');
+%VAR = load('fields/AnBs215b1.mat');
 %VAR = load('fields/AnBs215b1.mat');
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
@@ -259,7 +262,45 @@ if Norm == 2
    colorbar();
    axis('equal');
    
-   error = norm( solupp-uplo1 ) / norm(uplo1);
+   error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
+   
+   if id_crack == 1 % Identify the crack
+      crackID = zeros(size(solupp));
+      maxto = max(max(solupp))*threshold;
+      tofind = find( solupp>maxto )-1;
+      indicei = rem( tofind , size(solupp,1) )+1;
+      indicej = floor( tofind / size(solupp,1) )+1;
+      
+      for i = 1:size(tofind,1)
+         crackID(indicei(i),indicej(i)) = 1;
+      end
+      
+      crackRef = zeros(size(uplo1));
+      maxto = max(max(uplo1))*1e-5;
+      tofind = find( uplo1>maxto )-1;
+      indicei = rem( tofind , size(uplo1,1) )+1;
+      indicej = floor( tofind / size(uplo1,1) )+1;
+      
+      for i = 1:size(tofind,1)
+         crackRef(indicei(i),indicej(i)) = 1;
+      end
+   
+      figure;
+      hold on;
+      surf(X,Y,crackRef);
+      shading interp;
+      colorbar();
+      axis('equal');
+   
+      figure;
+      hold on;
+      surf(X,Y,crackID);
+      shading interp;
+      colorbar();
+      axis('equal');
+      
+      errorID = norm(crackID(:)-crackRef(:))/norm(crackRef(:));
+   end
 
 elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
    % First task : build the matrix giving the derivatives from the coefficients
@@ -599,7 +640,45 @@ elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
    colorbar();
    axis('equal');
    
-   error = norm( solupp-uplo1 ) / norm(uplo1);
+   error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
+   
+   if id_crack == 1 % Identify the crack
+      crackID = zeros(size(solupp));
+      maxto = max(max(solupp))*threshold;
+      tofind = find( solupp>maxto )-1;
+      indicei = rem( tofind , size(solupp,1) )+1;
+      indicej = floor( tofind / size(solupp,1) )+1;
+      
+      for i = 1:size(tofind,1)
+         crackID(indicei(i),indicej(i)) = 1;
+      end
+      
+      crackRef = zeros(size(uplo1));
+      maxto = max(max(uplo1))*1e-5;
+      tofind = find( uplo1>maxto )-1;
+      indicei = rem( tofind , size(uplo1,1) )+1;
+      indicej = floor( tofind / size(uplo1,1) )+1;
+      
+      for i = 1:size(tofind,1)
+         crackRef(indicei(i),indicej(i)) = 1;
+      end
+   
+      figure;
+      hold on;
+      surf(X,Y,crackRef);
+      shading interp;
+      colorbar();
+      axis('equal');
+   
+      figure;
+      hold on;
+      surf(X,Y,crackID);
+      shading interp;
+      colorbar();
+      axis('equal');
+      
+      errorID = norm(crackID(:)-crackRef(:))/norm(crackRef(:));
+   end
    
 else % No gradient stuff
    solupp = solup;

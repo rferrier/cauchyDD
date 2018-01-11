@@ -13,7 +13,7 @@ function [ node2b, b2node ] = mapBound( entity, boundary, nnodes, varargin )
  j = 1;
  inodes = zeros(nnodes,1);   % Stores the nodes that were already returned.
  for i=1:size(boundary,1)
-     if boundary(i,1) == entity
+     if boundary(i,1) == entity || entity == 0
 %         ok1 = 1;  % Is node 1 in exNo ?
 %         ok2 = 1;
          ok = ones(size(boundary,2));

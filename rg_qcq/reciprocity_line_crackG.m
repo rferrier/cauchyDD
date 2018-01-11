@@ -367,7 +367,7 @@ if recompute == 1
                % Compute sigma.n
                s11 = E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj;
                s22 = nu*E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj;
-               s12 = E/(2*(1+nu))*bij*ii*X^(ii-1)*X^jj;
+               s12 = E/(2*(1+nu))*bij*ii*X^(ii-1)*Y^jj;
                
                st = [s11,s12 ; s12,s22];
                ft = st*nor(j,:)';
@@ -397,7 +397,7 @@ if recompute == 1
                   % Compute sigma.n
                   s11 = E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj + nu*E/(1-nu^2)*bij*jj*X^ii*Y^(jj-1);
                   s22 = nu*E/(1-nu^2)*aij*ii*X^(ii-1)*Y^jj + E/(1-nu^2)*bij*jj*X^ii*Y^(jj-1);
-                  s12 = E/(2*(1+nu)) * (aij*jj*X^ii*Y^(jj-1) + bij*ii*X^(ii-1)*X^jj);
+                  s12 = E/(2*(1+nu)) * (aij*jj*X^ii*Y^(jj-1) + bij*ii*X^(ii-1)*Y^jj);
     
                   st = [s11,s12 ; s12,s22];
                   ft = st*nor(j,:)';
