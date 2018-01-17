@@ -1,6 +1,5 @@
 % 08/01/2018
-% Problèmes directs et de Cauchy par écart à la réciprocité, 
-% Ajout d'une fissure
+% Problèmes directs et de Cauchy par écart à la réciprocité, ajout d'une fissure
 
 tic
 close all;
@@ -20,8 +19,8 @@ upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 0;      % Recompute the operators
 RGorSP     = 1;      % Deactivated
-theta1     = pi/4;%pi%pi/2;%%pi/2;   %
-theta2     = 5*pi/4;%0%3*pi/2;%0;%3*pi/2; % Angles of the crack (will be determined in a loop later)
+theta1     = pi;%0.58800;%pi;%pi%pi/2;%%pi/2;   %
+theta2     = 0;%3.7296;%0%3*pi/2;%0;%3*pi/2; % Angles of the crack (will be determined in a loop later)
 anglestep  = pi/5;  % Step in angle for Markov search
 nbstep     = 100;
 Npg        = 2;      % Nb Gauss points
@@ -44,12 +43,13 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
 %neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [4,1,0 ; 4,2,0];
-dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];  
+%dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
-
 nnodes = size(nodes,1);
 
 % mapBounds
@@ -88,6 +88,59 @@ sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
 
 % Output :
 plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
+
+%% Find the reference angles of the crack
+x1 = nodes(5,1); y1 = nodes(5,2);
+x2 = nodes(6,1); y2 = nodes(6,2);
+
+xmin = min(nodes(:,1)); xmax = max(nodes(:,1));
+ymin = min(nodes(:,2)); ymax = max(nodes(:,2));
+xb = .5*(xmin+xmax); yb = .5*(ymin+ymax);
+ma11 = [ 0, -(xb-x1) ; ymin-ymax, -(yb-y1) ]; bh11 = [ x1-xmax ; y1-ymax];
+ma12 = [ 0, -(xb-x2) ; ymin-ymax, -(yb-y2) ]; bh12 = [ x2-xmax ; y2-ymax];
+ma21 = [ xmax-xmin, -(xb-x1) ; 0, -(yb-y1) ]; bh21 = [ x1-xmin ; y1-ymax];
+ma22 = [ xmax-xmin, -(xb-x2) ; 0, -(yb-y2) ]; bh22 = [ x2-xmin ; y2-ymax];
+ma31 = [ 0, -(xb-x1) ; ymax-ymin, -(yb-y1) ]; bh31 = [ x1-xmin ; y1-ymin];
+ma32 = [ 0, -(xb-x2) ; ymax-ymin, -(yb-y2) ]; bh32 = [ x2-xmin ; y2-ymin];
+ma41 = [ xmin-xmax, -(xb-x1) ; 0, -(yb-y1) ]; bh41 = [ x1-xmax ; y1-ymin];
+ma42 = [ xmin-xmax, -(xb-x2) ; 0, -(yb-y2) ]; bh42 = [ x2-xmax ; y2-ymin];
+
+%warning('off','Octave:singular-matrix'); % Yep, there will be singularity
+tr1s = [ ma11\bh11, ma21\bh21, ma31\bh31, ma41\bh41 ]; % All the intersections
+tr2s = [ ma12\bh12, ma22\bh22, ma32\bh32, ma42\bh42 ];
+%warning('on','Octave:singular-matrix');
+
+% <Ugly_hack>
+ran1 = [ rank(ma11)-1 , rank(ma21)-1 , rank(ma31)-1 , rank(ma41)-1 ]; % Ranks-1
+ran2 = [ rank(ma12)-1 , rank(ma22)-1 , rank(ma32)-1 , rank(ma42)-1 ]; %
+tr1s = tr1s.*ran1; % De-activate singular ones
+tr2s = tr2s.*ran2; %
+% </Ugly_hack>
+
+if max(ran1) == 0 % It's the center !
+   xy1 = [ xb ; yb ]; % TODO : something to get theta1ref = -theta2ref;
+else
+   tr1s = tr1s( :, find(tr1s(2,:)>1) ); % Abscissa must be > 1
+   [~,num] = min(tr1s(2,:));
+   tr1 = tr1s(:,num); u = tr1(2);
+   xy1 = [ (1-u)*x1 + u*xb ; (1-u)*y1 + u*yb ]; % coords of the right intersection
+   theta1ref = atan2( xy1(2)-yb , xy1(1)-xb );
+end
+
+if max(ran2) == 0
+   xy2 = [ xb ; yb ];
+   theta2ref = theta1ref + pi;
+else
+   tr2s = tr2s( :, find(tr2s(2,:)>1), : ); % Radius must be > 0
+   [~,num] = min(tr2s(2,:));
+   tr2 = tr2s(:,num); u = tr2(2);
+   xy2 = [ (1-u)*x2 + u*xb ; (1-u)*y2 + u*yb ] % coords of the right intersection
+   theta1ref = atan2( xy2(2)-yb , xy2(1)-xb );
+end
+
+theta1ref = mod(theta1ref,2*pi);
+theta2ref = mod(theta2ref,2*pi);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
@@ -575,7 +628,7 @@ for iter = 1:nbstep % Markov chain loop
    [~,num] = min(tr2s(2,:));
    tr2 = tr2s(:,num); r = tr2(2);
    xy2 = [ xb + r*cos(theta2) ; yb + r*sin(theta2) ]; % coords of the right intersection
-   
+
 %   % Detect if both points are on the same bound
 %   if (xy1(1) == xy2(1) && (xy1(1) == xmax || xy1(1) == xmin)) || ...
 %      (xy1(2) == xy2(2) && (xy1(1) == ymax || xy1(1) == ymin))
@@ -943,6 +996,9 @@ for iter = 1:nbstep % Markov chain loop
    if phi(iter) == min(phi) % It's the minimum : continue from this one
 %      iter
       Solu1D = Solu1; Solu2D = Solu2; Solu3D = Solu3; Solu4D = Solu4;
+      theta1b = theta1;
+      theta2b = theta2;
+      nodes3b = nodes3;
       reloop = 1;
       while reloop % Check if we aren't in the same quarter
          theta1 = theta1 + (2*rand()-1)*anglestep; theta1 = mod(theta1,2*pi);
@@ -960,8 +1016,6 @@ for iter = 1:nbstep % Markov chain loop
          
          reloop = in11&&in21 || in12&&in22 || in13&&in23 || in14&&in24;
       end
-      theta1b = theta1;
-      theta2b = theta2;
    else % otherwise : continue from the previous one
       reloop = 1;
       while reloop % Check if we aren't in the same quarter
@@ -1024,25 +1078,25 @@ ucrsol2 = Solu2(end-2*nnodes3+1:end);
 ucrsol3 = Solu3(end-2*nnodes3+1:end);
 ucrsol4 = Solu4(end-2*nnodes3+1:end);
 
-% Segments visu
-toplot = fsolu2(1:2:end-1);
-%toplot = usolu1(2:2:end);
-figure; hold on;
-minn1 = min(toplot); maxn1 = max(toplot);
-for i=1:nboun2
-   no1 = boundary2(i,2); no2 = boundary2(i,3);
-   x1 = nodesu(no1,1); y1 = nodesu(no1,2);
-   x2 = nodesu(no2,1); y2 = nodesu(no2,2);
-   
-   x = (toplot(i)-minn1)/(maxn1-minn1);
-   rgb = rgbmap(x);
-   plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
-end
-%axis equal;
-colormap('default')
-h = colorbar();
-ytick = get (h, 'ytick');
-set (h, 'yticklabel', sprintf ( '%g|', (maxn1-minn1)*ytick+minn1 ));
+%% Segments visu
+%toplot = fsolu2(1:2:end-1);
+%%toplot = usolu1(2:2:end);
+%figure; hold on;
+%minn1 = min(toplot); maxn1 = max(toplot);
+%for i=1:nboun2
+%   no1 = boundary2(i,2); no2 = boundary2(i,3);
+%   x1 = nodesu(no1,1); y1 = nodesu(no1,2);
+%   x2 = nodesu(no2,1); y2 = nodesu(no2,2);
+%   
+%   x = (toplot(i)-minn1)/(maxn1-minn1);
+%   rgb = rgbmap(x);
+%   plot( [x1,x2], [y1,y2], 'Color', rgb, 'LineWidth', 3 );
+%end
+%%axis equal;
+%colormap('default')
+%h = colorbar();
+%ytick = get (h, 'ytick');
+%set (h, 'yticklabel', sprintf ( '%g|', (maxn1-minn1)*ytick+minn1 ));
 
 % Compute the values of f at the dofs
 fsolu1no = zeros(2*nnodes2);
@@ -1060,9 +1114,13 @@ for i=1:size(b2nodesnoN)
    if rem(b2nodesnoNi,2)==0
       fsolu1no(b2nodesnoNi) = .5*( fsolu1(2*boound(1))*len1 + fsolu1(2*boound(2))*len2 );
       fsolu2no(b2nodesnoNi) = .5*( fsolu2(2*boound(1))*len1 + fsolu2(2*boound(2))*len2 );
+      fsolu3no(b2nodesnoNi) = .5*( fsolu3(2*boound(1))*len1 + fsolu3(2*boound(2))*len2 );
+      fsolu4no(b2nodesnoNi) = .5*( fsolu4(2*boound(1))*len1 + fsolu4(2*boound(2))*len2 );
    else
       fsolu1no(b2nodesnoNi) = .5*( fsolu1(2*boound(1)-1)*len1 + fsolu1(2*boound(2)-1)*len2 );
       fsolu2no(b2nodesnoNi) = .5*( fsolu2(2*boound(1)-1)*len1 + fsolu2(2*boound(2)-1)*len2 );
+      fsolu3no(b2nodesnoNi) = .5*( fsolu3(2*boound(1)-1)*len1 + fsolu3(2*boound(2)-1)*len2 );
+      fsolu4no(b2nodesnoNi) = .5*( fsolu4(2*boound(1)-1)*len1 + fsolu4(2*boound(2)-1)*len2 );
    end
 end
 
@@ -1080,7 +1138,20 @@ figure;
 hold on;
 plot(theta1pi,'Color','red');
 plot(theta2pi,'Color','blue');
-legend('theta1/pi (obj : pi/2)', 'theta2/pi (obj : 3pi/2)');
+plot(theta1ref/pi*theta1pi./theta1pi,'Color','black'); % I love disgusting hacks
+plot(theta2ref/pi*theta1pi./theta1pi,'Color','black');
+legend('theta1/pi', 'theta2/pi','theta1ref/pi', 'theta2ref/pi');
+
+% Vizualize the crack's line
+figure; hold on;
+
+x1 = nodes3b(1,1);   y1 = nodes3b(1,2);
+x2 = nodes3b(end,1); y2 = nodes3b(end,2);
+plot( [xmin,xmax], [ymin,ymin], 'Color', 'black');
+plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
+plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
+plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
+plot( [x1,x2], [y1,y2], 'Color', 'black', 'LineWidth', 3 );
 
 figure;
 plot(phi,'Color','red');
@@ -1095,7 +1166,7 @@ plot(toplot2(1:2:end-1),'Color','blue');
 legend('Fy identified', 'Fy reference');
 
 % Graph for [[u]]
-toplot = ucrsol2;
+toplot = ucrsol4;
 figure;
 plot(toplot(1:2:end-1),'Color','red');
 legend('[[u]]');

@@ -14,14 +14,14 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 35;     % Eigenvalues truncation number
-jmaxSP     = 100;
-jmaxRGSP   = 120;
+jmaxRG     = 27;     % Eigenvalues truncation number
+jmaxSP     = 75;
+jmaxRGSP   = 95;
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
-recompute  = 1;      % Recompute the operators
-RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
+recompute  = 0;      % Recompute the operators
+RGorSP     = 3;      % Use RG(1), SP(2) or mix(3)
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -34,13 +34,19 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0 = [];
-dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
-neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+neumann0   = [4,1,0 ; 4,2,0];
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [4,1,0 ; 4,2,0];
+%neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%neumann0   = [2,1,0 ; 2,2,0];
+%dirichlet0 = [1,1,0 ; 1,2,0];
+%neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
+[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nu_r.msh' );
 
 nnodes = size(nodes,1);
 
@@ -82,7 +88,7 @@ sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
 plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu_r.msh' );
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet);
 Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
@@ -269,77 +275,122 @@ tofindD = setdiff( 1:2*nnbound2 , knownD );
 tofindN = setdiff( 1:2*nnbound2 , knownN );
 %%
 
-[ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
+[ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu_r.msh' );
 nnodesu = size(nodesu,1);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Solve via reciprocity gap
+% Build the polynomial test functions.
+load('conditions20_2d.mat','-ascii');
+M = spconvert(conditions20_2d); clear('conditions20_2d');
+nmax = 20;
+ncoef =2*(nmax+1)^2; neq = ncoef;
+
+% Suppress the superior terms
+if upper_term == 0 % Rem : there will be lots of 0 in coef
+   for i=0:nmax
+      for j=0:nmax
+         if i+j>nmax
+            M((nmax+1)*i+j+1,:) = 0;
+            M((nmax+1)*i+j+1,(nmax+1)*i+j+1) = 1;
+         end
+      end
+   end
+end
+
+% Suppress zeros rows
+toremove = [];
+for k=1:size(M,1)
+  if norm(M(k,:)) == 0
+     toremove(end+1) = k;
+  end
+end
+M(toremove,:) = [];
+
+coef   = null(full(M));
+nftest = size(coef,2); % Nb of avaliable test functions
+
+%% Build the (Petrov-Galerkin) Left Hand Side
+nelemu = size(elementsu,1); nn = size(elementsu,2); %nn=3
+
+% Build the list of segment elements
+nseg = nn*nelemu; segel = zeros(nseg,2); nbu = size(boundaryu,1);
+for j=1:nelemu
+   segel(nn*(j-1)+1,1) = elementsu(j,2);
+   segel(nn*(j-1)+1,2) = elementsu(j,3);
+   segel(nn*(j-1)+2,1) = elementsu(j,1);
+   segel(nn*(j-1)+2,2) = elementsu(j,3);
+   segel(nn*(j-1)+3,1) = elementsu(j,2);
+   segel(nn*(j-1)+3,2) = elementsu(j,1);
+end
+j = 1;
+while j <= nseg % Remove redundancy (I don't use unique because of inverted values)
+   lis1 = find( segel(1:j-1,:) == segel(j,1) );
+   lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j + 1;
+   lis2 = find( segel(1:j-1,:) == segel(j,2) );
+   lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j + 1;
+   
+   % also remove boundary elements
+   lis3 = find( boundaryu(:,2:3) == segel(j,1) );
+   lis3( find(lis3>nbu) ) = lis3( find(lis3>nbu) ) - nbu;
+   lis4 = find( boundaryu(:,2:3) == segel(j,2) );
+   lis4( find(lis4>nbu) ) = lis4( find(lis4>nbu) ) - nbu;
+   
+   if min(size( intersect(lis1,lis2) )) > 0 || min(size( intersect(lis3,lis4) )) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
+      segel(j,:) = [];
+      j = j-1;
+      nseg = nseg-1;
+   end
+   j = j+1;
+end
+
+%%
+% Transform the given data in the proper format
+f_known1 = zeros(2*nboun2,1); u_known1 = zeros(2*nnbound2,1);
+f_known2 = zeros(2*nboun2,1); u_known2 = zeros(2*nnbound2,1);
+f_known3 = zeros(2*nboun2,1); u_known3 = zeros(2*nnbound2,1);
+f_known4 = zeros(2*nboun2,1); u_known4 = zeros(2*nnbound2,1);
+
+for i=1:nboun2
+   bonod = boundary2(i,:); exno = extnorm2(i,:)';
+   % Reference force from the BC's
+   if exno(1) == 1 % Bound 2
+      fer1 = [0;0]; fer2 = [fscalar;0];
+      fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
+   elseif exno(1) == -1 % Bound 4
+      fer1 = [0;0]; fer2 = -[fscalar;0];
+      fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
+   elseif exno(2) == 1 % Bound 3
+      fer1 = [0;fscalar]; fer2 = [0;0];
+      fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];
+   elseif exno(2) == -1 % Bound 1
+      fer1 = -[0;fscalar]; fer2 = [0;0];
+      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+   end
+   
+   indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
+   indicesGlo = [2*boundary(i,[2,3])-1,2*boundary(i,[2,3])]; % Global Displacement dofs
+   
+   u_known1(indicesLoc) = u1(indicesGlo);
+   u_known2(indicesLoc) = u2(indicesGlo);
+   u_known3(indicesLoc) = u3(indicesGlo);
+   u_known4(indicesLoc) = u4(indicesGlo);
+   
+   f_known1([2*i-1,2*i]) = fer1;
+   f_known2([2*i-1,2*i]) = fer2;
+   f_known3([2*i-1,2*i]) = fer3;
+   f_known4([2*i-1,2*i]) = fer4;
+end
+%%
+% Restrict the data on the given part (not necessary, but cleaner)
+f_known1(tofindN) = 0; f_known2(tofindN) = 0;
+f_known3(tofindN) = 0; f_known4(tofindN) = 0;
+u_known1(tofindD) = 0; u_known2(tofindD) = 0;
+u_known3(tofindD) = 0; u_known4(tofindD) = 0;
 
 disp([ 'Direct problem solved and data management ', num2str(toc) ]);
 if recompute == 1
    tic
-   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-   %% Solve via reciprocity gap
-   % Build the polynomial test functions.
-   load('conditions10_2d.mat','-ascii');
-   M = spconvert(conditions10_2d); clear('conditions10_2d');
-   nmax = 10;
-   ncoef =2*(nmax+1)^2; neq = ncoef;
-   
-   % Suppress the superior terms
-   if upper_term == 0 % Rem : there will be lots of 0 in coef
-      for i=0:nmax
-         for j=0:nmax
-            if i+j>nmax
-               M((nmax+1)*i+j+1,:) = 0;
-               M((nmax+1)*i+j+1,(nmax+1)*i+j+1) = 1;
-            end
-         end
-      end
-   end
-   
-   % Suppress zeros rows
-   toremove = [];
-   for k=1:size(M,1)
-     if norm(M(k,:)) == 0
-        toremove(end+1) = k;
-     end
-   end
-   M(toremove,:) = [];
-   
-   coef   = null(full(M));
-   nftest = size(coef,2); % Nb of avaliable test functions
-   
-   %% Build the (Petrov-Galerkin) Left Hand Side
-   nelemu = size(elementsu,1); nn = size(elementsu,2); %nn=3
-   
-   % Build the list of segment elements
-   nseg = nn*nelemu; segel = zeros(nseg,2); nbu = size(boundaryu,1);
-   for j=1:nelemu
-      segel(nn*(j-1)+1,1) = elementsu(j,2);
-      segel(nn*(j-1)+1,2) = elementsu(j,3);
-      segel(nn*(j-1)+2,1) = elementsu(j,1);
-      segel(nn*(j-1)+2,2) = elementsu(j,3);
-      segel(nn*(j-1)+3,1) = elementsu(j,2);
-      segel(nn*(j-1)+3,2) = elementsu(j,1);
-   end
-   j = 1;
-   while j <= nseg % Remove redundancy (I don't use unique because of inverted values)
-      lis1 = find( segel(1:j-1,:) == segel(j,1) );
-      lis1( find(lis1>j-1) ) = lis1( find(lis1>j-1) ) - j + 1;
-      lis2 = find( segel(1:j-1,:) == segel(j,2) );
-      lis2( find(lis2>j-1) ) = lis2( find(lis2>j-1) ) - j + 1;
-      
-      % also remove boundary elements
-      lis3 = find( boundaryu(:,2:3) == segel(j,1) );
-      lis3( find(lis3>nbu) ) = lis3( find(lis3>nbu) ) - nbu;
-      lis4 = find( boundaryu(:,2:3) == segel(j,2) );
-      lis4( find(lis4>nbu) ) = lis4( find(lis4>nbu) ) - nbu;
-      
-      if min(size( intersect(lis1,lis2) )) > 0 || min(size( intersect(lis3,lis4) )) > 0% || (size(lis3,1) > 0 || size(lis4,1) > 0)%
-         segel(j,:) = [];
-         j = j-1;
-         nseg = nseg-1;
-      end
-      j = j+1;
-   end
    
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Compute the RG and the Lhs
@@ -367,9 +418,9 @@ if recompute == 1
          indNtot = [2*i-1,2*i]; % F dofs the element is associated to
          
          if order==1
-            Ng = 1; % (anyway, it's inexact)
+            Ng = 2; % (anyway, it's inexact)
          elseif order==2
-            Ng  = 1; no3 = bonod(4);
+            Ng  = 2; no3 = bonod(4);
             x3  = nodes2(no3,1); y3 = nodes2(no3,2);
          end
          [ Xg, Wg ] = gaussPt1d( Ng );
@@ -484,57 +535,13 @@ if recompute == 1
 
    % Cut LhsA
    LhsA = LhsA( :, find(sum(LhsA.^2)) );
-   
-   %%
-   % Transform the given data in the proper format
-   f_known1 = zeros(2*nboun2,1); u_known1 = zeros(2*nnbound2,1);
-   f_known2 = zeros(2*nboun2,1); u_known2 = zeros(2*nnbound2,1);
-   f_known3 = zeros(2*nboun2,1); u_known3 = zeros(2*nnbound2,1);
-   f_known4 = zeros(2*nboun2,1); u_known4 = zeros(2*nnbound2,1);
-   
-   for i=1:nboun2
-      bonod = boundary2(i,:); exno = extnorm2(i,:)';
-      % Reference force from the BC's
-      if exno(1) == 1 % Bound 2
-         fer1 = [0;0]; fer2 = [fscalar;0];
-         fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
-      elseif exno(1) == -1 % Bound 4
-         fer1 = [0;0]; fer2 = -[fscalar;0];
-         fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
-      elseif exno(2) == 1 % Bound 3
-         fer1 = [0;fscalar]; fer2 = [0;0];
-         fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];
-      elseif exno(2) == -1 % Bound 1
-         fer1 = -[0;fscalar]; fer2 = [0;0];
-         fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
-      end
-      
-      indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
-      indicesGlo = [2*boundary(i,[2,3])-1,2*boundary(i,[2,3])]; % Global Displacement dofs
-      
-      u_known1(indicesLoc) = u1(indicesGlo);
-      u_known2(indicesLoc) = u2(indicesGlo);
-      u_known3(indicesLoc) = u3(indicesGlo);
-      u_known4(indicesLoc) = u4(indicesGlo);
-      
-      f_known1([2*i-1,2*i]) = fer1;
-      f_known2([2*i-1,2*i]) = fer2;
-      f_known3([2*i-1,2*i]) = fer3;
-      f_known4([2*i-1,2*i]) = fer4;
-   end
-   %%
-   % Restrict the data on the given part (not necessary, but cleaner)
-   f_known1(tofindN) = 0; f_known2(tofindN) = 0;
-   f_known3(tofindN) = 0; f_known4(tofindN) = 0;
-   u_known1(tofindD) = 0; u_known2(tofindD) = 0;
-   u_known3(tofindD) = 0; u_known4(tofindD) = 0;
 
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
    Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat');
    Rf  = Anb.Rf; Ru  = Anb.Ru;
-   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
-   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
+%   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
+%   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
 end
 tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -551,7 +558,7 @@ Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
 Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
 
 % Build the matrix that passes f on dofs on the nodes from the bound
-Fntob = zeros( 2*nnbound2, 2*nboun2 );
+Fntob = zeros( 2*nboun2, 2*nnbound2 );
 for i=1:nboun2
    coef = [ boun2doftot(i,1), boun2doftot(i,2) ];
    len = norm(nodes2(boundary2(i,2),:) - nodes2(boundary2(i,3),:));
@@ -923,16 +930,18 @@ end
 toplot = usolu1(b2nodesnoD); toplot2 = u1ref(b2nodesnoD);
 figure;
 hold on;
-plot(toplot(2:2:end),'Color','red');
-plot(toplot2(2:2:end),'Color','blue');
+set(gca, 'fontsize', 20);
+plot(toplot(2:2:end),'Color','red','LineWidth', 3);
+plot(toplot2(2:2:end),'Color','blue','LineWidth', 3);
 legend('Uy identified', 'Uy reference');
 
 % Graph for f
 toplot = fsolu1no(b2nodesnoN); toplot2 = f1ref(b2nodesnoN);
 figure;
 hold on;
-plot(toplot(2:2:end),'Color','red');
-plot(toplot2(2:2:end),'Color','blue');
+set(gca, 'fontsize', 20);
+plot(toplot(2:2:end),'Color','red','LineWidth', 3);
+plot(toplot2(2:2:end),'Color','blue','LineWidth', 3);
 legend('Fy identified', 'Fy reference');
 
 erroru = norm(usolu1(b2nodesnoD)-u1ref(b2nodesnoD))   / norm(u1ref(b2nodesnoD));

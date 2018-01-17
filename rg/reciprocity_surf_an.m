@@ -596,7 +596,7 @@ if usepolys == 1
    if (norm(diag(Ll)-1,'inf')~=0), warning('diag L has 0 values'); end
    if (size(Uu,1)~=size(Uu,2)), warning('U is not squared'); end
    % Find the kernel of U 
-   z1 = find(abs(diag(Uu))<=epsi); 
+   z1 = find(abs(diag(Uu))<=epsi);
    z1p = setdiff([1:size(Uu,1)]',z1);
    % z1p id invertible, 
    % Schur complement on z1

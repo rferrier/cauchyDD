@@ -30,7 +30,15 @@ function K = stifmat (Xloc,order,A,format)
 %         B1(2,3)/2,B1(1,2)/2,B1(2,2)/2] ;
 %    
 %    K = B'*A*B*Ja;
+
     % TODO : fix because it's KK
+    
+%    D  = [-1,1,0;-1,0,1];
+%    J  = [x21-x11,x31-x11 ; x22-x11,x31-x11];
+%    De = D'*inv(J);
+%    Be = [ De(1,1), 0, De(1,2), 0, De(1,3), 0;
+%           0, De(2,1), 0, De(2,2), 0, De(2,3);
+%           De(1,1), De(2,1), De(1,2), De(2,2), De(1,3), De(2,3) ];
     
     % Other method, dirtier but works
     % Adaptated from a codebase from ?? (someone I don't know)
