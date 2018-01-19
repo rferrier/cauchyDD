@@ -81,7 +81,7 @@ function K = stifmat3D (Xloc,order,A,format)
         K=zeros(6,30);
     end
     
-    for g=1:4,                                   % loop over Gauss points
+    for g=1:4                                    % loop over Gauss points
       a=a_gauss(g,:);                            % coordinates for gauss point
 
       DN=[-3+4*(a(1)+a(2)+a(3)) 4*a(1)-1 0 0 4*(1-2*a(1)-a(2)-a(3))... % derivative of shape functions

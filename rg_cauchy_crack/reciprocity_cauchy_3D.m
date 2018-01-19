@@ -13,16 +13,17 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 80;     % Eigenvalues truncation number
-nmaxRG     = 200;    % nb of computed eigenvalues
-jmaxRGSP   = 60;
-nmaxRGSP   = 300;    % nb of computed eigenvalues
-regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
+jmaxRG     = 40;     % Eigenvalues truncation number
+nmaxRG     = 300;    % nb of computed eigenvalues
+jmaxRGSP   = 2;
+nmaxRGSP   = 10;    % nb of computed eigenvalues
+regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 1;      % Recompute the operators
+matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
 RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
-Npg        = 4;      % Nb Gauss points
+Npg        = 8;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
 
 % Boundary conditions
@@ -96,8 +97,8 @@ for i=1:nboun2
    nx = (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2); %
    ny = (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3); % Vectorial product
    nz = (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2); %
-   surf = .5*sqrt(nx^2+ny^2+nz^2);
-   extnorm(i,:) = [ nx ,ny ,nz ] / (2*surf);
+   surfa = .5*sqrt(nx^2+ny^2+nz^2);
+   extnorm(i,:) = [ nx ,ny ,nz ] / (2*surfa);
 
    if nx*(x4-x1)+ny*(y4-y1)+nz*(z4-z1) > 0 % Check that the normal is exterior
       extnorm(i,:) = -extnorm(i,:);
@@ -106,7 +107,7 @@ for i=1:nboun2
    urr(i,:) = ur( [ 3*no1-2,3*no1-1,3*no1,...
                     3*no2-2,3*no2-1,3*no2,...
                     3*no2-2,3*no2-1,3*no2 ] );
-   frr(i,:) = 1/(3*surf)*( fr([3*no1-2,3*no1-1,3*no1]) +...
+   frr(i,:) = 1/(3*surfa)*( fr([3*no1-2,3*no1-1,3*no1]) +...
                            fr([3*no2-2,3*no2-1,3*no2]) +...
                            fr([3*no3-2,3*no3-1,3*no3]) );
    if order == 2
@@ -129,7 +130,7 @@ end
 
 knownD = unique(knownD); knownN = unique(knownN); % Remove redondnacy
 
-tofindD = setdiff( 1:3*nboun2 , knownD );
+% tofindD = setdiff( 1:3*nboun2 , knownD );
 tofindN = setdiff( 1:3*nboun2 , knownN );
 
 % Associate numerotation of the nodes on the boundary
@@ -233,6 +234,8 @@ if recompute == 1
       warning("order > 1 cases not implemented");
    end
    Ng = Npg;
+   [ Xg, Wg ] = gaussPt( Ng );
+   Ndots = size(Wg,1);
    
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Compute the RG
@@ -248,7 +251,7 @@ if recompute == 1
       nsurf = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
                 (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
                 (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
-      surf = .5*norm(nsurf);
+      surfa = .5*norm(nsurf);
       
       % Dofs in the numerotation of the boundary nodes
       N = boun2loc(i,:);
@@ -258,10 +261,8 @@ if recompute == 1
                   
       % Dofs in the numerotation of the boundary elements
       indNtot = [ 3*i-2, 3*i-1, 3*i ];
-      
-      [ Xg, Wg ] = gaussPt( Ng );
                 
-      for j=1:Ng
+      for j=1:Ndots
          xg = Xg(j,:); wg = Wg(j);
          xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
          
@@ -326,7 +327,6 @@ if recompute == 1
                   vpab = [ 0 ; XYZ ; 0 ];
                   vpac = [ 0 ; 0 ; XYZ ];
 
-%                  umxgx = 1-xg(1)-xg(2);
                   fpaTimesPhitest0a = [ fpaa(1)*umxgx ; fpaa(2)*umxgx ; fpaa(3)*umxgx ;...
                                         fpaa(1)*xg(1) ; fpaa(2)*xg(1) ; fpaa(3)*xg(1) ;...
                                         fpaa(1)*xg(2) ; fpaa(2)*xg(2) ; fpaa(3)*xg(2) ];
@@ -339,7 +339,7 @@ if recompute == 1
 
                   index = (nmax+1)^2*ii + (nmax+1)*jj + kk + 1;
                   nm3   = (nmax+1)^3;
-                  Swg   = surf * wg;
+                  Swg   = surfa * wg;
                   
                   Ruij( index, indDtot ) = Ruij( index, indDtot ) + Swg * fpaTimesPhitest0a';
                   Ruij( nm3 + index, indDtot ) = Ruij( nm3 + index, indDtot ) ...
@@ -359,7 +359,7 @@ if recompute == 1
    Ru = coef'*Ruij; Rf = coef'*Rfij;
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
-   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat');
+   Anb = load(matrixfile);
    Rf  = Anb.Rf; Ru  = Anb.Ru;
 end
 tic
@@ -385,14 +385,14 @@ for i=1:nboun2
    nsurf = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
              (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
              (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
-   surf = .5*norm(nsurf);
+   surfa = .5*norm(nsurf);
       
-   Fntob( 3*i-2, 3*coef-2 ) = 1/(3*surf) * [1,1,1];
-   Fntob( 3*i-1, 3*coef-1 ) = 1/(3*surf) * [1,1,1];
-   Fntob( 3*i  , 3*coef   ) = 1/(3*surf) * [1,1,1];
-   Fbton( 3*coef-2, 3*i-2 ) = surf/3 * [1,1,1];
-   Fbton( 3*coef-1, 3*i-1 ) = surf/3 * [1,1,1];
-   Fbton( 3*coef  , 3*i   ) = surf/3 * [1,1,1];
+   Fntob( 3*i-2, 3*coef-2 ) = 1/(3*surfa) * [1,1,1];
+   Fntob( 3*i-1, 3*coef-1 ) = 1/(3*surfa) * [1,1,1];
+   Fntob( 3*i  , 3*coef   ) = 1/(3*surfa) * [1,1,1];
+   Fbton( 3*coef-2, 3*i-2 ) = surfa/3 * [1,1,1];
+   Fbton( 3*coef-1, 3*i-1 ) = surfa/3 * [1,1,1];
+   Fbton( 3*coef  , 3*i   ) = surfa/3 * [1,1,1];
 end
 
 % If required, use the differential regularization matrix
@@ -425,6 +425,9 @@ elseif regular == 1
    Df = eye(3*nboun2); % No derivative for f
    for i=1:nboun2
       coefU = [ boun2loc(i,1) , boun2loc(i,2) , boun2loc(i,3) ];
+%       coefV = [ 3*boun2loc(i,1)-2 , 3*boun2loc(i,2)-1 , 3*boun2loc(i,3) ,...
+%                 3*boun2loc(i,1)-2 , 3*boun2loc(i,2)-1 , 3*boun2loc(i,3) ,...
+%                 3*boun2loc(i,1)-2 , 3*boun2loc(i,2)-1 , 3*boun2loc(i,3) ];
       
       no1 = boundary2(i,2); no2 = boundary2(i,3); no3 = boundary2(i,4);
       x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
@@ -436,13 +439,19 @@ elseif regular == 1
       Jyz = [y2-y1,y3-y1;z2-z1,z3-z1];   %
       
       D    = [-1,1,0;-1,0,1];
-%      D    = [-1,1,0;-1,0,1;0,0,0];
-%      Dexy = D; Dexz = D; Deyz = D; % No respect -- Vae victis
+%       D    = [-1,1,0;-1,0,1;0,0,0];
+%       Dexy = D; Dexz = D; Deyz = D; % No respect -- Vae victis
       Dexy = D'*pinv(Jxy); Dexz = D'*pinv(Jxz); Deyz = D'*pinv(Jyz);
 
-      Be = .5* [ Dexy(1,1)+Dexz(1,1), Dexy(2,1)+Dexz(2,1), Dexy(3,1)+Dexz(3,1) ;
-                 Dexy(1,2)+Deyz(1,1), Dexy(2,2)+Deyz(2,1), Dexy(3,2)+Deyz(3,1) ;
-                 Dexz(1,2)+Deyz(1,2), Dexz(2,2)+Deyz(2,2), Dexz(3,2)+Deyz(3,2) ];
+%       Be = [ Dexy(1,1)+Dexz(1,1), Dexy(2,1)+Dexz(2,1), Dexy(3,1)+Dexz(3,1) ;
+%              Dexy(1,2)+Deyz(1,1), Dexy(2,2)+Deyz(2,1), Dexy(3,2)+Deyz(3,1) ;
+%              Dexz(1,2)+Deyz(1,2), Dexz(2,2)+Deyz(2,2), Dexz(3,2)+Deyz(3,2) ]; % (a .5 factor has been ommited)
+
+      Be = [ Dexy(1,1), Dexy(2,1), Dexy(3,1) ;
+             Dexy(1,2), Dexy(2,2), Dexy(3,2);
+             0, 0, 0 ];
+
+%       Be = D';
 
       Du( 3*coefU-2, 3*coefU-2 ) = Du( 3*coefU-2, 3*coefU-2 ) + Be;
       Du( 3*coefU-1, 3*coefU-1 ) = Du( 3*coefU-1, 3*coefU-1 ) + Be;
@@ -469,12 +478,12 @@ A = Lhs'*Lhs; b = Lhs'*Rhs;
 if regular == 2
    Dtot = [ Dut , Zutft ;...
             Zutft' , Dft ];
-   L = Dtot'*Dtot;
+   L = Dtot*Dtot';
 elseif regular == 1
-   Dtot = [ Du, zeros( size(Du,1) , size(Df,2) ) ;... %/norm(Du,'fro')
+   Dtot = [ Du/norm(Du,'fro'), zeros( size(Du,1) , size(Df,2) ) ;... %
             zeros( size(Df,1) , size(Du,2) ) , Df ];
-   L = Dtot'*Dtot;
-%   L = L + 1e-3*norm(L,'fro')*eye(size(A)); % This matrix has to be regularized
+   L = Dtot*Dtot'; L0 = L;
+   %L = L + eye(size(A)); % Remove the small eignevalues of L
 else
    L = eye(size(A));
 end
@@ -482,10 +491,10 @@ ninfty = 0;
 
 %L = eye(size(A));
 
-%[~,Theta,Q] = svd(Lhs,L); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
+% [~,Theta,Q] = svd(Lhs,L); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
 %[Q,Theta] = eig(Lhs'*L*Lhs); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
-[Q,Theta] = gradEig(A, L, nmaxRG, 0); Q = Q*real((Q'*L*Q)^(-1/2));
-%[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+[Q,Theta] = gradEig(A, L, nmaxRG, 1, Lhs'*Rhs1, 0); Q = real(Q);%Q = Q*real((Q'*L*Q)^(-1/2));
+% [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
 thetas = diag(Theta);
 [thetas,Ind] = sort( thetas,'descend' );
 Q = Q(:,Ind);
@@ -516,74 +525,74 @@ ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
 bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
 Solu1RG = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
 
-%% SP+RG : Solve the linear system and recover the unknowns
-%tic
-%jmax = jmaxRGSP;
-%Rhs1 = Rur*u_known(knownD) - Rfr*f_known(knownN);
-%if froreg == 1
-%   kB = norm(Rum,'fro')/norm(Rfm,'fro'); % In order to regularize the stuff
-%else
-%   kB = 1;
-%end
-%Lhs  = [ -Rum,kB*Rfm,zeros(size(Rur)),zeros(size(Rfr));...
-%         -Rum,kB*Rfm,zeros(size(Rur)),kB*Rfr ;...
-%         -Rum,kB*Rfm,-Rur,zeros(size(Rfr)) ];
-%%Rhs1 = [ Rur*u_known(knownD) - Rfr*f_known(knownN) ;...
-%%         Rur*u_known(knownD) ; -Rfr*f_known(knownN) ];
-%Rhs1 = [ Rur*u_known(knownD) ; Rur*u_known(knownD) ; zeros(size(Rfr,1),1) ];
-%
-%A = Lhs'*Lhs;
-%
-%if regular == 1 || regular == 2
-%   Zuf   = zeros( size(Du,1) , size(Df,2) );
-%   Zuuk  = zeros( size(Du,1) , size(Duk,2) );
-%   Zufk  = zeros( size(Du,1) , size(Dfk,2) );
-%   Zfuk  = zeros( size(Df,1) , size(Duk,2) );
-%   Zffk  = zeros( size(Df,1) , size(Dfk,2) );
-%   Zukfk = zeros( size(Duk,1) , size(Dfk,2) );
-%   Dtot = [ Du ,Zuf , Zuuk, Zufk ;...
-%            Zuf', Df , Zfuk, Zffk ;...
-%            Zuuk', Zfuk', Duk, Zukfk ;...
-%            Zufk', Zffk', Zukfk', Dfk ];
-%   L = Dtot;
-%else
-%   L = eye(size(A));
-%end
-%
-%ninfty = 0;
-%
-%[Q,Theta] = gradEig(A, L, nmaxRGSP, 0); Q = Q*real((Q'*L*Q)^(-1/2));
-%%[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
-%thetas = diag(Theta);
-%[thetas,Ind] = sort( thetas,'descend' );
-%Q = Q(:,Ind);
-%Thetas = diag(thetas); 
-%Theta = Theta(Ind,Ind);
-%
-%disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
-%% Plot the Picard stuff
-%imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
-%if size(imax,1) == 0
-%    imax = size(thetas,1);
-%end
-%
-%tplo = thetas(ninfty+1:imax); bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
-%rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
-%figure
-%hold on;
-%plot(log10(abs(tplo)),'Color','green');
-%plot(log10(abs(bplo1)),'Color','red');
-%plot(log10(abs(rplo1)),'Color','black');
-%legend('Singular values','Rhs1','sol1');
-%
-%% Filter eigenvalues
-%if jmax == 0
-%   jmax = size(Thetas,1);
-%end
-%ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
-%
-%bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
-%Solu1RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
+% SP+RG : Solve the linear system and recover the unknowns
+tic
+jmax = jmaxRGSP;
+Rhs1 = Rur*u_known(knownD) - Rfr*f_known(knownN);
+if froreg == 1
+  kB = norm(Rum,'fro')/norm(Rfm,'fro'); % In order to regularize the stuff
+else
+  kB = 1;
+end
+Lhs  = [ -Rum,kB*Rfm,zeros(size(Rur)),zeros(size(Rfr));...
+        -Rum,kB*Rfm,zeros(size(Rur)),kB*Rfr ;...
+        -Rum,kB*Rfm,-Rur,zeros(size(Rfr)) ];
+%Rhs1 = [ Rur*u_known(knownD) - Rfr*f_known(knownN) ;...
+%         Rur*u_known(knownD) ; -Rfr*f_known(knownN) ];
+Rhs1 = [ Rur*u_known(knownD) ; Rur*u_known(knownD) ; zeros(size(Rfr,1),1) ];
+
+A = Lhs'*Lhs;
+
+if regular == 1 || regular == 2
+  Zuf   = zeros( size(Du,1) , size(Df,2) );
+  Zuuk  = zeros( size(Du,1) , size(Duk,2) );
+  Zufk  = zeros( size(Du,1) , size(Dfk,2) );
+  Zfuk  = zeros( size(Df,1) , size(Duk,2) );
+  Zffk  = zeros( size(Df,1) , size(Dfk,2) );
+  Zukfk = zeros( size(Duk,1) , size(Dfk,2) );
+  Dtot = [ Du ,Zuf , Zuuk, Zufk ;...
+           Zuf', Df , Zfuk, Zffk ;...
+           Zuuk', Zfuk', Duk, Zukfk ;...
+           Zufk', Zffk', Zukfk', Dfk ];
+  L = Dtot*Dtot';
+else
+  L = eye(size(A));
+end
+
+ninfty = 0;
+
+[Q,Theta] = gradEig(A, L, nmaxRGSP, 1, Lhs'*Rhs1, 0 ); %Q = Q*real((Q'*L*Q)^(-1/2));
+%[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+thetas = diag(Theta);
+[thetas,Ind] = sort( thetas,'descend' );
+Q = Q(:,Ind);
+Thetas = diag(thetas); 
+Theta = Theta(Ind,Ind);
+
+disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
+% Plot the Picard stuff
+imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
+if size(imax,1) == 0
+   imax = size(thetas,1);
+end
+
+tplo = thetas(ninfty+1:imax); bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
+rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
+figure
+hold on;
+plot(log10(abs(tplo)),'Color','green');
+plot(log10(abs(bplo1)),'Color','red');
+plot(log10(abs(rplo1)),'Color','black');
+legend('Singular values','Rhs1','sol1');
+
+% Filter eigenvalues
+if jmax == 0
+  jmax = size(Thetas,1);
+end
+ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
+
+bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
+Solu1RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
 
 %% Choose the solution
 if RGorSP == 1
@@ -626,7 +635,7 @@ nstep = 100;
 xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
 ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
 step = (ymax-ymin)/nstep;
-X = .5; Y = xmin:step:xmax; Z = .2999;
+X = .5; Y = ymin:step:ymax; Z = .2999;
 nodesplo = [X*ones(nstep+1,1),Y',Z*ones(nstep+1,1)];
 U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
 up = U1(:,1); upref = U1(:,2);
@@ -636,3 +645,30 @@ hold on;
 plot(Y,up(3:3:end),'Color','red');
 plot(Y,upref(3:3:end),'Color','blue');
 legend('identified','reference');
+
+% Plot on surfaces
+nstep = 100;
+xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
+ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
+stepx = (xmax-xmin)/nstep; stepy = (ymax-ymin)/nstep;
+X = xmin:stepx:xmax; Y = ymin:stepx:ymax; Z = .2999;
+Xt = X'*ones(1,nstep+1); Yt = ones(1,nstep+1)'*Y;
+nodesplo = [ Xt(:), Yt(:), Z*ones((nstep+1)^2,1) ];
+U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
+up = U1(:,1); upref = U1(:,2);
+
+upx = up(3:3:end); uprefx = upref(3:3:end);
+upx    = reshape(upx,   [nstep+1,nstep+1]);
+uprefx = reshape(uprefx,[nstep+1,nstep+1]);
+
+figure;
+hold on;
+surf(X,Y,upx);
+shading interp;
+colorbar();
+
+figure;
+hold on;
+surf(X,Y,uprefx);
+shading interp;
+colorbar();

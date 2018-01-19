@@ -249,7 +249,7 @@ else %if Ng == 12
 end
 
 if Ng > 12
-    warning('The required Gauss number points is too high : 11 is the max')
+    warning('The required Gauss number points is too high : 12 is the max')
 end
 
 end

@@ -2,7 +2,18 @@ function Rk = fatNull(M)
 % This function computes the null space of a FAT matrix (code from Pierre Gosselet)
 
  epsi=1.e-14; % criterion for the kernel
- [Ll, Uu, Pp, Qq, Rr] = lu (M);  % P * (R \ M) * Q = L * U
+ 
+ try % Handle strange error in LU (too many arguments)
+    [Ll, Uu, Pp, Qq, Rr] = lu (M);  % P * (R \ M) * Q = L * U
+ catch
+    warning('Il LU, could not use Q and R matrices');
+    [Ll, Uu, Pp] = lu (M);  % P * (R \ M) * Q = L * U
+%     Rr = eye(size(M,1)); % Actually, it's useless
+    Qq = eye(size(M,2));
+ end
+ 
+ 
+ 
  if (norm(diag(Ll)-1,'inf')~=0), warning('diag L has 0 values'); end
  if (size(Uu,1)~=size(Uu,2)), warning('U is not squared'); end
  
@@ -19,4 +30,4 @@ function Rk = fatNull(M)
  Rk(z1p,:) = -UU*N2;
  Rk = Qq*Rk; % operate the permutations
 
-endfunction
+end

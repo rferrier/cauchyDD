@@ -1,4 +1,4 @@
-function [ Y, Theta, flag ] = gradEig ( A, L, n, ker )
+function [ Y, Theta, flag ] = gradEig ( A, L, n, ker, varargin )
 % This function computes the n first (generalized) eigenvalues of a matrix
 % via a congugate gradient and Ritz analysis.
 % Works well for n<<sA
@@ -15,14 +15,24 @@ function [ Y, Theta, flag ] = gradEig ( A, L, n, ker )
 
  flag = 0; % Means ended normally
  
+ b  = rand(sA,1);   % Random Rhs
+ if numel(varargin)>0
+    b = cell2mat(varargin(1));
+ end
+ 
+ invLgiven = 0;
+ if numel(varargin)>1
+    invLgiven = cell2mat(varargin(2));
+ end
+ 
  z = zeros(sA,n+1);
  r = zeros(sA,n+1);
  d = zeros(sA,n+1);
  
  pinvert = 0;
- if ker == 1
-    kL = null(L); %PL = eye(sA) - kL*((kL'*kL)\kL');
-    if size(kL,2) > 0
+ if ker == 1 && invLgiven == 0
+    %kL = fatNull(L); %PL = eye(sA) - kL*((kL'*kL)\kL');
+    if rcond(L) < 1e-15 %size(kL,2) > 0
        pinvert = 1;
        pinvL = pinv(L);
     end
@@ -30,11 +40,12 @@ function [ Y, Theta, flag ] = gradEig ( A, L, n, ker )
 
  alpha = zeros(n+1,1); beta = zeros(n+1,1);
  
- b      = rand(sA,1);   % Random Rhs
  x      = zeros(sA,1);  % Initialize solution
  r(:,1) = b-A*x;        % Residual
  
- if pinvert == 0
+ if invLgiven == 1      % Actually, the invert of L was given
+    z(:,1) = L*r(:,1);
+ elseif pinvert == 0
     z(:,1) = L\r(:,1);     % Preconditionned residual
  else
     z(:,1) = pinvL*r(:,1);
@@ -61,7 +72,9 @@ function [ Y, Theta, flag ] = gradEig ( A, L, n, ker )
     x        = x + d(:,i)*num;
     r(:,i+1) = r(:,i) - Ad*num; 
 
-    if pinvert == 0
+    if invLgiven == 1      % Actually, the invert of L was given
+       z(:,i+1) = L*r(:,i+1);
+    elseif pinvert == 0
        z(:,i+1) = L\r(:,i+1);     % Preconditionned residual
     else
        z(:,i+1) = pinvL*r(:,i+1);
@@ -103,7 +116,6 @@ function [ Y, Theta, flag ] = gradEig ( A, L, n, ker )
  end
 
  if flag == 1
-    %i
     V(:,i:end) = [];
     H(:,i:end) = [];
     H(i:end,:) = [];
