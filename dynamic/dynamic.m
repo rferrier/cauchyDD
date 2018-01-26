@@ -10,11 +10,13 @@ addpath(genpath('./tools'))
 E       = 70000;   % MPa : Young modulus
 nu      = 0.3;     % Poisson ratio
 fscalar = 1;       % N.mm-1 : Loading on the plate
-niter   = 20;
+niter   = 10;
 br      = 0.;      % noise
-relax   = 0;       % Use a relaxation paramter
-dt      = 2e-5;      % s : time discrteization parameter
+dt      = 2e-6;      % s : time discrteization parameter
 rho     = 7500e-9; % kg.mm-3 : volumic mass
+beta    = .25;     %
+gamma   = .5;      % Newmark parameters
+omega   = 1;      % Relaxation parameter
 
 mat     = [0, E, nu];
 
@@ -23,41 +25,45 @@ mat     = [0, E, nu];
 % second index : 1=x, 2=y
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
-dirichlet = [ 1,1,0; 1,2,0
-              3,1,0; 3,2,0 ];
+dirichlet = [];%[ 1,1,0; 1,2,0
+              %3,1,0; 3,2,0 ];
 %neumann   = [ 2,1,fscalar;
 %              4,1,fscalar ];
-neumann   = [ 2,1,fscalar,0,fscalar ];
+neumann   = [ 2,1,-fscalar];%,0,-fscalar ];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
 nnodes = size(nodes,1);
 
 % Extract the index of the boundary
-[ node2b3, b2node3 ] = mapBound( 3, boundary, nnodes );
-index    = 2*b2node3-1;
+[ node2b2, b2node2 ] = mapBound( 2, boundary, nnodes );
+index    = 2*b2node2-1;
 index    = index(size(index):-1:1);
+indtot   = [ 2*b2node2; 2*b2node2-1 ]; nindtot = size(indtot,1);
 
 % Then, build the stiffness matrix :
 [K,C,nbloq] = Krig (nodes,elements,E,nu,order,boundary,dirichlet);
 Kinter = K(1:2*nnodes,1:2*nnodes);
 
 % Mass and (zero) damping matrices
-M = rho * mass_mat(nodes, elements);
-M = [ M , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
+M0 = rho * mass_mat(nodes, elements);
+M = [ M0 , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
 C = zeros(size(M));
+%fatKinter = Kinter + 1/(beta*dt^2)*M0; % fatKinter*(u-u0) = f
 
 % The right hand side :
 f = loading(nbloq,nodes,boundary,neumann);
-T = 1:1:25;  fa = [ f*T/T(end) , f*(1-T/T(end)) ];
+T = 0:1:50;  fa = [ f*T/T(end) , f*(1-T/T(end)) ];
 u0 = zeros(2*nnodes+nbloq,1); v0 = zeros(2*nnodes+nbloq,1);
 a0 = zeros(2*nnodes+nbloq,1);
 
 % Solve the problem :
-uin = Newmark (M, C, K, fa, u0, v0, a0, dt, .25, .5);
+[uin,vin,ain] = Newmark (M, C, K, fa, u0, v0, a0, dt, beta, gamma);
 
 % Extract displacement and Lagrange multiplicators :
-uref = uin(1:2*nnodes,:);
+uref = uin(1:2*nnodes,:); vref = uin(1:2*nnodes,:);
+aref = uin(1:2*nnodes,:);
+
 lagr = uin(2*nnodes+1:end,:);
 urefb = ( 1 + br*randn(2*nnodes,size(uref,2)) ) .* uref;
 lagrb = ( 1 + br*randn(nbloq,size(uref,2)) ) .* lagr;
@@ -67,132 +73,134 @@ fref = f( 1:2*nnodes,: ); % Reaction forces
 sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 % Output :
 plotGMSH({uref,'U_vect';sigma,'stress'}, elements, nodes, 'output/reference');
-% patch('Faces',elements(:,1:3),'Vertices',nodes,'FaceAlpha',0);
-% axis equal
-% figure
-bug
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % init :
 u1    = uref-uref;
 u2    = u1;
-fri   = u1;
+u1p   = u1; v1p   = u1; a1p   = u1;  % Remember, u1 = 0 at this point
+u2p   = u1; v2p   = u1; a2p   = u1;
+fri   = u1; frip = fri;
 v     = u1;
 theta = ones(niter+1,1); % First relaxation parameter
 
 % DN problem
-dirichlet1 = [4,1,0;4,2,0;
-              3,1,0;3,2,0];
-neumann1   = [1,2,fscalar;
-              2,1,fscalar];
-[K1,C1,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
-%[L1,U1] = lu(K1);
+dirichlet1 = [2,1,0;2,2,0];
+neumann1   = []; % Zero load
+[K1,C1t,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
+M1 = [ M0 , zeros(2*nnodes,nbloq1) ; zeros(2*nnodes,nbloq1)' , zeros(nbloq1) ];
+C1 = zeros(size(M1));
+u01 = zeros(2*nnodes+nbloq1,1); v01 = zeros(2*nnodes+nbloq1,1);
+a01 = zeros(2*nnodes+nbloq1,1);
+
+%u01 = urefb(:,end); v01 = vref(:,end); a01 = aref(:,end);
+%u01 = [ u01 ; zeros(nbloq1,1) ];                                % Reverse time
+%v01 = [ v01 ; zeros(nbloq1,1) ];                                %
+%a01 = [ a01 ; zeros(nbloq1,1) ];                                %
+
 % ND problem
-dirichlet2 = [4,1,0;4,2,0;
-              1,1,0;1,2,0;
-              2,1,0;2,2,0];
-neumann2   = [];% [3,1,lagr1; 3,2,lagr1]
+dirichlet2 = [4,1,0;4,2,0];
+neumann2   = [];% [2,1,lagr1; 2,2,lagr1]
                 % is managed by lagr2forces
-[K2,C2,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
-%[L2,U2] = lu(K2);
+[K2,C2t,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
+M2 = [ M0 , zeros(2*nnodes,nbloq2) ; zeros(2*nnodes,nbloq2)' , zeros(nbloq2) ];
+C2 = zeros(size(M2));
+u02 = zeros(2*nnodes+nbloq2,1); v02 = zeros(2*nnodes+nbloq2,1);
+a02 = zeros(2*nnodes+nbloq2,1);
 
 error1   = zeros(niter,1);
 error2   = zeros(niter,1);
 residual = zeros(niter,1);
 regulari = zeros(niter,1);
-serror1   = zeros(niter,1); % Error for sigma
-serror2   = zeros(niter,1);
-sresidual = zeros(niter,1);
-ferror1   = zeros(niter,1); % Error for reaction force
-ferror2   = zeros(niter,1);
-fresidual = zeros(niter,1);
 
-for iter = 1:niter
+ntime = 102;
+Amat  = zeros( nindtot*ntime ); % ntime = 51
+
+%for iter = 1:niter
+for time = 1:ntime
+for iter = 1:nindtot
+    u2 = zeros(2*nnodes,ntime); u2( indtot(iter), time ) = 1;
+%    if iter > 1 %mod(iter,2) == 2 % Reverse Time
+%       u01 = [ u2(:,end) ; zeros(nbloq1,1) ];
+%       v01 = [ v2(:,end) ; zeros(nbloq1,1) ];
+%       a01 = [ a2(:,end) ; zeros(nbloq1,1) ];
+%       u2  = fliplr(u2); %u2(:,1) = []; u2 = [u2,zeros(2*nnodes,1)]; % Off-by-one
+%    end
+
     % Solve DN
-    u1o = u1;
-    f1in = loading(nbloq1,nodes,boundary,neumann1);
-    %fdir = dirichletRhs(u2, 3, C1, boundary);
-    fdir = dirichletRhs2(v, 3, c2node1, boundary, nnodes );
-    f1 = f1in + fdir;
+    fdir = dirichletRhs2(u2, 2, c2node1, boundary, nnodes );
+    f1 = fdir; % f = 0 on 4 (and 1,3)
 
-    uin1 = K1\f1;
-    u1 = uin1(1:2*nnodes,1);
-    lagr1 = uin1(2*nnodes+1:end,1);
-    frio = fri; % Store fri for the residual computation
-    fri = lagr2forces2( lagr1, c2node1, 3, boundary, nnodes );
+    [uin1, vin1, ain1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma);
+    u1 = uin1(1:2*nnodes,:); v1 = vin1(1:2*nnodes,:); a1 = ain1(1:2*nnodes,:); 
+    lagr1 = uin1(2*nnodes+1:end,:);
     
-%     sigma1 = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
+    fri = zeros(size(u1));
+    for i=1:size(lagr1,2)
+       fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
+    end
     
-    error1(iter) = sqrt( myps(u1-uref,u1-uref,Kinter,boundary,M,nodes)/...
-        myps(uref,uref,Kinter,boundary,M,nodes) );
-%     ferror1(iter) = sqrt( myps(fri-fref,fri-fref,Kinter,boundary,M,nodes)/...
-%         myps(fref,fref,Kinter,boundary,M,nodes) );
-%     serror1(iter) = transpose(sigma-sigma1)*(sigma-sigma1) / (sigma'*sigma);
-%     
-%     fresidual(iter) = sqrt( myps(fri-frio,fri-frio,Kinter,boundary,M,nodes)/...
-%                       sqrt(myps(fri,fri,Kinter,boundary,M,nodes)*...
-%                       myps(frio,frio,Kinter,boundary,M,nodes)) );
+%    if iter > 1 %mod(iter,2) == 2
+%       fri  = fliplr(fri); % Re-reverse time
+%       u1   = fliplr(u1); v1 = fliplr(v1); a1 = fliplr(a1);
+%    end
+    
+    u1e  = omega*u1 + (1-omega)*u1p;             % Relaxation
+    v1e  = omega*v1 + (1-omega)*v1p;             %
+    a1e  = omega*a1 + (1-omega)*a1p;             %
+    frie = omega*fri + (1-omega)*frip;           %
+    u1p  = u1; v1p = v1; a1p = a1; frip = fri;   %
+    
+    error1(iter) = norm(u1-uref,'fro') / norm(uref,'fro');
     
     % Solve ND
-    %fri = lagr2forces( lagr1, C1, 3, boundary );
-    u2o = u2;
-    fr = [ fri; zeros(size(C2,2),1) ]; % Give to fr the right size
-    %fdir1 = dirichletRhs(uref, 1, C2, boundary);
-    %fdir2 = dirichletRhs(uref, 2, C2, boundary);
-    fdir1 = dirichletRhs2(urefb, 1, c2node2, boundary, nnodes);
-    fdir2 = dirichletRhs2(urefb, 2, c2node2, boundary, nnodes);
-    % Assembly the dirichlet RHS (ensure a redundant CL isn't imposed 2
-    % times
-    f2 = fr + assembleDirichlet( [fdir1,fdir2] );
+    fr = [ frie; zeros( size(C2t,2), size(fri,2) ) ]; % Give to fr the right size
+    fdir4 = dirichletRhs2(urefb, 4, c2node2, boundary, nnodes);
+    f2 = fr;% + fdir4;
+    
+    % Reverse time
+%    f2 = fliplr(f2);
+%    u02 = u1(:,end); v02 = v1(:,end); a02 = a1(:,end);
+%    u02 = [ u02 ; zeros(nbloq2,1) ];
+%    v02 = [ v02 ; zeros(nbloq2,1) ];
+%    a02 = [ a02 ; zeros(nbloq2,1) ];
 
-    uin2 = K2\f2;
-    u2 = uin2(1:2*nnodes,1);
+    [uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma);
+    u2 = uin2(1:2*nnodes,:); v2 = vin2(1:2*nnodes,:); a2 = ain2(1:2*nnodes,:); 
     
-    vo = v;
-    v = theta(iter)*u2 + (1-theta(iter))*vo;
+%    u2 = fliplr(u2); % Re-reverse time
     
-    if relax == 1 && iter > 1
-        e1 = u1-u1o;
-        e2 = u2-u2o;
-        theta(iter+1) = myps(e1,e1-e2,Kinter,boundary,M,nodes) /...
-            myps(e1-e2,e1-e2,Kinter,boundary,M,nodes);
-    end
-
-%     sigma2 = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
-    
-    error2(iter) = sqrt( myps(u2-uref,u2-uref,Kinter,boundary,M,nodes)/...
-        myps(uref,uref,Kinter,boundary,M,nodes) );
-%     ferror2(iter) = sqrt( myps(frio-fref,frio-fref,Kinter,boundary,M,nodes)/...
-%         myps(fref,fref,Kinter,boundary,M,nodes) );
-%     serror2(iter) = transpose(sigma-sigma2)*(sigma-sigma2) / (sigma'*sigma);
-    if iter > 1
-       residual(iter) = sqrt( myps(u1-u2,u1-u2,Kinter,boundary,M,nodes)/...
-                        sqrt(myps(u1,u1,Kinter,boundary,M,nodes)*...
-                        myps(u2,u2,Kinter,boundary,M,nodes)) );
-    end
-%     sresidual(iter) = (sigma1-sigma2)'*(sigma1-sigma2) /...
-%                        sqrt( (sigma1'*sigma1)*(sigma2'*sigma2) );
+    error2(iter) = norm(u2-uref,'fro')/norm(uref,'fro');
+        
+%    if iter > 1
+%       residual(iter) = norm(u1-u2,'fro')/sqrt(norm(u1,'fro')*norm(u2,'fro'));
+%    end
                  
-    regulari(iter) = sqrt(u2'*regul(u2, nodes, boundary, 3));
-%     Nu = regul(u2, nodes, boundary, 3);
+    regulari(iter) = 0;%sqrt(u2'*regul(u2, nodes, boundary, 3));
+    
+    u2 = u2(indtot,:);
+    Amat( :, nindtot*(time-1) + iter ) = u2(:);
 end
+end
+bug
+%Amat = load('fields/dynamicOperator.mat'); % Recover the full matrix
 
 residual(1) = 1; % tiny hack
 
+figure;
 hold on;
 set(gca, 'fontsize', 15);
-set(gca,'ylim',[-3 0])
+%set(gca,'ylim',[-3 0])
 plot(log10(error1),'Color','black')
 plot(log10(error2),'Color','blue')
 plot(log10(residual),'Color','red')
 legend('error1 (log)','error2 (log)','residual (log)')
-figure
 %hold on;
 % plot(log10(ferror1),'Color','black')
 % plot(log10(ferror2),'Color','blue')
 % plot(log10(fresidual),'Color','red')
 % figure
 % L-curve
-loglog(residual,regulari);
+%loglog(residual,regulari);
 % plot(regulari.*residual)
 
 % Plot solution
@@ -202,7 +210,8 @@ loglog(residual,regulari);
 % plot(uref(index));
 % plot(u2(index),'Color','red');
 
-% Compute stress :
-sigma = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
+%% Compute stress :
+%sigma = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
 % Output :
-plotGMSH({u2,'U_vect';sigma,'stress'}, elements, nodes(:,[1,2]), 'output/field2');
+plotGMSH({u1,'U1';f1(1:2*nnodes,:),'F1';u2,'U2';f2(1:2*nnodes,:),'F2'},...
+         elements, nodes(:,[1,2]), 'output/solution');

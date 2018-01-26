@@ -51,6 +51,73 @@ addpath(genpath('./tools'))
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Parameters
+E       = 210000;  % MPa : Young modulus
+nu      = 0.3;     % Poisson ratio
+fscalar = 250;     % N.mm-2 : Loading on the plate
+rho     = 7500e-9; % kg.mm-3 : volumic mass
+%mat = [2, E, nu, 0.1, 1];
+mat     = [0, E, nu];
+dt      = 2e-6;      % s : time discrteization parameter
+
+% Boundary conditions
+% first index  : index of the boundary
+% second index : 1=x, 2=y
+% third        : value
+% [0,1,value] marks a dirichlet regularization therm on x
+dirichlet = [];% 1,1,0 ; 1,2,0 ];
+neumann   = [ 2,1,fscalar ];
+
+% First, import the mesh
+[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
+nnodes = size(nodes,1);
+
+% Then, build the stiffness matrix :
+[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+Kinter = K(1:2*nnodes,1:2*nnodes);
+M0 = rho*mass_mat(nodes, elements);
+M = [ M0 , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
+C = zeros(size(M));
+%[ node2b, b2node ] = mapBound( 1, boundary, nnodes );
+% The right hand side :
+f  = loading(nbloq,nodes,boundary,neumann);
+T = 1:1:25; fa = [ f*0, f*T/T(end) , f*(1-T/T(end)) ];
+
+u0 = zeros(2*nnodes+nbloq,1); v0 = zeros(2*nnodes+nbloq,1); a0 = zeros(2*nnodes+nbloq,1);
+
+%f = volumicLoad( nbloq, nodes, elements, 2, fscalar );
+%udir = ones( 2*nnodes );
+%udi = keepField( udir, 4, boundary, 2 );
+%f = [ zeros(2*nnodes) ; C'*udi ];
+
+[ uin, vin, ain ] = Newmark (M, C, K, fa, u0, v0, a0, dt, .25, .5);
+
+% Extract displacement :
+u = uin(1:2*nnodes,:); lagr = uin(2*nnodes+1:end,:);
+v = vin(1:2*nnodes,:); a = ain(1:2*nnodes,:);
+
+ux = u(1:2:end-1,:); uy = u(2:2:end,:); 
+
+% Compute stress :
+sigma = stress(u,E,nu,nodes,elements,order,1,ntoelem);
+
+% Retro-solve
+u0 = zeros(2*nnodes+nbloq,1); v0 = zeros(2*nnodes+nbloq,1); a0 = zeros(2*nnodes+nbloq,1);
+u0(1:2*nnodes) = u(:,end); v0(1:2*nnodes) = v(:,end); a0(1:2*nnodes) = a(:,end);
+
+far = fliplr(fa);
+[ uinr, vinr, ainr ] = Newmark (M, C, K, far, u0, v0, a0, -dt, .25, .5);
+ur = uinr(1:2*nnodes,:);
+ur = fliplr(ur);
+
+% Output :
+% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
+%plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
+plotGMSH({u,'U';ur,'U_retro'}, elements, nodes, 'output/linear_field');
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %% Parameters
 %E       = 210000;  % MPa : Young modulus
 %nu      = 0.3;     % Poisson ratio
@@ -58,19 +125,21 @@ addpath(genpath('./tools'))
 %rho     = 7500e-9; % kg.mm-3 : volumic mass
 %%mat = [2, E, nu, 0.1, 1];
 %mat     = [0, E, nu];
-%dt      = 2e-5;      % s : time discrteization parameter
+%omega   = 1e10;      % s-2 : square of the pulsation
 %
 %% Boundary conditions
 %% first index  : index of the boundary
 %% second index : 1=x, 2=y
 %% third        : value
 %% [0,1,value] marks a dirichlet regularization therm on x
-%dirichlet = [ 0,1,0 ; 1,2,0 ];
-%neumann   = [ 3,2,fscalar ];
+%dirichlet = [ 0,1,0 ; 0,2,0 ; 0,3,0 ];
+%neumann   = [ 1,2,-fscalar ; 3,2,fscalar ];
 %
 %% First, import the mesh
-%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate.msh' );
+%%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/cvg_mesh/plate02.msh' );
 %%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
+%%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plateer.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate_hole_smlsml.msh' );
 %nnodes = size(nodes,1);
 %
 %% Then, build the stiffness matrix :
@@ -79,25 +148,24 @@ addpath(genpath('./tools'))
 %M = mass_mat(nodes, elements);
 %M = rho*M;
 %M = [ M , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
-%C = zeros(size(M));
 %%[ node2b, b2node ] = mapBound( 1, boundary, nnodes );
 %% The right hand side :
 %f  = loading(nbloq,nodes,boundary,neumann);
-%T = 1:1:25;  fa = f*T/T(end);
-%
-%u0 = zeros(2*nnodes+nbloq,1); v0 = zeros(2*nnodes+nbloq,1); a0 = zeros(2*nnodes+nbloq,1);
-%
 %%f = volumicLoad( nbloq, nodes, elements, 2, fscalar );
 %%udir = ones( 2*nnodes );
 %%udi = keepField( udir, 4, boundary, 2 );
 %%f = [ zeros(2*nnodes) ; C'*udi ];
 %
-%uin = Newmark (M, C, K, fa, u0, v0, a0, dt, .25, .5);
+%%% Cause corner pauses problem (as usual)
+%%boundary = suppressBound( boundary, [1], 4 );
+%
+%% Solve the problem :
+%uin = (K-omega*M)\f;
+%uin = K\f;
 %
 %% Extract displacement :
-%u = uin(1:2*nnodes,:);
-%%ux = zeros(nnodes,size(u,2)); uy = zeros(nnodes,size(u,2));
-%ux = u(1:2:end-1,:); uy = u(2:2:end,:); 
+%u = uin(1:2*nnodes,1);
+%ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
 %
 %% Compute stress :
 %sigma = stress(u,E,nu,nodes,elements,order,1,ntoelem);
@@ -105,64 +173,6 @@ addpath(genpath('./tools'))
 %% Output :
 %% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
 %plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% Parameters
-E       = 210000;  % MPa : Young modulus
-nu      = 0.3;     % Poisson ratio
-fscalar = 250;     % N.mm-2 : Loading on the plate
-rho     = 7500e-9; % kg.mm-3 : volumic mass
-%mat = [2, E, nu, 0.1, 1];
-mat     = [0, E, nu];
-omega   = 1e10;      % s-2 : square of the pulsation
-
-% Boundary conditions
-% first index  : index of the boundary
-% second index : 1=x, 2=y
-% third        : value
-% [0,1,value] marks a dirichlet regularization therm on x
-dirichlet = [ 0,1,0 ; 0,2,0 ; 0,3,0 ];
-neumann   = [ 1,2,-fscalar ; 3,2,fscalar ];
-
-% First, import the mesh
-%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/cvg_mesh/plate02.msh' );
-%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/t6/plate.msh' );
-%[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plateer.msh' );
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/plate_hole_smlsml.msh' );
-nnodes = size(nodes,1);
-
-% Then, build the stiffness matrix :
-[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
-Kinter = K(1:2*nnodes,1:2*nnodes);
-M = mass_mat(nodes, elements);
-M = rho*M;
-M = [ M , zeros(2*nnodes,nbloq) ; zeros(2*nnodes,nbloq)' , zeros(nbloq) ];
-%[ node2b, b2node ] = mapBound( 1, boundary, nnodes );
-% The right hand side :
-f  = loading(nbloq,nodes,boundary,neumann);
-%f = volumicLoad( nbloq, nodes, elements, 2, fscalar );
-%udir = ones( 2*nnodes );
-%udi = keepField( udir, 4, boundary, 2 );
-%f = [ zeros(2*nnodes) ; C'*udi ];
-
-%% Cause corner pauses problem (as usual)
-%boundary = suppressBound( boundary, [1], 4 );
-
-% Solve the problem :
-uin = (K-omega*M)\f;
-uin = K\f;
-
-% Extract displacement :
-u = uin(1:2*nnodes,1);
-ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
-
-% Compute stress :
-sigma = stress(u,E,nu,nodes,elements,order,1,ntoelem);
-
-% Output :
-% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
-plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %

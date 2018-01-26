@@ -80,7 +80,7 @@ function [ Y, Theta, flag ] = gradEig ( A, L, n, ker, varargin )
        z(:,i+1) = pinvL*r(:,i+1);
     end
     
-    alpha(i) = num/sqrt(den);
+    alpha(i) = num/sden;
     beta(i)  = - z(:,i+1)'*Ad/sden;
     
     % Reorthogonalization of residual

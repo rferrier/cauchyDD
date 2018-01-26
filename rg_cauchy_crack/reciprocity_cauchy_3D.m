@@ -13,17 +13,17 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 40;     % Eigenvalues truncation number
-nmaxRG     = 300;    % nb of computed eigenvalues
-jmaxRGSP   = 2;
-nmaxRGSP   = 500;    % nb of computed eigenvalues
+jmaxRG     = 50;     % Eigenvalues truncation number
+nmaxRG     = 200;    % nb of computed eigenvalues
+jmaxRGSP   = 250;
+nmaxRGSP   = 400;    % nb of computed eigenvalues
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 1;      % Recompute the operators
-matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG4.mat';  % File for the integration matrix
-RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
-Npg        = 8;      % Nb Gauss points
+matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
+RGorSP     = 3;      % Use RG(1), SP(2) or mix(3)
+Npg        = 1;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
 
 % Boundary conditions
@@ -66,7 +66,7 @@ plotGMSH3D({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'output/reference');
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_qcq/plate3d_charge2nt.msh' );
 %[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_qcq/plate3d_charge2_u.msh' );
 
-boundary2( find(boundary2(:,1)==7), : ) = [];
+boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the double elements in boundary 2, ie boundary 7
 
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
@@ -466,136 +466,139 @@ elseif regular == 1
    Duk = Du0(knownD,knownD);   Dfk = Df0(knownN,knownN);
 end
 
-%% Pure RG : Solve the linear system and recover the unknowns
-jmax = jmaxRG;
-if froreg == 1
-   kB = norm(LhsA,'fro')/norm(LhsB,'fro'); % In order to regularize the stuff
-else
-   kB = 1;
+if RGorSP == 1
+   %% Pure RG : Solve the linear system and recover the unknowns
+   jmax = jmaxRG;
+   if froreg == 1
+      kB = norm(LhsA,'fro')/norm(LhsB,'fro'); % In order to regularize the stuff
+   else
+      kB = 1;
+   end
+   Lhs = [LhsA,kB*LhsB];
+   
+   Rhs = Rhs1;
+   A = Lhs'*Lhs; b = Lhs'*Rhs;
+   
+   if regular == 2
+      Dtot = [ Dut , Zutft ;...
+               Zutft' , Dft ];
+      L = Dtot*Dtot';
+   elseif regular == 1
+      Dtot = [ Du/norm(Du,'fro'), zeros( size(Du,1) , size(Df,2) ) ;... %
+               zeros( size(Df,1) , size(Du,2) ) , Df ];
+      L = Dtot*Dtot'; L0 = L;
+      %L = L + eye(size(A)); % Remove the small eignevalues of L
+   else
+      L = eye(size(A));
+   end
+   ninfty = 0;
+   
+   %L = eye(size(A));
+   
+   % [~,Theta,Q] = svd(Lhs,L); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
+   %[Q,Theta] = eig(Lhs'*L*Lhs); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
+   [Q,Theta] = gradEig(A, L, nmaxRG, 1, Lhs'*Rhs1, 0); Q = real(Q);%Q = Q*real((Q'*L*Q)^(-1/2));
+   % [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+   thetas = diag(Theta);
+   [thetas,Ind] = sort( thetas,'descend' );
+   Q = Q(:,Ind);
+   Thetas = diag(thetas); 
+   Theta = Theta(Ind,Ind);
+   
+   disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
+   % Plot the Picard stuff
+   imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
+   if size(imax,1) == 0
+       imax = size(thetas,1);
+   end
+   
+   tplo = thetas(ninfty+1:imax); bplo1 = Q'*b; bplo1 = bplo1(ninfty+1:imax);
+   rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
+   figure
+   hold on;
+   plot(log10(abs(tplo)),'Color','green');
+   plot(log10(abs(bplo1)),'Color','red');
+   plot(log10(abs(rplo1)),'Color','black');
+   legend('Singular values','Rhs1','sol1');
+   
+   % Filter eigenvalues
+   if jmax == 0
+      jmax = size(Thetas,1);
+   end
+   ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
+   bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
+   Solu1RG = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
 end
-Lhs = [LhsA,kB*LhsB];
-
-Rhs = Rhs1;
-A = Lhs'*Lhs; b = Lhs'*Rhs;
-
-if regular == 2
-   Dtot = [ Dut , Zutft ;...
-            Zutft' , Dft ];
-   L = Dtot*Dtot';
-elseif regular == 1
-   Dtot = [ Du/norm(Du,'fro'), zeros( size(Du,1) , size(Df,2) ) ;... %
-            zeros( size(Df,1) , size(Du,2) ) , Df ];
-   L = Dtot*Dtot'; L0 = L;
-   %L = L + eye(size(A)); % Remove the small eignevalues of L
-else
-   L = eye(size(A));
+if RGorSP == 3
+   % SP+RG : Solve the linear system and recover the unknowns
+   tic
+   jmax = jmaxRGSP;
+   Rhs1 = Rur*u_known(knownD) - Rfr*f_known(knownN);
+   if froreg == 1
+     kB = norm(Rum,'fro')/norm(Rfm,'fro'); % In order to regularize the stuff
+   else
+     kB = 1;
+   end
+   Lhs  = [ -Rum,kB*Rfm,zeros(size(Rur)),zeros(size(Rfr));...
+           -Rum,kB*Rfm,zeros(size(Rur)),kB*Rfr ;...
+           -Rum,kB*Rfm,-Rur,zeros(size(Rfr)) ];
+   %Rhs1 = [ Rur*u_known(knownD) - Rfr*f_known(knownN) ;...
+   %         Rur*u_known(knownD) ; -Rfr*f_known(knownN) ];
+   Rhs1 = [ Rur*u_known(knownD) ; Rur*u_known(knownD) ; zeros(size(Rfr,1),1) ];
+   
+   A = Lhs'*Lhs;
+   
+   if regular == 1 || regular == 2
+     Zuf   = zeros( size(Du,1) , size(Df,2) );
+     Zuuk  = zeros( size(Du,1) , size(Duk,2) );
+     Zufk  = zeros( size(Du,1) , size(Dfk,2) );
+     Zfuk  = zeros( size(Df,1) , size(Duk,2) );
+     Zffk  = zeros( size(Df,1) , size(Dfk,2) );
+     Zukfk = zeros( size(Duk,1) , size(Dfk,2) );
+     Dtot = [ Du ,Zuf , Zuuk, Zufk ;...
+              Zuf', Df , Zfuk, Zffk ;...
+              Zuuk', Zfuk', Duk, Zukfk ;...
+              Zufk', Zffk', Zukfk', Dfk ];
+     L = Dtot*Dtot';
+   else
+     L = eye(size(A));
+   end
+   
+   ninfty = 0;
+   
+   [Q,Theta] = gradEig(A, L, nmaxRGSP, 1, Lhs'*Rhs1, 0 ); %Q = Q*real((Q'*L*Q)^(-1/2));
+   %[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+   thetas = diag(Theta);
+   [thetas,Ind] = sort( thetas,'descend' );
+   Q = Q(:,Ind);
+   Thetas = diag(thetas); 
+   Theta = Theta(Ind,Ind);
+   
+   disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
+   % Plot the Picard stuff
+   imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
+   if size(imax,1) == 0
+      imax = size(thetas,1);
+   end
+   
+   tplo = thetas(ninfty+1:imax); bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
+   rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
+   figure
+   hold on;
+   plot(log10(abs(tplo)),'Color','green');
+   plot(log10(abs(bplo1)),'Color','red');
+   plot(log10(abs(rplo1)),'Color','black');
+   legend('Singular values','Rhs1','sol1');
+   
+   % Filter eigenvalues
+   if jmax == 0
+     jmax = size(Thetas,1);
+   end
+   ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
+   
+   bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
+   Solu1RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
 end
-ninfty = 0;
-
-%L = eye(size(A));
-
-% [~,Theta,Q] = svd(Lhs,L); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
-%[Q,Theta] = eig(Lhs'*L*Lhs); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
-[Q,Theta] = gradEig(A, L, nmaxRG, 1, Lhs'*Rhs1, 0); Q = real(Q);%Q = Q*real((Q'*L*Q)^(-1/2));
-% [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
-thetas = diag(Theta);
-[thetas,Ind] = sort( thetas,'descend' );
-Q = Q(:,Ind);
-Thetas = diag(thetas); 
-Theta = Theta(Ind,Ind);
-
-disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
-% Plot the Picard stuff
-imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
-if size(imax,1) == 0
-    imax = size(thetas,1);
-end
-
-tplo = thetas(ninfty+1:imax); bplo1 = Q'*b; bplo1 = bplo1(ninfty+1:imax);
-rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
-figure
-hold on;
-plot(log10(abs(tplo)),'Color','green');
-plot(log10(abs(bplo1)),'Color','red');
-plot(log10(abs(rplo1)),'Color','black');
-legend('Singular values','Rhs1','sol1');
-
-% Filter eigenvalues
-if jmax == 0
-   jmax = size(Thetas,1);
-end
-ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
-bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
-Solu1RG = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
-
-% SP+RG : Solve the linear system and recover the unknowns
-tic
-jmax = jmaxRGSP;
-Rhs1 = Rur*u_known(knownD) - Rfr*f_known(knownN);
-if froreg == 1
-  kB = norm(Rum,'fro')/norm(Rfm,'fro'); % In order to regularize the stuff
-else
-  kB = 1;
-end
-Lhs  = [ -Rum,kB*Rfm,zeros(size(Rur)),zeros(size(Rfr));...
-        -Rum,kB*Rfm,zeros(size(Rur)),kB*Rfr ;...
-        -Rum,kB*Rfm,-Rur,zeros(size(Rfr)) ];
-%Rhs1 = [ Rur*u_known(knownD) - Rfr*f_known(knownN) ;...
-%         Rur*u_known(knownD) ; -Rfr*f_known(knownN) ];
-Rhs1 = [ Rur*u_known(knownD) ; Rur*u_known(knownD) ; zeros(size(Rfr,1),1) ];
-
-A = Lhs'*Lhs;
-
-if regular == 1 || regular == 2
-  Zuf   = zeros( size(Du,1) , size(Df,2) );
-  Zuuk  = zeros( size(Du,1) , size(Duk,2) );
-  Zufk  = zeros( size(Du,1) , size(Dfk,2) );
-  Zfuk  = zeros( size(Df,1) , size(Duk,2) );
-  Zffk  = zeros( size(Df,1) , size(Dfk,2) );
-  Zukfk = zeros( size(Duk,1) , size(Dfk,2) );
-  Dtot = [ Du ,Zuf , Zuuk, Zufk ;...
-           Zuf', Df , Zfuk, Zffk ;...
-           Zuuk', Zfuk', Duk, Zukfk ;...
-           Zufk', Zffk', Zukfk', Dfk ];
-  L = Dtot*Dtot';
-else
-  L = eye(size(A));
-end
-
-ninfty = 0;
-
-[Q,Theta] = gradEig(A, L, nmaxRGSP, 1, Lhs'*Rhs1, 0 ); %Q = Q*real((Q'*L*Q)^(-1/2));
-%[Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
-thetas = diag(Theta);
-[thetas,Ind] = sort( thetas,'descend' );
-Q = Q(:,Ind);
-Thetas = diag(thetas); 
-Theta = Theta(Ind,Ind);
-
-disp([ num2str(size(A,1)), ' - dofs rectangular system pinversed ', num2str(toc) ]);
-% Plot the Picard stuff
-imax = min( find(thetas/thetas(ninfty+1)<1e-16) );
-if size(imax,1) == 0
-   imax = size(thetas,1);
-end
-
-tplo = thetas(ninfty+1:imax); bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
-rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
-figure
-hold on;
-plot(log10(abs(tplo)),'Color','green');
-plot(log10(abs(bplo1)),'Color','red');
-plot(log10(abs(rplo1)),'Color','black');
-legend('Singular values','Rhs1','sol1');
-
-% Filter eigenvalues
-if jmax == 0
-  jmax = size(Thetas,1);
-end
-ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
-
-bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
-Solu1RGSP = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
 
 %% Choose the solution
 if RGorSP == 1
@@ -638,15 +641,16 @@ nstep = 100;
 xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
 ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
 step = (ymax-ymin)/nstep;
-X = .5; Y = ymin:step:ymax; Z = .2999;
+X = .5; Y = ymin:step:ymax; Z = .29999;
 nodesplo = [X*ones(nstep+1,1),Y',Z*ones(nstep+1,1)];
 U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
 up = U1(:,1); upref = U1(:,2);
 
 figure;
 hold on;
-plot(Y,up(3:3:end),'Color','red');
-plot(Y,upref(3:3:end),'Color','blue');
+set(gca, 'fontsize', 20);
+plot(Y,up(3:3:end),'Color','red','LineWidth',3);
+plot(Y,upref(3:3:end),'Color','blue','LineWidth',3);
 legend('identified','reference');
 
 % Plot on surfaces
@@ -654,7 +658,7 @@ nstep = 100;
 xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
 ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
 stepx = (xmax-xmin)/nstep; stepy = (ymax-ymin)/nstep;
-X = xmin:stepx:xmax; Y = ymin:stepx:ymax; Z = .2999;
+X = xmin:stepx:xmax; Y = ymin:stepx:ymax; Z = .29999;
 Xt = X'*ones(1,nstep+1); Yt = ones(1,nstep+1)'*Y;
 nodesplo = [ Xt(:), Yt(:), Z*ones((nstep+1)^2,1) ];
 U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
@@ -666,12 +670,14 @@ uprefx = reshape(uprefx,[nstep+1,nstep+1]);
 
 figure;
 hold on;
+set(gca, 'fontsize', 20);
 surf(X,Y,upx);
 shading interp;
-colorbar();
+colorbar(); set(colorbar, 'fontsize', 20);
 
 figure;
 hold on;
+set(gca, 'fontsize', 20);
 surf(X,Y,uprefx);
 shading interp;
-colorbar();
+colorbar(); set(colorbar, 'fontsize', 20);
