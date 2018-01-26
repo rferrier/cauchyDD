@@ -16,12 +16,12 @@ br         = .0;      % Noise level
 jmaxRG     = 40;     % Eigenvalues truncation number
 nmaxRG     = 300;    % nb of computed eigenvalues
 jmaxRGSP   = 2;
-nmaxRGSP   = 10;    % nb of computed eigenvalues
-regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
+nmaxRGSP   = 500;    % nb of computed eigenvalues
+regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 1;      % Recompute the operators
-matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
+matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG4.mat';  % File for the integration matrix
 RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 Npg        = 8;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
@@ -65,6 +65,9 @@ plotGMSH3D({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'output/reference');
 %[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/plate3d_charge2.msh' );
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_qcq/plate3d_charge2nt.msh' );
 %[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_qcq/plate3d_charge2_u.msh' );
+
+boundary2( find(boundary2(:,1)==7), : ) = [];
+
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
 Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
