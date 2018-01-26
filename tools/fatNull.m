@@ -7,7 +7,7 @@ function Rk = fatNull(M)
     [Ll, Uu, Pp, Qq, Rr] = lu (M);  % P * (R \ M) * Q = L * U
  catch
     warning('Il LU, could not use Q and R matrices');
-    [Ll, Uu, Pp] = lu (M);  % P * (R \ M) * Q = L * U
+    [Ll, Uu, Pp] = lu (M);  % P * M = L * U
 %     Rr = eye(size(M,1)); % Actually, it's useless
     Qq = eye(size(M,2));
  end
