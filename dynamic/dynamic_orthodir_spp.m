@@ -1,5 +1,5 @@
-% 24/01/2018
-% Cauchy Dynamique avec ORTHODIR
+% 26/01/2018
+% Cauchy Dynamique avec ORTHODIR et SPP
 
 close all;
 clear all;
@@ -8,7 +8,7 @@ clear all;
 E       = 70000;   % MPa : Young modulus
 nu      = 0.3;     % Poisson ratio
 fscalar = 1;       % N.mm-1 : Loading on the plate
-niter   = 10;
+niter   = 800;
 br      = 0.;      % noise
 dt      = 2e-6;      % s : time discrteization parameter
 rho     = 7500e-9; % kg.mm-3 : volumic mass
@@ -23,12 +23,11 @@ mat     = [0, E, nu];
 % second index : 1=x, 2=y
 % third        : value
 % [0,1,value] marks a dirichlet regularization therm on x
-%dirichlet = [ 1,1,0; 1,2,0
-%              3,1,0; 3,2,0 ];
-dirichlet = [];
+% dirichlet = [ 1,1,0; 1,2,0 ];
+dirichlet = [ 1,1,0; 1,2,0 ; 3,1,0; 3,2,0 ];
 %neumann   = [ 2,1,fscalar;
 %              4,1,fscalar ];
-neumann   = [ 2,1,-fscalar ];%,0,-fscalar ];
+neumann   = [ 2,1,-fscalar];%,0,-fscalar ];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh( 'meshes/plate.msh' );
@@ -71,17 +70,16 @@ fref = f( 1:2*nnodes,: ); % Reaction forces
 % Compute stress :
 %sigma = stress(uref,E,nu,nodes,elements,order,1,ntoelem);
 
-N = null(full(Kinter)); P = eye(2*nnodes) - N*((N'*N)\N');
+N = rigidModes(nodes); P = eye(2*nnodes) - N*((N'*N)\N');
 urefo = P*uref;
 plotGMSH({uref,'U_vect';urefo,'U_rigide'}, elements, nodes, 'output/reference');
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% DN problem
-dirichlet1 = [2,1,0;2,2,0];
-%dirichlet1 = [ 2,1,0; 2,2,0
-%               1,1,0; 1,2,0
-%               3,1,0; 3,2,0 ];
-neumann1   = []; % Zero load
+% D problem
+% dirichlet1 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+dirichlet1 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+% dirichlet1 = [ 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+neumann1   = []; % No load
 [K1,C1t,nbloq1,node2c1,c2node1] = Krig (nodes,elements,E,nu,order,boundary,dirichlet1);
 M1 = [ M0 , zeros(2*nnodes,nbloq1) ; zeros(2*nnodes,nbloq1)' , zeros(nbloq1) ];
 C1 = zeros(size(M1));
@@ -90,13 +88,11 @@ a01 = zeros(2*nnodes+nbloq1,1);
 fatK1 = K1 + 1/(beta*dt^2)*M1 + gamma/(beta*dt)*C1;
 invK1 = fatK1\eye(size(fatK1));
 
-% ND problem
-%dirichlet2 = [ 4,1,0; 4,2,0
-%               1,1,0; 1,2,0
-%               3,1,0; 3,2,0 ];
-dirichlet2 = [4,1,0;4,2,0];
-neumann2   = [];% [2,1,lagr1; 2,2,lagr1]
-                % is managed by lagr2forces
+% N problem
+% dirichlet2 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
+dirichlet2 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ];
+% dirichlet2 = [ 2,1,0 ; 2,2,0 ];
+neumann2   = []; % fr = 0
 [K2,C2t,nbloq2,node2c2,c2node2] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2);
 M2 = [ M0 , zeros(2*nnodes,nbloq2) ; zeros(2*nnodes,nbloq2)' , zeros(nbloq2) ];
 C2 = zeros(size(M2));
@@ -104,6 +100,18 @@ u02 = zeros(2*nnodes+nbloq2,1); v02 = zeros(2*nnodes+nbloq2,1);
 a02 = zeros(2*nnodes+nbloq2,1);
 fatK2 = K2 + 1/(beta*dt^2)*M2 + gamma/(beta*dt)*C2;
 invK2 = fatK2\eye(size(fatK2));
+
+% Dual N problem
+% dirichlet2d = [ 1,1,0 ; 1,2,0 ];
+dirichlet2d = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ];
+neumann2d   = []; % fr = 0
+[K2d,C2td,nbloq2d,node2c2d,c2node2d] = Krig (nodes,elements,E,nu,order,boundary,dirichlet2d);
+M2d = [ M0 , zeros(2*nnodes,nbloq2d) ; zeros(2*nnodes,nbloq2d)' , zeros(nbloq2d) ];
+C2d = zeros(size(M2d));
+u02d = zeros(2*nnodes+nbloq2d,1); v02d = zeros(2*nnodes+nbloq2d,1);
+a02d = zeros(2*nnodes+nbloq2d,1);
+fatK2d = K2d + 1/(beta*dt^2)*M2d + gamma/(beta*dt)*C2d;
+invK2d = fatK2d\eye(size(fatK2d));
 
 error    = zeros(niter+1,1);
 residual = zeros(niter+1,1);
@@ -116,60 +124,47 @@ pRec     = zeros(2*nnodes*ntime, niter);
 indtot   = indto2;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Perform A x0 : /!\ To check : problem with dual resolution (keepField)
-fdir = dirichletRhs2(Itere, 2, c2node1, boundary, nnodes ); % Solve DN
+%% Perform A x0 :
+fdir = dirichletRhs2(Itere, 2, c2node1, boundary, nnodes ); % Solve D
 f1 = fdir;
-[uin1, vin1, ain1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
+[uin1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
 lagr1 = uin1(2*nnodes+1:end,:);
-fri = zeros(2*nnodes, ntime); % Solve ND
+fri1 = zeros(2*nnodes, ntime);
 for i=1:size(lagr1,2)
-   fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
+   fri1(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
 end
-fr = [ fri; zeros( nbloq2, ntime ) ];
-f2 = fr;
-[uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
-atimesItere = Itere - uin2(1:2*nnodes,:);
+fdir = dirichletRhs2(Itere, 2, c2node2, boundary, nnodes ); % Solve N
+f2 = fdir;
+[uin2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
+lagr2 = uin2(2*nnodes+1:end,:);
+fri2 = zeros(2*nnodes, ntime);
+for i=1:size(lagr1,2)
+   fri2(:,i) = lagr2forces2( lagr2(:,i), c2node2, 2, boundary, nnodes );
+end
+atimesItere = fri1 - fri2;
 %% End Ax0
 
 %% Write Rhs :
-%u1 = zeros(2*nnodes,ntime); % Solve DN (there should be a Newmark, but loading is 0)
-%lagr1 = uin1(2*nnodes+1:end,:);
-%fri = zeros(size(u1)); % Solve ND
-%for i=1:size(lagr1,2)
-% fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
-%end
-%fr    = [ fri; zeros( size(C2t,2), size(fri,2) ) ];
-fdir4 = dirichletRhs2(urefb, 4, c2node2, boundary, nnodes);
-f2 = fdir4; % fr = 0 because loading is 0
-[uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
-b = uin2(1:2*nnodes,:);
+fdir = dirichletRhs2(urefb, 4, c2node1, boundary, nnodes ); % Solve D
+f1 = fdir;
+[uin1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
+lagr1 = uin1(2*nnodes+1:end,:);
+fri1 = zeros(2*nnodes, ntime);
+for i=1:size(lagr1,2)
+   fri1(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
+end
+fri2 = zeros(2*nnodes, ntime); % Solve N : Zero loading
+b = fri2 - fri1; % Remember there is a "-"
 %% End RHS
 
 Res = b - atimesItere;
 if precond == 1
-   udir = Res - Res(:,end)*ones(1,ntime); udir = fliplr(udir);
-   fdir = dirichletRhs2( udir, 2, c2node1, boundary, nnodes ); % Solve DN
-   f1 = fdir;
-   [uin1, vin1, ain1] = Newmark (M1, C1, K1, f1, u01, v01, a01, -dt, beta, gamma, invK1);
-   lagr1 = uin1(2*nnodes+1:end,:);
-   fri = zeros(2*nnodes, ntime); % Solve ND
-   for i=1:size(lagr1,2)
-      fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
-   end
-   fr = [ fri; zeros( nbloq2, ntime ) ];
-   f2 = fr;
-   [uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, -dt, beta, gamma, invK2);
+   f2 = zeros( 2*nnodes, ntime ); f2(indtot,:) = Res(indtot,:);
+   f2 = fliplr( f2 - f2(:,end)*ones(1,ntime) ); f2 = [ f2 ; zeros( nbloq2d, ntime ) ];
+   [uin2, vin2, ain2] = Newmark (M2d, C2d, K2d, f2, u02d, v02d, a02d, -dt, beta, gamma, invK2d);
    ur2 = uin2(1:2*nnodes,:);
-   ur2 = -fliplr(Res) + ur2;
    ur2 = ur2 - ur2(:,end)*ones(1,ntime);
-   Zed = fliplr( ur2 );
-%for i=1:size(lagr1,2)  %%% I Guess this should be suppressed
-%   fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
-%end
-%fr = [ fri; zeros( nbloq2, ntime ) ];
-%f2 = fr;
-%[uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
-%atimesItere = Itere - uin2(1:2*nnodes,:);
+   Zed = fliplr( ur2 ); Zed = keepField( Zed, 2, boundary );
 else
    Zed = Res;
 end
@@ -182,18 +177,23 @@ error(1)    = norm(Itere(indtot,:)-uref(indtot,:),'fro')/norm(uref(indtot,:),'fr
 regulari(1) = norm(Itere(indtot,:),'fro');
 
 %% Perform Q1 = A P1 :
-fdir = dirichletRhs2( p, 2, c2node1, boundary, nnodes ); % Solve DN
+fdir = dirichletRhs2(p, 2, c2node1, boundary, nnodes ); % Solve D
 f1 = fdir;
-[uin1, vin1, ain1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
+[uin1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
 lagr1 = uin1(2*nnodes+1:end,:);
-fri = zeros(2*nnodes, ntime); % Solve ND
+fri1 = zeros(2*nnodes, ntime);
 for i=1:size(lagr1,2)
-   fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
+   fri1(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
 end
-fr = [ fri; zeros( nbloq2, ntime ) ];
-f2 = fr;
-[uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
-q = p - uin2(1:2*nnodes,:);
+fdir = dirichletRhs2(p, 2, c2node2, boundary, nnodes ); % Solve N
+f2 = fdir;
+[uin2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
+lagr2 = uin2(2*nnodes+1:end,:);
+fri2 = zeros(2*nnodes, ntime);
+for i=1:size(lagr1,2)
+   fri2(:,i) = lagr2forces2( lagr2(:,i), c2node2, 2, boundary, nnodes );
+end
+q = fri1 - fri2;
 %% End Q1 = A P1
 %plotGMSH({uin1(1:2*nnodes,:),'u1';uin2(1:2*nnodes,:),'u2';q,'q';Res,'Res'}, ...
 %         elements, nodes(:,[1,2]), 'output/res');
@@ -211,22 +211,12 @@ for iter = 1:niter
    Res              = Res - q*alphai;
    
    if precond == 1
-      udir = Res - Res(:,end)*ones(1,ntime); udir = fliplr(udir);
-      fdir = dirichletRhs2( udir, 2, c2node1, boundary, nnodes ); % Solve DN
-      f1 = fdir;
-      [uin1, vin1, ain1] = Newmark (M1, C1, K1, f1, u01, v01, a01, -dt, beta, gamma, invK1);
-      lagr1 = uin1(2*nnodes+1:end,:);
-      fri = zeros(2*nnodes, ntime); % Solve ND
-      for i=1:size(lagr1,2)
-         fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
-      end
-      fr = [ fri; zeros( nbloq2, ntime ) ];
-      f2 = fr;
-      [uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, -dt, beta, gamma, invK2);
+      f2 = zeros( 2*nnodes, ntime ); f2(indtot,:) = Res(indtot,:);
+      f2 = fliplr( f2 - f2(:,end)*ones(1,ntime) ); f2 = [ f2 ; zeros( nbloq2d, ntime ) ];
+      [uin2, vin2, ain2] = Newmark (M2d, C2d, K2d, f2, u02d, v02d, a02d, -dt, beta, gamma, invK2d);
       ur2 = uin2(1:2*nnodes,:);
-      ur2 = -fliplr(Res) + ur2;
       ur2 = ur2 - ur2(:,end)*ones(1,ntime);
-      Zed = fliplr( ur2 );
+      Zed = fliplr( ur2 ); Zed = keepField( Zed, 2, boundary );
    else
       Zed = Res;
    end
@@ -236,19 +226,24 @@ for iter = 1:niter
                       / norm(uref(indtot,:),'fro');
    regulari(iter+1) = norm(Itere(indtot,:),'fro');
 
-   %% Perform Ari = A*Res :
-   fdir = dirichletRhs2( Zed, 2, c2node1, boundary, nnodes ); % Solve DN
+   %% Perform Ari = A*Zed :
+   fdir = dirichletRhs2(Zed, 2, c2node1, boundary, nnodes ); % Solve D
    f1 = fdir;
-   [uin1, vin1, ain1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
+   [uin1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
    lagr1 = uin1(2*nnodes+1:end,:);
-   fri = zeros(2*nnodes, ntime); % Solve ND
+   fri1 = zeros(2*nnodes, ntime);
    for i=1:size(lagr1,2)
-    fri(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
+      fri1(:,i) = lagr2forces2( lagr1(:,i), c2node1, 2, boundary, nnodes );
    end
-   fr = [ fri; zeros( nbloq2, ntime ) ];
-   f2 = fr;
-   [uin2, vin2, ain2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
-   Ari = Zed - uin2(1:2*nnodes,:);
+   fdir = dirichletRhs2(Zed, 2, c2node2, boundary, nnodes ); % Solve N
+   f2 = fdir;
+   [uin2] = Newmark (M2, C2, K2, f2, u02, v02, a02, dt, beta, gamma, invK2);
+   lagr2 = uin2(2*nnodes+1:end,:);
+   fri2 = zeros(2*nnodes, ntime);
+   for i=1:size(lagr1,2)
+      fri2(:,i) = lagr2forces2( lagr2(:,i), c2node2, 2, boundary, nnodes );
+   end
+   Ari = fri1 - fri2;
    %% End Ari = A*Res
    
    %% Orthogonalization
@@ -294,8 +289,36 @@ legend('error (log)', 'residual (log)')
 % plot(uref(index));
 % plot(u2(index),'Color','red');
 
+% Find the middle node of the bound
+xmax = max(nodes(:,1)); ymoy = .5 * ( max(nodes(:,2) + min(nodes(:,2))) );
+dmin = xmax^2;
+for i=1:nnodes
+   x = nodes(i,1); y = nodes(i,2);
+   d = (x-xmax)^2 + (y-ymoy)^2;
+   if d<dmin
+      dmin = d;
+      imin = i;
+   end
+end
+
 %% Compute stress :
 %sigma = stress(u2,E,nu,nodes,elements,order,1,ntoelem);
 % Output :
 Itereo = P*Itere;
 plotGMSH({Itere,'U1';Itereo,'U1_rigide'}, elements, nodes(:,[1,2]), 'output/solution');
+
+utref = uref(2*imin-1,:); utsol = Itere(2*imin-1,:);
+figure;
+hold on;
+plot( utref, 'Color', 'blue' );
+plot( utsol, 'Color', 'red' );
+legend( 'reference', 'solution' );
+
+%% Final resolution
+fdir = dirichletRhs2( Itere, 2, c2node1, boundary, nnodes );
+f4 = dirichletRhs2( urefb, 4, c2node1, boundary, nnodes );
+f1 = fdir + f4;
+[uin1] = Newmark (M1, C1, K1, f1, u01, v01, a01, dt, beta, gamma, invK1);
+usol = uin1(1:2*nnodes,:);
+
+erroru = norm(usol-uref,'fro')/norm(uref,'fro');
