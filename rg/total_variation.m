@@ -5,10 +5,10 @@ clear all;
 close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
-pm4        = -4; % Position of the 1d line
-mu         = 1e-3;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
-%mu         = 1e-1;
-ordp       = 12;
+pm4        = 4; % Position of the 1d line
+%mu         = 1e-3;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
+mu         = 1e-1;
+ordp       = 9;
 normU      = 1;   % Use L1 or L2 minimization
 jmax       = 20;  % Coefficient for Picard stuff (if normU == 3)
 upper_term = 0;
@@ -17,10 +17,10 @@ nuzawa     = 5000;
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
 threshold  = .1;  % Threshold for the crack
 
-VAR = load('fields/AnBm15b2.mat');
+%VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
-%VAR = load('fields/AnBs15b1.mat');
+VAR = load('fields/AnBs15b1.mat');
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
 L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
@@ -225,13 +225,23 @@ if normU == 1 && mu ~= 0
       solp = sol2;
       sol2 = GAG\(GAbmu+f); % pinv is used in this case
       sol2 = sol2-P*sol2;
+
+      if norm(f) == 0 % Solution is inside the hypercube
+         break;
+      end
    end
    
+   % Put the sol2 in the corner
+   %sol21 = sol2./IsumIsum;
+   %sol21 = sign(sol21);
+   %sol31 = sol21 .* IsumIsum;
+   sol3  = sol2;
+
    if upper_term == 0
       sol = zeros(size(Lhs,1),1);
-      sol(tokeep) = Lhs(tokeep,tokeep)\(b-mu*G'*sol2);
+      sol(tokeep) = Lhs(tokeep,tokeep)\(b-mu*G'*sol3);
    else
-      sol = Lhs\(b-mu*G'*sol2);
+      sol = Lhs\(b-mu*G'*sol3);
    end
    
    fctestE = .5*sol(tokeep)'*Lhs(tokeep,tokeep)*sol(tokeep) +...

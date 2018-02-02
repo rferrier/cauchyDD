@@ -5,8 +5,8 @@ clear all;
 close all;
  
 Norm       = 1;
-ordpD      = 15;
-ordp       = 15;
+ordpD      = 11;
+ordp       = 7;
 sideL      = 20; % Nb of points on the domain (for integral approximation)
 pm4        = 4; % Position of the 1d line
 upper_term = 0; % If 0 : keep only terms st i+j<ordp
@@ -17,13 +17,13 @@ threshold  = .1;  % Threshold for the crack
 %VAR = load('fields/AnBsmile615.mat');
 %VAR = load('fields/AnBlosange2l615.mat');
 %VAR = load('fields/AnBlosange615.mat');
-%VAR = load('fields/AnBm15b2.mat');
+%VAR = load('fields/AnBm15b10.mat');
 %VAR = load('fields/AnBs1013.mat');
-VAR = load('fields/AnBm15.mat');
+%VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
-%VAR = load('fields/AnBs15b1.mat');
+VAR = load('fields/AnBs15b1.mat');
 %VAR = load('fields/AnBs215b1.mat');
-%VAR = load('fields/AnBs215b1.mat');
+
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
 L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
