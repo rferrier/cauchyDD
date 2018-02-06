@@ -5,7 +5,7 @@ clear all;
 close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
-pm4        = 4; % Position of the 1d line
+pm4        = -4; % Position of the 1d line
 mu         = 1e-4;%1e-4;%5e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
 %mu         = 1e-1;%1e-2;
 epsilon    = 1e-7; % Regularization parameter for TV
@@ -18,11 +18,11 @@ threshold  = .1;  % Threshold for the crack
 
 %VAR = load('fields/AnBnoplanel615.mat');
 %VAR = load('fields/AnBs15.mat');
-%VAR = load('fields/AnBm15b10.mat');
+VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs1013.mat');
-VAR = load('fields/AnBs15b1.mat');
+%VAR = load('fields/AnBs15b1.mat');
 %VAR = load('fields/AnBlosangel615.mat');
 %VAR = load('fields/AnBlosange2l615.mat');
 %VAR = load('fields/AnBsmile615.mat');

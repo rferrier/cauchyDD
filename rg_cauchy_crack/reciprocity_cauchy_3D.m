@@ -13,7 +13,7 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 50;     % Eigenvalues truncation number
+jmaxRG     = 20;     % Eigenvalues truncation number
 nmaxRG     = 200;    % nb of computed eigenvalues
 jmaxRGSP   = 250;
 nmaxRGSP   = 400;    % nb of computed eigenvalues
@@ -22,9 +22,9 @@ upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 1;      % Recompute the operators
 matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
-RGorSP     = 3;      % Use RG(1), SP(2) or mix(3)
+RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 Npg        = 1;      % Nb Gauss points
-ordertest  = 20;     % Order of test fonctions
+ordertest  = 5;     % Order of test fonctions
 
 % Boundary conditions
 dirichlet = [3,1,0; 3,2,0 ; 3,3,0
@@ -66,7 +66,7 @@ plotGMSH3D({uref,'Vect_U';sigma,'stress'}, elements, nodes, 'output/reference');
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_qcq/plate3d_charge2nt.msh' );
 %[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_qcq/plate3d_charge2_u.msh' );
 
-boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the double elements in boundary 2, ie boundary 7
+boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the double elements in boundary 2, (ie boundary 7)
 
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
@@ -234,7 +234,7 @@ if recompute == 1
    mu     = E/(2*(1+nu));
    
    if order ~= 1
-      warning("order > 1 cases not implemented");
+      warning("order > 1 cases are not implemented");
    end
    Ng = Npg;
    [ Xg, Wg ] = gaussPt( Ng );
