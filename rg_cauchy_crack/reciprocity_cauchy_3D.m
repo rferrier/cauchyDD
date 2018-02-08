@@ -13,7 +13,7 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 20;     % Eigenvalues truncation number
+jmaxRG     = 150;     % Eigenvalues truncation number
 nmaxRG     = 200;    % nb of computed eigenvalues
 jmaxRGSP   = 250;
 nmaxRGSP   = 400;    % nb of computed eigenvalues
@@ -24,7 +24,7 @@ recompute  = 1;      % Recompute the operators
 matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
 RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 Npg        = 1;      % Nb Gauss points
-ordertest  = 5;     % Order of test fonctions
+ordertest  = 20;     % Order of test fonctions
 
 % Boundary conditions
 dirichlet = [3,1,0; 3,2,0 ; 3,3,0
@@ -148,7 +148,7 @@ boun2loc = nodeglob2boun(boundary2(:,2:4));
 nodekD = [];
 for i=1:size(knownD,1)
    dof = mod(knownD(i)+2,3)+1; % No of the dof (1=X, 2=Y, 3=Z)
-   B = ceil(knownD(i)/3); % No of the boundary
+   B = ceil(knownD(i)/3); % No of the boundary element
    N = boun2loc(B,:);
    nodekD = [ nodekD, 3*N-3+dof ];
 end
@@ -164,17 +164,17 @@ if ordertest == 5
    load('conditions5_3D.mat','-ascii');
    M = spconvert(conditions5_3D); clear('conditions5_3D');
    nmax = 5;
-   ncoef =3*(nmax+1)^3; neq = ncoef;
+   ncoef = 3*(nmax+1)^3; neq = ncoef;
 elseif ordertest == 10
    load('conditions10_3D.mat','-ascii');
    M = spconvert(conditions10_3D); clear('conditions10_3D');
    nmax = 10;
-   ncoef =3*(nmax+1)^3; neq = ncoef;
+   ncoef = 3*(nmax+1)^3; neq = ncoef;
 elseif ordertest == 20
    load('conditions20_3D.mat','-ascii');
    M = spconvert(conditions20_3D); clear('conditions20_3D');
    nmax = 20;
-   ncoef =3*(nmax+1)^3; neq = ncoef;
+   ncoef = 3*(nmax+1)^3; neq = ncoef;
 end
 
 % Suppress the superior terms
@@ -239,6 +239,7 @@ if recompute == 1
    Ng = Npg;
    [ Xg, Wg ] = gaussPt( Ng );
    Ndots = size(Wg,1);
+   nm3   = (nmax+1)^3;
    
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Compute the RG
@@ -267,11 +268,12 @@ if recompute == 1
                 
       for j=1:Ndots
          xg = Xg(j,:); wg = Wg(j);
-         xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; ... % abscissae
+         xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; % abscissae
          
          X = xgr(1)/Lx; Y = xgr(2)/Lx; Z = xgr(3)/Lx; % Normalize
          umxgx = 1-xg(1)-xg(2); % Third component (optimization)
-         
+         Swg   = surfa * wg;
+                  
          for ii=0:nmax
             nd1 = nmax-ii;
             for jj=0:nd1
@@ -341,15 +343,13 @@ if recompute == 1
                                         fpac(1)*xg(2) ; fpac(2)*xg(2) ; fpac(3)*xg(2) ];
 
                   index = (nmax+1)^2*ii + (nmax+1)*jj + kk + 1;
-                  nm3   = (nmax+1)^3;
-                  Swg   = surfa * wg;
                   
                   Ruij( index, indDtot ) = Ruij( index, indDtot ) + Swg * fpaTimesPhitest0a';
                   Ruij( nm3 + index, indDtot ) = Ruij( nm3 + index, indDtot ) ...
                                                  + Swg * fpaTimesPhitest0b';
                   Ruij( 2*nm3 + index, indDtot ) = Ruij( 2*nm3 + index, indDtot ) ...
                                                  + Swg * fpaTimesPhitest0c';
-                           
+
                   Rfij(index,indNtot)       = Rfij(index,indNtot) + Swg * vpaa';
                   Rfij(nm3+index,indNtot)   = Rfij(nm3+index,indNtot) + Swg * vpab';
                   Rfij(2*nm3+index,indNtot) = Rfij(2*nm3+index,indNtot) + Swg * vpac';
@@ -378,6 +378,10 @@ Rhs1 = Rur*u_known(knownD);% - Rfr*f_known(knownN); In practice, f_known = 0 on 
 
 % Build the matrix that passes f on dofs on the nodes from the bound
 Fbton = zeros( 3*nnodeboun, 3*nboun2 ); Fntob = zeros( 3*nboun2, 3*nnodeboun ); 
+% And the boundary mass matrix
+nodeMass = zeros(3*nnodeboun);  % For u
+elemMass = zeros(3*nboun2);     % For f
+% msur = 10000;  % ~= Infinity
 for i=1:nboun2
    coef = [ boun2loc(i,1), boun2loc(i,2), boun2loc(i,3) ];
    
@@ -389,14 +393,28 @@ for i=1:nboun2
              (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
              (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
    surfa = .5*norm(nsurf);
-      
+   
+%    if surfa<msur msur = surfa; end % Just a debug asset
+   
    Fntob( 3*i-2, 3*coef-2 ) = 1/(3*surfa) * [1,1,1];
    Fntob( 3*i-1, 3*coef-1 ) = 1/(3*surfa) * [1,1,1];
    Fntob( 3*i  , 3*coef   ) = 1/(3*surfa) * [1,1,1];
    Fbton( 3*coef-2, 3*i-2 ) = surfa/3 * [1,1,1];
    Fbton( 3*coef-1, 3*i-1 ) = surfa/3 * [1,1,1];
    Fbton( 3*coef  , 3*i   ) = surfa/3 * [1,1,1];
+   
+   ico = [ 3*i-2, 3*i-1, 3*i ];
+   cco = [ 3*coef-2, 3*coef-1, 3*coef ];
+   elemMass(ico,ico) = surfa*eye(3);
+   nodeMass(cco,cco) = nodeMass(cco,cco) + ...
+                       surfa/3 * [ ones(3), zeros(3), zeros(3) ; ...
+                                   zeros(3), ones(3), zeros(3) ; ...
+                                   zeros(3), zeros(3), ones(3) ];
 end
+
+% Extract interesting parts
+Mfm = elemMass(tofindN,tofindN); Mfr = elemMass(knownN,knownN);
+Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
 
 % If required, use the differential regularization matrix
 if regular == 2 % /!\ Broken
@@ -489,7 +507,8 @@ if RGorSP == 1
       L = Dtot*Dtot'; L0 = L;
       %L = L + eye(size(A)); % Remove the small eignevalues of L
    else
-      L = eye(size(A));
+%       L = eye(size(A));
+      L = [ Mum, zeros(size(Mum,1),size(Mfm,2)) ; zeros(size(Mfm,1),size(Mum,2)) , Mfm ]; % Weighted mass
    end
    ninfty = 0;
    
@@ -665,7 +684,8 @@ U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
 up = U1(:,1); upref = U1(:,2);
 
 upx = up(3:3:end); uprefx = upref(3:3:end);
-upx    = reshape(upx,   [nstep+1,nstep+1]);
+upx = reshape(upx,   [nstep+1,nstep+1]);
+% upx = .5*( upx - abs(upx) ); % Negative part
 uprefx = reshape(uprefx,[nstep+1,nstep+1]);
 
 figure;

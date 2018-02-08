@@ -21,7 +21,7 @@ regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : der
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
 recompute  = 0;      % Recompute the operators
-RGorSP     = 3;      % Use RG(1), SP(2) or mix(3)
+RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -538,7 +538,7 @@ if recompute == 1
 
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
-   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat');
+   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat','-ASCII');
    Rf  = Anb.Rf; Ru  = Anb.Ru;
 %   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
 %   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
