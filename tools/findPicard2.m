@@ -3,6 +3,9 @@ function [indm,p] = findPicard2 (x, varargin)
  % discrete Picard condition.
  % This function interpolates the vector x with a polynomial
  % and finds the point from witch the derivate is > 0
+
+ %warning('off','all','local'); % Because of high order singularity issue
+
  npo = size(x,1);
  if npo <= 2
     error(['Not enough points on curve : it has no corner', ...
@@ -25,7 +28,8 @@ function [indm,p] = findPicard2 (x, varargin)
  end
  
  t    = 1:npo;     % Dummy axis
- n  = floor(npo/d)+1;  % degree of polynoms
+ n    = floor(npo/d)+1;  % degree of polynoms
+ %n    = min(n,20); % Not too high degree
  indm = 0;
 
  p = polyfit(t,x',n)';

@@ -5,27 +5,29 @@ clear all;
 close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
-pm4        = -4; % Position of the 1d line
-mu         = 1e-4;%1e-4;%5e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
-%mu         = 1e-1;%1e-2;
+pm4        = 4; % Position of the 1d line
+%mu         = 1e-3;%1e-4;%5e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
+mu         = 0;%1e-1;%1e-2;
 epsilon    = 1e-7; % Regularization parameter for TV
 ordp       = 9;
-normU      = 1;   % Use L1 or L2 minimization
+normU      = 2;   % Use L1 or L2 minimization
 jmax       = 20;  % Coefficient for Picard stuff (if normU == 3)
 upper_term = 0;
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
 threshold  = .1;  % Threshold for the crack
 
-%VAR = load('fields/AnBnoplanel615.mat');
+VAR = load('fields/AnBnoplanel615.mat');
 %VAR = load('fields/AnBs15.mat');
-VAR = load('fields/AnBm15b2.mat');
+%VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs1013.mat');
 %VAR = load('fields/AnBs15b1.mat');
 %VAR = load('fields/AnBlosangel615.mat');
 %VAR = load('fields/AnBlosange2l615.mat');
+%VAR = load('fields/AnBlosange2l610b1.mat');
 %VAR = load('fields/AnBsmile615.mat');
+%VAR = load('fields/AnBsmile613b1.mat'); % ordp=7
 %VAR = load('fields/AnBs215b1.mat');
 
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
@@ -73,6 +75,12 @@ surf(X,Y,uplo1);
 shading interp;
 colorbar();
 axis('equal');
+%caxis([-0.0014619,0.0035356]);
+%caxis([-0.0020448,0.0034477]);
+%caxis([-9.0905e-04,0.0041484]);
+%caxis([-0.0014583,0.0072676]);
+%caxis([-0.0019678,0.0036869]);
+colorbar('SouthOutside');
 
 % Orthogonality is useless in this case
 tic
@@ -316,12 +324,14 @@ end
 solup = solup'; % prepare for plot
 solu0 = solu0'; %
 
-figure;
-hold on;
-surf(X,Y,solu0);
-shading interp;
-colorbar();
-axis('equal');
+%figure;
+%hold on;
+%surf(X,Y,solu0);
+%shading interp;
+%colorbar();
+%axis('equal');
+%caxis( [-0.011621, 0.016879] );
+%colorbar('SouthOutside');
 
 figure;
 hold on;
@@ -329,6 +339,13 @@ surf(X,Y,solup);
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+%caxis([-0.0014619,0.0035356]);
+%caxis([-0.0020448,0.0034477]);
+%caxis([-9.0905e-04,0.0041484]);
+%caxis([-0.0014583,0.0072676]);
+%caxis([-0.0019678,0.0036869]);
+colorbar('SouthOutside');
 
 toc
 
@@ -374,21 +391,21 @@ if id_crack == 1 % Identify the crack
    errorID = norm(crackID(:)-crackRef(:))/norm(crackRef(:));
 end
 
-% Plot on the line X = 4
-figure;
-hold on;
-nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = pm4;
+%% Plot on the line X = 4
+%figure;
+%hold on;
+%nys = (max(Ys)-min(Ys))/100;
+%Y = min(Ys):nys:max(Ys); X = pm4;
 
-solup = 0; solu0 = 0;
-for k=0:ordp
-   for l=0:ordp
-      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
-      solu0 = solu0 + McCoe0(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
-   end
-end
+%solup = 0; solu0 = 0;
+%for k=0:ordp
+%   for l=0:ordp
+%      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+%      solu0 = solu0 + McCoe0(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+%   end
+%end
 
-plot( Y, solup, 'Color', 'black' );
-plot( Y, solu0, 'Color', 'blue' );
-plot( Y, uplo(3:3:end), 'Color', 'red' );
-legend('filtred','unfiltred','reference');
+%plot( Y, solup, 'Color', 'black' );
+%plot( Y, solu0, 'Color', 'blue' );
+%plot( Y, uplo(3:3:end), 'Color', 'red' );
+%legend('filtred','unfiltred','reference');

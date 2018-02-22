@@ -62,6 +62,8 @@ surf(X,Y,uplo1);
 shading interp;
 colorbar();
 axis('equal');
+caxis( [-0.004497, 0.020062] );
+colorbar('SouthOutside');
 
 tic
 
@@ -113,6 +115,8 @@ surf(X,Y,solu0);
 shading interp;
 colorbar();
 axis('equal');
+caxis( [-0.004497, 0.020062] );
+colorbar('SouthOutside');
 
 figure;
 hold on;
@@ -120,6 +124,8 @@ surf(X,Y,solup);
 shading interp;
 colorbar();
 axis('equal');
+caxis( [-0.004497, 0.020062] );
+colorbar('SouthOutside');
 
 figure;
 hold on;
@@ -127,6 +133,8 @@ surf(X,Y,solpoly);
 shading interp;
 colorbar();
 axis('equal');
+caxis( [-0.004497, 0.020062] );
+colorbar('SouthOutside');
 
 toc
 

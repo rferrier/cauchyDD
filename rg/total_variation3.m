@@ -17,7 +17,7 @@ omega      = .5; % Relaxation parameter
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
 threshold  = .1;  % Threshold for the crack
 
-%VAR = load('fields/AnBm15b2.mat');
+%VAR = load('fields/AnBm15b10.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
 VAR = load('fields/AnBs15b1.mat');
@@ -66,6 +66,9 @@ surf(X,Y,uplo1);
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+caxis( [-8.9798e-04, 0.0035356 ]);
+colorbar('SouthOutside');
 
 % Orthogonality is useless in this case
 tic
@@ -244,6 +247,9 @@ surf(X,Y,solu0);
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+caxis( [-8.9798e-04, 0.0035356 ]);
+colorbar('SouthOutside');
 
 figure;
 hold on;
@@ -251,6 +257,9 @@ surf(X,Y,solup);
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+caxis( [-8.9798e-04, 0.0035356 ]);
+colorbar('SouthOutside');
 
 toc
 
@@ -296,21 +305,21 @@ if id_crack == 1 % Identify the crack
    errorID = norm(crackID(:)-crackRef(:))/norm(crackRef(:));
 end
 
-% Plot on the line X = 4
-figure;
-hold on;
-nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = pm4;
+%% Plot on the line X = 4
+%figure;
+%hold on;
+%nys = (max(Ys)-min(Ys))/100;
+%Y = min(Ys):nys:max(Ys); X = pm4;
 
-solup = 0; solu0 = 0;
-for k=0:ordp
-   for l=0:ordp
-      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
-      solu0 = solu0 + McCoe0(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
-   end
-end
+%solup = 0; solu0 = 0;
+%for k=0:ordp
+%   for l=0:ordp
+%      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+%      solu0 = solu0 + McCoe0(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+%   end
+%end
 
-plot( Y, solup, 'Color', 'black' );
-plot( Y, solu0, 'Color', 'blue' );
-plot( Y, uplo(3:3:end), 'Color', 'red' );
-legend('filtred','unfiltred','reference');
+%plot( Y, solup, 'Color', 'black' );
+%plot( Y, solu0, 'Color', 'blue' );
+%plot( Y, uplo(3:3:end), 'Color', 'red' );
+%legend('filtred','unfiltred','reference');

@@ -8,23 +8,32 @@ clear all;
 addpath(genpath('./tools'))
 
 % Parameters
-E          = 210000; % MPa : Young modulus
-nu         = 0.3;    % Poisson ratio
-fscalar    = 250;    % N.mm-1 : Loading on the plate
-mat        = [0, E, nu];
-br         = .0;      % Noise level
-jmaxRG     = 0;     % Eigenvalues truncation number
-regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
-upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
-froreg     = 1;      % frobenius preconditioner
-recompute  = 0;      % Recompute the operators
-RGorSP     = 1;      % Deactivated
-theta1     = pi;%0.58800;%pi;%pi%pi/2;%%pi/2;   %
-theta2     = 0;%3.7296;%0%3*pi/2;%0;%3*pi/2; % Angles of the crack (will be determined in a loop later)
-anglestep  = pi/5;  % Step in angle for Markov search
-nbstep     = 100;
-Npg        = 2;      % Nb Gauss points
-ordertest  = 20;     % Order of test fonctions
+E           = 210000; % MPa : Young modulus
+nu          = 0.3;    % Poisson ratio
+fscalar     = 250;    % N.mm-1 : Loading on the plate
+mat         = [0, E, nu];
+br          = .0;      % Noise level
+jmaxRG      = 0;     % Eigenvalues truncation number
+regular     = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
+upper_term  = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
+froreg      = 1;      % frobenius preconditioner
+recompute   = 0;      % Recompute the operators
+RGorSP      = 1;      % Deactivated
+theta1      = pi;     %3.7296;%pi;%pi/2;
+theta2      = 0;      %0.58800;%0%3*pi/2; % Initial angles of the crack
+anglestep   = pi/15;  % Step in angle for Markov search
+limnotwork  = 1001;   % Nb of failures to start adapting the step
+nbstep      = 100;
+Npg         = 2;      % Nb Gauss points
+ordertest   = 20;     % Order of test fonctions
+paramchoice = 3;      % Choice of the regularization parameter : 1=L-curve, 2=Picard, 3=DL-curve, 4=SL-curve
+
+weights = [0,1,0,0]; % Weights of the different regularization methods (order is the same as in paramchoice)
+
+nbDirichlet = [];
+%nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
+%nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ never go above the nb of dofs)
+%nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -35,18 +44,26 @@ neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
 neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
 
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0 = [];
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
-%neumann0   = [2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [4,1,0 ; 4,2,0];
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%neumann0   = [ 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
@@ -105,10 +122,10 @@ ma32 = [ 0, -(xb-x2) ; ymax-ymin, -(yb-y2) ]; bh32 = [ x2-xmin ; y2-ymin];
 ma41 = [ xmin-xmax, -(xb-x1) ; 0, -(yb-y1) ]; bh41 = [ x1-xmax ; y1-ymin];
 ma42 = [ xmin-xmax, -(xb-x2) ; 0, -(yb-y2) ]; bh42 = [ x2-xmax ; y2-ymin];
 
-%warning('off','Octave:singular-matrix'); % Yep, there will be singularity
+warning('off','Octave:singular-matrix-div'); % Yep, there will be singularity
 tr1s = [ ma11\bh11, ma21\bh21, ma31\bh31, ma41\bh41 ]; % All the intersections
 tr2s = [ ma12\bh12, ma22\bh22, ma32\bh32, ma42\bh42 ];
-%warning('on','Octave:singular-matrix');
+warning('on','Octave:singular-matrix-div');
 
 % <Ugly_hack>
 ran1 = [ rank(ma11)-1 , rank(ma21)-1 , rank(ma31)-1 , rank(ma41)-1 ]; % Ranks-1
@@ -118,23 +135,25 @@ tr2s = tr2s.*ran2; %
 % </Ugly_hack>
 
 if max(ran1) == 0 % It's the center !
-   xy1 = [ xb ; yb ]; % TODO : something to get theta1ref = -theta2ref;
+   xy1 = [ xb ; yb ]; xy1r = xy1;% TODO : something to get theta1ref = -theta2ref;
 else
    tr1s = tr1s( :, find(tr1s(2,:)>1) ); % Abscissa must be > 1
    [~,num] = min(tr1s(2,:));
    tr1 = tr1s(:,num); u = tr1(2);
    xy1 = [ (1-u)*x1 + u*xb ; (1-u)*y1 + u*yb ]; % coords of the right intersection
+   xy1r = xy1; % Store it
    theta1ref = atan2( xy1(2)-yb , xy1(1)-xb );
 end
 
 if max(ran2) == 0
-   xy2 = [ xb ; yb ];
+   xy2 = [ xb ; yb ]; xy2r = 2*xy2-xy1;
    theta2ref = theta1ref + pi;
 else
    tr2s = tr2s( :, find(tr2s(2,:)>1), : ); % Radius must be > 0
    [~,num] = min(tr2s(2,:));
    tr2 = tr2s(:,num); u = tr2(2);
-   xy2 = [ (1-u)*x2 + u*xb ; (1-u)*y2 + u*yb ] % coords of the right intersection
+   xy2 = [ (1-u)*x2 + u*xb ; (1-u)*y2 + u*yb ]; % coords of the right intersection
+   xy2r = xy2; % Store it
    theta1ref = atan2( xy2(2)-yb , xy2(1)-xb );
 end
 
@@ -189,7 +208,7 @@ Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
 UF = [u1,u2,u3,u4,f1,f2,f3,f4];
 UR = passMesh2D(nodes, elements, nodes2, elements2, UF, 0);
 
-ur1 = UR(:,1); fr1 = UR(:,5)*50; % 50 is the ration between mesh sizes (hack)
+ur1 = UR(:,1); fr1 = UR(:,5)*50; % 50 is the ratio between mesh sizes (hack)
 ur2 = UR(:,2); fr2 = UR(:,6)*50;
 ur3 = UR(:,3); fr3 = UR(:,7)*50;
 ur4 = UR(:,4); fr4 = UR(:,8)*50;
@@ -209,6 +228,38 @@ ur3 = ur3 + am3*br*br3; ur4 = ur4 + am4*br*br4;
 
 plotGMSH({ur1,'U1';ur2,'U2';ur3,'U3';ur4,'U4'},elements2, nodes2, 'output/bound');
 
+%% Test the discrete measure point stuff
+if min(size(nbDirichlet))>0
+   nmin = [];
+   for i=1:4
+      nbdiscrete = find(nbDirichlet(:,1)==i);
+      if min(size(nbdiscrete)) > 0
+         nbi = nbDirichlet(nbdiscrete,2);
+         if nbi>0
+            [~, b2node] = mapBound(i, boundary2, nnodes2);
+            xmin = min(nodes2(b2node,1)); xmax = max(nodes2(b2node,1)); Lx1 = xmax-xmin; sx = Lx1/(nbi-1);
+            ymin = min(nodes2(b2node,2)); ymax = max(nodes2(b2node,2)); Ly1 = ymax-ymin; sy = Ly1/(nbi-1);
+            if sx==0 xy = [ xmin*ones(1,nbi) ; ymin:sy:ymax ];
+            elseif sy==0 xy = [ xmin:sx:xmax ; ymin*ones(1,nbi) ];
+            else xy = [ xmin:sx:xmax ; ymin:sy:ymax ];
+            end
+         
+            nm = zeros(nbi,1);
+            for j=1:nbi % Find the closest nodes
+               xyj = xy(:,j)';
+               nodiff = nodes2(b2node,:)-xyj;
+               normdiff = nodiff(:,1).^2+nodiff(:,2).^2;
+               [~,nm(j)] = min(normdiff);
+            end
+            nm = unique(nm); nmin = [nmin;b2node(nm)];
+         end
+      end
+   end
+   nmin = unique(nmin);
+else
+   nmin = 1:nnodes2;
+end
+
 %% Build the maps of the Dirichlet and Neumann bounds
 %b2nodesD = cell(4,2); % nb of boundaries * nb of dimensions
 %b2nodesN = cell(4,2);
@@ -217,6 +268,7 @@ for i=1:4
    [~, b2node] = mapBound(i, boundary2, nnodes2);
    dofD = dirichlet0(find(dirichlet0(:,1)==i),2); % dof of the given dirichlet
    dofN = neumann0(find(neumann0(:,1)==i),2); % dof of the given neumann
+   b2nodesDo = []; % Stores the added nodes
    for j=1:size(dofD,1)
       b2nodesD = [b2nodesD ; 2*b2node-2+dofD(j)];
    end
@@ -226,10 +278,14 @@ for i=1:4
       b2nodesN = [b2nodesN ; 2*b2node-2+dofN(j)];
    end
 end
+
+% Discrete boundary stuff
+b2nodesD = intersect(b2nodesD,[2*nmin-1;2*nmin]);
+
 b2nodesnoD = setdiff(b2nodesTOT,b2nodesD);  % Missing Dirichlet conditions
 b2nodesnoN = setdiff(b2nodesTOT,b2nodesN);  % Missing Neumann conditions (unused except for visualization)
 % Put u to 0 at those missing BCs
-u1(b2nodesnoD) = 0; u2(b2nodesnoD) = 0; u3(b2nodesnoD) = 0; u4(b2nodesnoD) = 0;
+% u1(b2nodesnoD) = 0; u2(b2nodesnoD) = 0; u3(b2nodesnoD) = 0; u4(b2nodesnoD) = 0;
 
 %% Preliminary stuff : find the volumic elements corresponding to the boundaries
 nboun2 = size(boundary2,1); nelem2 = size(elements2,1);
@@ -334,6 +390,7 @@ for i=1:nboun2 % Chooses the known displacement dofs
 end
 
 knownD = unique(knownD); knownN = unique(knownN); % Remove redondnacy
+knownD = intersect( knownD, [2*nmin-1;2*nmin] ); % Discrete measurement    /!\ There is a global/local confusion /!\
 
 tofindD = setdiff( 1:2*nnbound2 , knownD );
 tofindN = setdiff( 1:2*nnbound2 , knownN );
@@ -427,7 +484,6 @@ if recompute == 1
    Ru = zeros(nftest,2*nnbound2); Rf = zeros(nftest,2*nboun2);
    
    for k=1:nftest
-      Rhs1(k) = 0; Rhs2(k) = 0;
       coefa = coef(1:(nmax+1)^2,k);
       coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
       
@@ -568,12 +624,6 @@ if recompute == 1
       f_known3([2*i-1,2*i]) = fer3;
       f_known4([2*i-1,2*i]) = fer4;
    end
-   %%
-   % Restrict the data on the given part (not necessary, but cleaner)
-   f_known1(tofindN) = 0; f_known2(tofindN) = 0;
-   f_known3(tofindN) = 0; f_known4(tofindN) = 0;
-   u_known1(tofindD) = 0; u_known2(tofindD) = 0;
-   u_known3(tofindD) = 0; u_known4(tofindD) = 0;
    
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
@@ -584,11 +634,71 @@ else
 end
 tic
 
+%% Restrict the data on the given part (not necessary, but cleaner)
+f_known1(tofindN) = 0; f_known2(tofindN) = 0;
+f_known3(tofindN) = 0; f_known4(tofindN) = 0;
+u_known1(tofindD) = 0; u_known2(tofindD) = 0;
+u_known3(tofindD) = 0; u_known4(tofindD) = 0;
+
+%% Restrict the operators
+Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
+Rum = Ru(:,tofindD); Rur = Ru(:,knownD);
+
+LhsA = -Rum;
+LhsB = Rfm;
+Rhs1 = Rur*u_known1(knownD) - Rfr*f_known1(knownN);
+Rhs2 = Rur*u_known2(knownD) - Rfr*f_known2(knownN);
+Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
+Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
+   
+% Build the matrix that passes f on the nodes from the bound
+Fntob = zeros( 2*nnbound2, 2*nboun2 );
+nodeMass = zeros(2*nnbound2); elemMass = zeros(2*nboun2);
+for i=1:nboun2
+   coef1 = [ boun2doftot(i,1), boun2doftot(i,2) ];
+   len = norm(nodes2(boundary2(i,2),:) - nodes2(boundary2(i,3),:));
+   Fntob( 2*i-1, 2*coef1-1 ) = len/2 * [1,1];
+   Fntob( 2*i, 2*coef1 )     = len/2 * [1,1];
+
+   ico = [ 2*i-1, 2*i ];
+   cco = [ 2*coef1-1, 2*coef1 ];
+   elemMass(ico,ico) = len*eye(2);
+   nodeMass(cco,cco) = nodeMass(cco,cco) + len/2 * [ eye(2), zeros(2) ; ...
+                                                     zeros(2), eye(2), ];
+end
+Mfm = elemMass(tofindN,tofindN); Mfr = elemMass(knownN,knownN);
+Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
+
+% If needed, use the differential regularization matrix
+if regular == 1
+   Du = zeros(2*nnbound2);
+   Df = eye(2*nboun2); % No derivative for f
+   for i=1:nboun2
+      coefU = [ boun2doftot(i,1) , boun2doftot(i,2) ];
+      len = norm(nodes2(boundary2(i,2),:) - nodes2(boundary2(i,3),:));
+      Du( 2*coefU-1, 2*coefU-1 ) = Du( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
+      Du( 2*coefU, 2*coefU )     = Du( 2*coefU, 2*coefU ) + 1/len*[1,-1;-1,1];
+   end
+
+   Duu  = Du(tofindD,tofindD); Dfu  = Df(tofindN,tofindN);
+   Duk  = Du(knownD,knownD);   Dfk  = Df(knownN,knownN);
+   Duuk = Du(tofindD,knownD);  Dfuk = Df(tofindN,knownN);
+end
+
+ind1 = zeros(nbstep,1); ind2 = zeros(nbstep,1); % Store the stopping indices
+ind3 = zeros(nbstep,1); ind4 = zeros(nbstep,1); %
+indp1 = zeros(nbstep,1); indp2 = zeros(nbstep,1); % Store the stopping indices (L-curve)
+indp3 = zeros(nbstep,1); indp4 = zeros(nbstep,1); %
+indd1 = zeros(nbstep,1); indd2 = zeros(nbstep,1); % Store the stopping indices (L-curve)
+indd3 = zeros(nbstep,1); indd4 = zeros(nbstep,1); %
+
+
 theta1rec = theta1;
 theta2rec = theta2;
-theta1b = theta1;
-theta2b = theta2;
-
+theta1b   = theta1;
+theta2b   = theta2;
+nbnotwork = 0; % Records the number of failures
+tic
 for iter = 1:nbstep % Markov chain loop
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Compute the crack RHS (from angle)
@@ -607,10 +717,11 @@ for iter = 1:nbstep % Markov chain loop
    ma41 = [ xmin-xmax, -cos(theta1) ; 0, -sin(theta1) ]; bh4 = [ xb-xmax ; yb-ymin];
    ma42 = [ xmin-xmax, -cos(theta2) ; 0, -sin(theta2) ];
    
-   %warning('off','Octave:singular-matrix'); % Yep, there will be singularity
+   %cond(ma11), cond(ma21), cond(ma31), cond(ma41), cond(ma12), cond(ma22), cond(ma32), cond(ma42)
+   warning('off','Octave:singular-matrix-div'); % Yep, there will be singularity
    tr1s = [ ma11\bh1, ma21\bh2, ma31\bh3, ma41\bh4 ]; % All the intersections
    tr2s = [ ma12\bh1, ma22\bh2, ma32\bh3, ma42\bh4 ];
-   %warning('on','Octave:singular-matrix');
+   warning('on','Octave:singular-matrix-div');
    
    % <Ugly_hack>
    ran1 = [ rank(ma11)-1 , rank(ma21)-1 , rank(ma31)-1 , rank(ma41)-1 ]; % Ranks-1
@@ -656,6 +767,10 @@ for iter = 1:nbstep % Markov chain loop
    
    Rucij = zeros(size(coef,1),2*nnodes3);
    
+   if order>1 warning('Mesh order is too high') end
+   Ng = Npg;
+   [ Xg, Wg ] = gaussPt1d( Ng );
+
    for i=1:nboun3
       bonod = boundary3(i,:); exno = extnorm3(i,:)';
    
@@ -664,45 +779,33 @@ for iter = 1:nbstep % Markov chain loop
       x2 = nodes3(no2,1); y2 = nodes3(no2,2);
       len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
       
-      indDtot = [ 2*i-1, 2*i, 2*(i+1)-1, 2*(i+1) ];
-      
-      if order==1
-         Ng = Npg; % (anyway, it's inexact)
-      elseif order==2
-         Ng  = Npg; no3 = bonod(4);
-         x3  = nodes3(no3,1); y3 = nodes3(no3,2);
-      end
-      [ Xg, Wg ] = gaussPt1d( Ng );
+      indDtot = [ 2*i-1, 2*i, 2*(i+1)-1, 2*(i+1) ];      
                 
       for j=1:Ng
          xg = Xg(j); wg = Wg(j);
-         
-         % Interpolations
-         if order == 1
-            xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
-         elseif order == 2
-            xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
-                   xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
-         end
-         
+         xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
          X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
-         
+         lw = len*wg;
+
          for ii=0:nmax
-            for jj=0:nmax
-               if ii+jj > nmax continue; end % No need to add an other 0
+            nimax = nmax-ii;
+            for jj=0:nimax
+               %if ii+jj > nmax continue; end % No need to add an other 0
                
                % Build the test field
                sloc11a = 0; sloc12a = 0; sloc22a = 0;
                sloc11b = 0; sloc12b = 0; sloc22b = 0;
                if ii>0
-                  sloc11a = E/(1-nu^2)*ii*X^(ii-1)*Y^jj;
-                  sloc22a = nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj;
-                  sloc12b = E/(2*(1+nu)) * ii*X^(ii-1)*Y^jj;
+                  XY = ii*X^(ii-1)*Y^jj;
+                  sloc11a = E/(1-nu^2)*XY;
+                  sloc22a = nu*E/(1-nu^2)*XY;
+                  sloc12b = E/(2*(1+nu))*XY;
                end
                if jj>0
-                  sloc11b = nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1);
-                  sloc22b = E/(1-nu^2)*jj*X^ii*Y^(jj-1);
-                  sloc12a = E/(2*(1+nu)) * jj*X^ii*Y^(jj-1);
+                  XY = jj*X^ii*Y^(jj-1);
+                  sloc11b = nu*E/(1-nu^2)*XY;
+                  sloc22b = E/(1-nu^2)*XY;
+                  sloc12a = E/(2*(1+nu))*XY;
                end
                
                sloca = 1/Lx*[sloc11a,sloc12a;sloc12a,sloc22a];
@@ -714,171 +817,28 @@ for iter = 1:nbstep % Markov chain loop
                fpaTimesPhitest0b = [fpab(1)*(1-xg);fpab(2)*(1-xg);fpab(1)*xg;fpab(2)*xg]; 
                
                Rucij((nmax+1)*ii + jj+1,indDtot) = Rucij((nmax+1)*ii + jj+1,indDtot) ...
-                                                   + len * wg * fpaTimesPhitest0a';
+                                                   + lw * fpaTimesPhitest0a';
                Rucij((nmax+1)^2 + (nmax+1)*ii + jj+1,indDtot) =...
                                       Rucij((nmax+1)^2 + (nmax+1)*ii + jj+1,indDtot) ...
-                                                   + len * wg * fpaTimesPhitest0b';
+                                                   + lw * fpaTimesPhitest0b';
             end
          end
-   
       end
    end
    
    Ruc = coef'*Rucij;
    
-   %for k=1:nftest
-   %   Rhs1(k) = 0; Rhs2(k) = 0;
-   %   coefa = coef(1:(nmax+1)^2,k);
-   %   coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
-   %   
-   %   for i=1:nboun3
-   %      bonod = boundary3(i,:); exno = extnorm3(i,:)';
-   %   
-   %      no1 = bonod(2); no2 = bonod(3); boname = bonod(1);
-   %      x1 = nodes3(no1,1); y1 = nodes3(no1,2);
-   %      x2 = nodes3(no2,1); y2 = nodes3(no2,2);
-   %      len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
-   %      
-   %      indDtot = [ 2*i-1, 2*i, 2*(i+1)-1, 2*(i+1) ];
-   %      
-   %      if order==1
-   %         Ng = Npg; % (anyway, it's inexact)
-   %      elseif order==2
-   %         Ng  = Npg; no3 = bonod(4);
-   %         x3  = nodes3(no3,1); y3 = nodes3(no3,2);
-   %      end
-   %      [ Xg, Wg ] = gaussPt1d( Ng );
-   %                
-   %      for j=1:Ng
-   %         xg = Xg(j); wg = Wg(j);
-   %         
-   %         % Interpolations
-   %         if order == 1
-   %            xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
-   %         elseif order == 2
-   %            xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
-   %                   xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
-   %         end
-   %         
-   %         X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
-   %         
-   %         % Build the test field
-   %         vloc1 = 0; vloc2 = 0;
-   %         sloc11 = 0; sloc12 = 0; sloc22 = 0;
-   %
-   %         % It is vital to separate the cases ii=0 and jj=0 to avoid 1/0
-   %         ii = 0; jj = 0;
-   %         aij = coefa( (nmax+1)*ii + jj+1 );
-   %         bij = coefb( (nmax+1)*ii + jj+1 );
-   %      
-   %         ii = 0;
-   %         for jj=1:nmax
-   %            aij = coefa( (nmax+1)*ii + jj+1 );
-   %            bij = coefb( (nmax+1)*ii + jj+1 );
-   %            sloc11 = sloc11 + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-   %            sloc22 = sloc22 + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-   %            sloc12 = sloc12 + E/(2*(1+nu)) * jj*X^ii*Y^(jj-1)*aij;
-   %         end
-   %         
-   %         jj = 0;
-   %         for ii=1:nmax
-   %            aij = coefa( (nmax+1)*ii + jj+1 );
-   %            bij = coefb( (nmax+1)*ii + jj+1 );
-   %            sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
-   %            sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
-   %            sloc12 = sloc12 + E/(2*(1+nu)) * ii*X^(ii-1)*Y^jj*bij;
-   %         end
-   %         
-   %         for ii=1:nmax
-   %            for jj=1:nmax
-   %               if ii+jj > nmax continue; end % No need to add an other 0
-   %               aij = coefa( (nmax+1)*ii + jj+1 );
-   %               bij = coefb( (nmax+1)*ii + jj+1 );
-   %               sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij ...
-   %                               + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-   %               sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij ...
-   %                               + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
-   %               sloc12 = sloc12 + E/(2*(1+nu)) * ...
-   %                                 ( jj*X^ii*Y^(jj-1)*aij + ii*X^(ii-1)*Y^jj*bij );
-   %            end
-   %         end
-   %
-   %         sloc = 1/Lx*[sloc11,sloc12;sloc12,sloc22];
-   %         spa = sloc;
-   %         fpa = spa*exno;
-   %         
-   %         fpaTimesPhitest0 = [fpa(1)*(1-xg);fpa(2)*(1-xg);fpa(1)*xg;fpa(2)*xg]; 
-   %         
-   %         Ruc(k,indDtot) = Ruc(k,indDtot) + len * wg * fpaTimesPhitest0';
-   %      end
-   %   end
-   %end
-   %disp([ " Assembly of the crack's Lhs ", num2str(toc) ]);
-   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-   tic 
-   %% Restrict the operators
-   Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
-   Rum = Ru(:,tofindD); Rur = Ru(:,knownD);
-   
-   LhsA = -Rum;
-   LhsB = Rfm;
-   Rhs1 = Rur*u_known1(knownD) - Rfr*f_known1(knownN);
-   Rhs2 = Rur*u_known2(knownD) - Rfr*f_known2(knownN);
-   Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
-   Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
-   
-   % Build the matrix that passes f on the nodes from the bound
-   Fntob = zeros( 2*nnbound2, 2*nboun2 );
-   for i=1:nboun2
-      coef1 = [ boun2doftot(i,1), boun2doftot(i,2) ];
-      len = norm(nodes2(boundary2(i,2),:) - nodes2(boundary2(i,3),:));
-      Fntob( 2*i-1, 2*coef1-1 ) = len/2 * [1,1];
-      Fntob( 2*i, 2*coef1 )     = len/2 * [1,1];
-   end
-   
-   % If needed, use the differential regularization matrix
-   if regular == 2
-      Du = Kinter( [2*nodesbound2-1,2*nodesbound2] , [2*nodesbound2-1,2*nodesbound2] );
-      Df = Fntob;
-      Du0 = Du; Df0 = Df;
-      
-      if froreg == 1
-         kB = sqrt(norm(LhsA,'fro')^2+norm(Ruc,'fro')^2)/norm(LhsB,'fro');
-   %      kB = norm(LhsA,'fro')/norm(LhsB,'fro');
-      else
-         kB = 1;
-      end
-      
-      Dut  = Du0(tofindD,tofindD); Dft  = kB*Df0(tofindN,tofindN);
-      Duk  = Du0(knownD,knownD);   Dfk  = kB*Df0(knownN,knownN);
-      Dutk = Du0(tofindD,knownD);  Dftk = kB*Df0(tofindN,knownN);
-      
-      Zutft = zeros(size(Dut,1),size(Dft,2));
-      Zutuk = zeros(size(Dut,1),size(Duk,2));
-      Zutfk = zeros(size(Dut,1),size(Dft,2));
-      Zftuk = zeros(size(Dut,1),size(Dft,2));
-      Zftfk = zeros(size(Dut,1),size(Dft,2));
-      Zukfk = zeros(size(Dut,1),size(Dft,2));
-   
-      Du = Dut; Df = Dft;
-      
-   elseif regular == 1
-      Du = zeros(2*nnbound2);
-      Df = eye(2*nboun2); % No derivative for f
-      for i=1:nboun2
-         coefU = [ boun2doftot(i,1) , boun2doftot(i,2) ];
-         Du( 2*coefU-1, 2*coefU-1 ) = Du( 2*coefU-1, 2*coefU-1 ) + [1,-1;-1,1];
-         Du( 2*coefU, 2*coefU )     = Du( 2*coefU, 2*coefU ) + [1,-1;-1,1];
-      end
-   %   for i=1:nnbound2
-   %      coefF = [ find(boun2doftot(:,1)==i) , find(boun2doftot(:,2)==i) ];
-   %      Df( 2*coefF-1, 2*coefF-1 ) = Df( 2*coefF-1, 2*coefF-1 ) + [-1,1;1,-1];
-   %      Df( 2*coefF, 2*coefF )     = Df( 2*coefF, 2*coefF ) + [-1,1;1,-1];
-   %   end
-      
-      Du0 = Du; Df0 = Df;
-      Du  = Du0(tofindD,tofindD); Df  = Df0(tofindN,tofindN);
-      Duk = Du0(knownD,knownD);   Dfk = Df0(knownN,knownN);
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+   nodeMass3 = zeros(2*nboun3+2);
+   for i=1:nboun3
+      coef1 = [ i, i+1 ];
+      len = norm(nodes3(boundary3(i,2),:) - nodes3(boundary3(i,3),:));
+
+      ico = [ 2*i-1, 2*i ];
+      cco = [ 2*coef1-1, 2*coef1 ];
+      nodeMass3(cco,cco) = nodeMass3(cco,cco) + len/2 * [ eye(2), zeros(2) ; ...
+                                                          zeros(2), eye(2), ];
    end
    
    %% Pure RG : Solve the linear system and recover the unknowns
@@ -893,18 +853,32 @@ for iter = 1:nbstep % Markov chain loop
    Lhs = [LhsA,kB*LhsB,Ruc];
    
    Rhs = Rhs1;
-   A = Lhs'*Lhs; b = Lhs'*Rhs;
+   A = Lhs'*Lhs; b = Lhs'*Rhs; sA = size(A,1);
    
-   if regular == 2
-      Dtot = [ Dut , Zutft ;...
-               Zutft' , Dft ];
-      L = Dtot'*Dtot;
-   elseif regular == 1
-      Dtot = [ Du , zeros( size(Du,1) , size(Df,2) ) ;...
-               zeros( size(Df,1) , size(Du,2) ) , Df ];
-      L = Dtot'*Dtot;
+   Z12    = zeros(size(Mum,1),size(Mfm,2)); Z13 = zeros(size(Mum,1),size(nodeMass3,2));
+   Z23    = zeros(size(Mfm,1),size(nodeMass3,2));
+   Mtot   = [ Mum, Z12, Z13  ; Z12', Mfm, Z23 ; Z13', Z23', nodeMass3 ];
+   Msmall = [ 0*Mum, Z12, Z13  ; Z12', 0*Mfm, Z23 ; Z13', Z23', nodeMass3 ]; % Only on the crack
+   Mtop   = Mtot-Msmall; % Debug asset
+
+   % Differential regularization matrix
+   D3 = zeros(2*nboun3+2);
+   for i=1:nboun3
+      coefU = [ i , i+1 ];
+      len = norm(nodes3(i,:) - nodes3(i+1,:));
+      D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
+      D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len*[1,-1;-1,1];
+   end
+   Dsmall = [ 0*Mum, Z12, Z13  ; Z12', 0*Mfm, Z23 ; Z13', Z23', D3 ];
+
+   if regular == 1
+      Z12 = zeros( size(Duu,1) , size(Dfu,2) ); Z13 = zeros( size(Duu,1), size(D3,2) );
+      Z23 = zeros( size(Dfu,1), size(D3,2) );
+      Dtot = [ Duu ,Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3 ];
+      L = Dtot + Mtot * norm(Dtot,'fro')/(10*norm(Mtot,'fro'));
    else
-      L = eye(size(A));
+%      L = eye(size(A));
+      L = Mtot;
    end
    ninfty = 0;
    
@@ -925,25 +899,100 @@ for iter = 1:nbstep % Markov chain loop
    if size(imax,1) == 0
        imax = size(thetas,1);
    end
+
+   % Eigenmode on the crack
+   Qsmall = Q; Qsmall( 1:end-2*nnodes3+1, : ) = 0;
    
-   tplo = thetas(ninfty+1:imax); bplo1 = Q'*b; bplo1 = bplo1(ninfty+1:imax);
-   rplo1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplo1(1:imax);
+   tplo = thetas(ninfty+1:imax);
+   bplo1 = Q'*Lhs'*Rhs1; bplo1 = bplo1(ninfty+1:imax);
+   rplp1 = (Q'*Lhs'*Rhs1)./thetas; rplo1 = rplp1(1:imax);
    bplo2 = Q'*Lhs'*Rhs2; bplo2 = bplo2(ninfty+1:imax);
-   rplo2 = (Q'*Lhs'*Rhs2)./thetas; rplo2 = rplo2(1:imax);
+   rplp2 = (Q'*Lhs'*Rhs2)./thetas; rplo2 = rplp2(1:imax);
    bplo3 = Q'*Lhs'*Rhs3; bplo3 = bplo3(ninfty+1:imax);
-   rplo3 = (Q'*Lhs'*Rhs3)./thetas; rplo3 = rplo3(1:imax);
+   rplp3 = (Q'*Lhs'*Rhs3)./thetas; rplo3 = rplp3(1:imax);
    bplo4 = Q'*Lhs'*Rhs4; bplo4 = bplo4(ninfty+1:imax);
-   rplo4 = (Q'*Lhs'*Rhs4)./thetas; rplo4 = rplo4(1:imax);
+   rplp4 = (Q'*Lhs'*Rhs4)./thetas; rplo4 = rplp4(1:imax);
+
+   nor1 = zeros(sA,1); nor2 = zeros(sA,1);
+   nor3 = zeros(sA,1); nor4 = zeros(sA,1);
+   nod1 = zeros(sA,1); nod2 = zeros(sA,1);
+   nod3 = zeros(sA,1); nod4 = zeros(sA,1);
+   nop1 = zeros(sA,1); nop2 = zeros(sA,1);
+   nop3 = zeros(sA,1); nop4 = zeros(sA,1);
+   res1 = zeros(sA,1); res2 = zeros(sA,1);
+   res3 = zeros(sA,1); res4 = zeros(sA,1);
+   for i=1:sA
+      xnor1 = Q(:,1:i)*rplp1(1:i); nor1(i) = xnor1'*Msmall*xnor1; nod1(i) = xnor1'*Dsmall*xnor1;
+      xnor2 = Q(:,1:i)*rplp2(1:i); nor2(i) = xnor2'*Msmall*xnor2; nod2(i) = xnor2'*Dsmall*xnor2;
+      xnor3 = Q(:,1:i)*rplp3(1:i); nor3(i) = xnor3'*Msmall*xnor3; nod3(i) = xnor3'*Dsmall*xnor3;
+      xnor4 = Q(:,1:i)*rplp4(1:i); nor4(i) = xnor4'*Msmall*xnor4; nod4(i) = xnor4'*Dsmall*xnor4;
+      xnop1 = Q(:,1:i)*rplp1(1:i); nop1(i) = xnor1'*Mtop*xnor1;
+      xnop2 = Q(:,1:i)*rplp2(1:i); nop2(i) = xnor2'*Mtop*xnor2;
+      xnop3 = Q(:,1:i)*rplp3(1:i); nop3(i) = xnor3'*Mtop*xnor3;
+      xnop4 = Q(:,1:i)*rplp4(1:i); nop4(i) = xnor4'*Mtop*xnor4;
+%      xnop1 = Q(:,i)*rplo1(i); nop1(i) = sqrt(xnop1'*Msmall*xnop1); noq1(i) = sqrt(xnop1'*Mtop*xnop1);
+%      xnop2 = Q(:,i)*rplo2(i); nop2(i) = sqrt(xnop2'*Msmall*xnop2); noq2(i) = sqrt(xnop2'*Mtop*xnop2);
+%      xnop3 = Q(:,i)*rplo3(i); nop3(i) = sqrt(xnop3'*Msmall*xnop3); noq3(i) = sqrt(xnop3'*Mtop*xnop3);
+%      xnop4 = Q(:,i)*rplo4(i); nop4(i) = sqrt(xnop4'*Msmall*xnop4); noq4(i) = sqrt(xnop4'*Mtop*xnop4);
+      res1(i)  = norm(Lhs*xnor1 - Rhs1);
+      res2(i)  = norm(Lhs*xnor2 - Rhs2);
+      res3(i)  = norm(Lhs*xnor3 - Rhs3);
+      res4(i)  = norm(Lhs*xnor4 - Rhs4);
+   end
+
+   not1 = nor1+nop1; not2 = nor2+nop2; not3 = nor3+nop3; not4 = nor4+nop4; % Total norm
    
    % Remove Zeros in rploi (why on hell are there zeros in the first place ?)
-   me1 = mean(abs(rplo1))/1e5; arplo1 = max(me1,abs(rplo1));
-   me2 = mean(abs(rplo2))/1e5; arplo2 = max(me2,abs(rplo2));
-   me3 = mean(abs(rplo3))/1e5; arplo3 = max(me3,abs(rplo3));
-   me4 = mean(abs(rplo4))/1e5; arplo4 = max(me4,abs(rplo4));
-   ind1 = findPicard2 (log10(arplo1), 7, 1, 3);
-   ind2 = findPicard2 (log10(arplo2), 7, 1, 3);
-   ind3 = findPicard2 (log10(arplo3), 7, 1, 3);
-   ind4 = findPicard2 (log10(arplo4), 7, 1, 3);
+   me1 = mean(abs(rplp1))/1e5; arplo1 = max(me1,abs(rplp1));
+   me2 = mean(abs(rplp2))/1e5; arplo2 = max(me2,abs(rplp2));
+   me3 = mean(abs(rplp3))/1e5; arplo3 = max(me3,abs(rplp3));
+   me4 = mean(abs(rplp4))/1e5; arplo4 = max(me4,abs(rplp4));
+   ind1(iter) = findPicard2 (log10(arplo1), ceil(sA/7), 1, 3);
+   ind2(iter) = findPicard2 (log10(arplo2), ceil(sA/7), 1, 3);
+   ind3(iter) = findPicard2 (log10(arplo3), ceil(sA/7), 1, 3);
+   ind4(iter) = findPicard2 (log10(arplo4), ceil(sA/7), 1, 3);
+
+   indp1(iter) = findCorner (res1, nor1, ceil(sA/4), 1, 4);
+   indp2(iter) = findCorner (res2, nor2, ceil(sA/4), 1, 4);
+   indp3(iter) = findCorner (res3, nor3, ceil(sA/4), 1, 4);
+   indp4(iter) = findCorner (res4, nor4, ceil(sA/4), 1, 4);
+
+   indd1(iter) = findCorner (res1, nod1, ceil(sA/4), 1, 4);
+   indd2(iter) = findCorner (res2, nod2, ceil(sA/4), 1, 4);
+   indd3(iter) = findCorner (res3, nod3, ceil(sA/4), 1, 4);
+   indd4(iter) = findCorner (res4, nod4, ceil(sA/4), 1, 4);
+
+   if norm(nop1)~=0 % In case Mtop = []
+      inds1(iter) = findCorner (res1, nop1, ceil(sA/4), 1, 4);
+      inds2(iter) = findCorner (res2, nop2, ceil(sA/4), 1, 4);
+      inds3(iter) = findCorner (res3, nop3, ceil(sA/4), 1, 4);
+      inds4(iter) = findCorner (res4, nop4, ceil(sA/4), 1, 4);
+   else
+      inds1(iter) = 1; inds2(iter) = 1; inds3(iter) = 1; inds4(iter) = 1;
+   end
+
+%   indt1(iter) = findCorner (res1, not1, ceil(sA/4), 1, 4);
+%   indt2(iter) = findCorner (res2, not2, ceil(sA/4), 1, 4);
+%   indt3(iter) = findCorner (res3, not3, ceil(sA/4), 1, 4);
+%   indt4(iter) = findCorner (res4, not4, ceil(sA/4), 1, 4);
+
+   %if ind1(iter)==1
+%      [~,p] = findPicard2 (log10(arplo1), 7, 1, 3);
+%      n = size(p,1);
+%      t = 1:.05:imax; tt = zeros(n,20*(imax-1)+1);
+%      for j=1:n
+%         tt(j,:) = t.^(n-j);
+%      end
+%      px = p'*tt;
+%      
+%      figure
+%      hold on;
+%      plot(log10(arplo1),'Color','black');
+%      plot(t,px,'Color','red');
+%      legend('sol1','poly1');
+
+%      bug;
+   %end
 
 %   figure
 %   hold on;
@@ -954,6 +1003,7 @@ for iter = 1:nbstep % Markov chain loop
 %   plot(log10(abs(rplo2)),'Color','blue');
 %   legend('Singular values','Rhs1','sol1','Rhs2','sol2');
    
+%   try
 %   figure
 %   hold on;
 %   plot(log10(abs(rplo1)),'Color','red');
@@ -961,11 +1011,92 @@ for iter = 1:nbstep % Markov chain loop
 %   plot(log10(abs(rplo3)),'Color','magenta');
 %   plot(log10(abs(rplo4)),'Color','blue');
 %   legend('sol1','sol2','sol3','sol4');
+%   end
+
+%   figure
+%   hold on;
+%   plot(log10(nop1),'Color','red');
+%   plot(log10(nop2),'Color','black');
+%   plot(log10(nop3),'Color','magenta');
+%   plot(log10(nop4),'Color','blue');
+%   legend('sol1','sol2','sol3','sol4');
+
+%   figure
+%   hold on;
+%   plot(log10(noq1),'Color','red');
+%   plot(log10(noq2),'Color','black');
+%   plot(log10(noq3),'Color','magenta');
+%   plot(log10(noq4),'Color','blue');
+%   legend('sol1','sol2','sol3','sol4');
+
+%   try
+%   figure;
+%   hold on;
+%   loglog(res1,nor1,'Color','red','-*');
+%   loglog(res1(indp1),nor1(indp1),'Color','red','o','markersize',15);
+%   loglog(res2,nor2,'Color','black','-*');
+%   loglog(res2(indp2),nor2(indp2),'Color','black','o','markersize',15);
+%   loglog(res3,nor3,'Color','magenta','-*');
+%   loglog(res3(indp3),nor3(indp3),'Color','magenta','o','markersize',15);
+%   loglog(res4,nor4,'Color','blue','-*');
+%   loglog(res4(indp4),nor4(indp4),'Color','blue','o','markersize',15);
+%   legend('L1','','L2','','L3','','L4','');
+%   end
+
+%   try
+%   figure;
+%   hold on;
+%   loglog(res1,nod1,'Color','red','-*');
+%   loglog(res1(indd1),nod1(indd1),'Color','red','o','markersize',15);
+%   loglog(res2,nod2,'Color','black','-*');
+%   loglog(res2(indd2),nod2(indd2),'Color','black','o','markersize',15);
+%   loglog(res3,nod3,'Color','magenta','-*');
+%   loglog(res3(indd3),nod3(indd3),'Color','magenta','o','markersize',15);
+%   loglog(res4,nod4,'Color','blue','-*');
+%   loglog(res4(indd4),nod4(indd4),'Color','blue','o','markersize',15);
+%   legend('L1','','L2','','L3','','L4','');
+%   end
+
+%   try
+%   figure;
+%   hold on;
+%   loglog(res1,nop1,'Color','red','-*');
+%   loglog(res1(inds1),nop1(inds1),'Color','red','o','markersize',15);
+%   loglog(res2,nop2,'Color','black','-*');
+%   loglog(res2(inds2),nop2(inds2),'Color','black','o','markersize',15);
+%   loglog(res3,nop3,'Color','magenta','-*');
+%   loglog(res3(inds3),nop3(inds3),'Color','magenta','o','markersize',15);
+%   loglog(res4,nop4,'Color','blue','-*');
+%   loglog(res4(inds4),nop4(inds4),'Color','blue','o','markersize',15);
+%   legend('L1','','L2','','L3','','L4','');
+%   end
+
+%   try
+%   figure;
+%   hold on;
+%   loglog(res1,not1,'Color','red','-*');
+%   loglog(res1(indt1),not1(indt1),'Color','red','o','markersize',15);
+%   loglog(res2,not2,'Color','black','-*');
+%   loglog(res2(indt2),not2(indt2),'Color','black','o','markersize',15);
+%   loglog(res3,not3,'Color','magenta','-*');
+%   loglog(res3(indt3),not3(indt3),'Color','magenta','o','markersize',15);
+%   loglog(res4,not4,'Color','blue','-*');
+%   loglog(res4(indt4),not4(indt4),'Color','blue','o','markersize',15);
+%   legend('L1','','L2','','L3','','L4','');
+%   end
    
    % Filter eigenvalues
    if jmax == 0
       jmax = size(Thetas,1);
-      jmax1 = ind1; jmax2 = ind2; jmax3 = ind3; jmax4 = ind4;
+      if paramchoice == 1
+         jmax1 = indp1(iter); jmax2 = indp2(iter); jmax3 = indp3(iter); jmax4 = indp4(iter);
+      elseif paramchoice == 2
+         jmax1 = ind1(iter); jmax2 = ind2(iter); jmax3 = ind3(iter); jmax4 = ind4(iter);
+      elseif paramchoice == 3
+         jmax1 = indd1(iter); jmax2 = indd2(iter); jmax3 = indd3(iter); jmax4 = indd4(iter);
+      else % paramchoice == 4
+         jmax1 = inds1(iter); jmax2 = inds2(iter); jmax3 = inds3(iter); jmax4 = inds4(iter);
+      end
    else
       jmax0 = min( size(Thetas,1) , jmax );
       jmax1 = jmax; jmax2 = jmax; jmax3 = jmax; jmax4 = jmax;
@@ -975,10 +1106,10 @@ for iter = 1:nbstep % Markov chain loop
    ThetaT3 = Thetas( ninfty+1:jmax3 , ninfty+1:jmax3 );
    ThetaT4 = Thetas( ninfty+1:jmax4 , ninfty+1:jmax4 );
    
-   bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax1);
-   bT2 = Q'*Lhs'*Rhs2; bT2 = bT2(ninfty+1:jmax2);
-   bT3 = Q'*Lhs'*Rhs3; bT3 = bT3(ninfty+1:jmax3);
-   bT4 = Q'*Lhs'*Rhs4; bT4 = bT4(ninfty+1:jmax4);
+   bU1 = Q'*Lhs'*Rhs1; bT1 = bU1(ninfty+1:jmax1);
+   bU2 = Q'*Lhs'*Rhs2; bT2 = bU2(ninfty+1:jmax2);
+   bU3 = Q'*Lhs'*Rhs3; bT3 = bU3(ninfty+1:jmax3);
+   bU4 = Q'*Lhs'*Rhs4; bT4 = bU4(ninfty+1:jmax4);
    
    Solu1RG = Q(:,ninfty+1:jmax1) * (ThetaT1\bT1);
    Solu2RG = Q(:,ninfty+1:jmax2) * (ThetaT2\bT2);
@@ -986,19 +1117,72 @@ for iter = 1:nbstep % Markov chain loop
    Solu4RG = Q(:,ninfty+1:jmax4) * (ThetaT4\bT4);
    
    Solu1 = Solu1RG; Solu2 = Solu2RG; Solu3 = Solu3RG; Solu4 = Solu4RG;
+
+   %% Compute phi with 4 different ways
+   jmax1 = indp1(iter); jmax2 = indp2(iter); jmax3 = indp3(iter); jmax4 = indp4(iter);
+   ThetaT1 = Thetas( ninfty+1:jmax1 , ninfty+1:jmax1 ); bT1 = bU1(ninfty+1:jmax1);
+   ThetaT2 = Thetas( ninfty+1:jmax2 , ninfty+1:jmax2 ); bT2 = bU2(ninfty+1:jmax2);
+   ThetaT3 = Thetas( ninfty+1:jmax3 , ninfty+1:jmax3 ); bT3 = bU3(ninfty+1:jmax3);
+   ThetaT4 = Thetas( ninfty+1:jmax4 , ninfty+1:jmax4 ); bT4 = bU4(ninfty+1:jmax4);
+   Solu1L = Q(:,ninfty+1:jmax1) * (ThetaT1\bT1);
+   Solu2L = Q(:,ninfty+1:jmax2) * (ThetaT2\bT2);
+   Solu3L = Q(:,ninfty+1:jmax3) * (ThetaT3\bT3);
+   Solu4L = Q(:,ninfty+1:jmax4) * (ThetaT4\bT4);
+
+   jmax1 = ind1(iter); jmax2 = ind2(iter); jmax3 = ind3(iter); jmax4 = ind4(iter);
+   ThetaT1 = Thetas( ninfty+1:jmax1 , ninfty+1:jmax1 ); bT1 = bU1(ninfty+1:jmax1);
+   ThetaT2 = Thetas( ninfty+1:jmax2 , ninfty+1:jmax2 ); bT2 = bU2(ninfty+1:jmax2);
+   ThetaT3 = Thetas( ninfty+1:jmax3 , ninfty+1:jmax3 ); bT3 = bU3(ninfty+1:jmax3);
+   ThetaT4 = Thetas( ninfty+1:jmax4 , ninfty+1:jmax4 ); bT4 = bU4(ninfty+1:jmax4);
+   Solu1P = Q(:,ninfty+1:jmax1) * (ThetaT1\bT1);
+   Solu2P = Q(:,ninfty+1:jmax2) * (ThetaT2\bT2);
+   Solu3P = Q(:,ninfty+1:jmax3) * (ThetaT3\bT3);
+   Solu4P = Q(:,ninfty+1:jmax4) * (ThetaT4\bT4);
+
+   jmax1 = indd1(iter); jmax2 = indd2(iter); jmax3 = indd3(iter); jmax4 = indd4(iter);
+   ThetaT1 = Thetas( ninfty+1:jmax1 , ninfty+1:jmax1 ); bT1 = bU1(ninfty+1:jmax1);
+   ThetaT2 = Thetas( ninfty+1:jmax2 , ninfty+1:jmax2 ); bT2 = bU2(ninfty+1:jmax2);
+   ThetaT3 = Thetas( ninfty+1:jmax3 , ninfty+1:jmax3 ); bT3 = bU3(ninfty+1:jmax3);
+   ThetaT4 = Thetas( ninfty+1:jmax4 , ninfty+1:jmax4 ); bT4 = bU4(ninfty+1:jmax4);
+   Solu1D = Q(:,ninfty+1:jmax1) * (ThetaT1\bT1);
+   Solu2D = Q(:,ninfty+1:jmax2) * (ThetaT2\bT2);
+   Solu3D = Q(:,ninfty+1:jmax3) * (ThetaT3\bT3);
+   Solu4D = Q(:,ninfty+1:jmax4) * (ThetaT4\bT4);
+
+   jmax1 = inds1(iter); jmax2 = inds2(iter); jmax3 = inds3(iter); jmax4 = inds4(iter);
+   ThetaT1 = Thetas( ninfty+1:jmax1 , ninfty+1:jmax1 ); bT1 = bU1(ninfty+1:jmax1);
+   ThetaT2 = Thetas( ninfty+1:jmax2 , ninfty+1:jmax2 ); bT2 = bU2(ninfty+1:jmax2);
+   ThetaT3 = Thetas( ninfty+1:jmax3 , ninfty+1:jmax3 ); bT3 = bU3(ninfty+1:jmax3);
+   ThetaT4 = Thetas( ninfty+1:jmax4 , ninfty+1:jmax4 ); bT4 = bU4(ninfty+1:jmax4);
+   Solu1S = Q(:,ninfty+1:jmax1) * (ThetaT1\bT1);
+   Solu2S = Q(:,ninfty+1:jmax2) * (ThetaT2\bT2);
+   Solu3S = Q(:,ninfty+1:jmax3) * (ThetaT3\bT3);
+   Solu4S = Q(:,ninfty+1:jmax4) * (ThetaT4\bT4);
+
+   phiL(iter) = norm(Lhs*Solu1L-Rhs1)^2 + norm(Lhs*Solu2L-Rhs2)^2 +...
+               norm(Lhs*Solu3L-Rhs3)^2 + norm(Lhs*Solu4L-Rhs4)^2;
+   phiP(iter) = norm(Lhs*Solu1P-Rhs1)^2 + norm(Lhs*Solu2P-Rhs2)^2 +...
+               norm(Lhs*Solu3P-Rhs3)^2 + norm(Lhs*Solu4P-Rhs4)^2;
+   phiD(iter) = norm(Lhs*Solu1D-Rhs1)^2 + norm(Lhs*Solu2D-Rhs2)^2 +...
+               norm(Lhs*Solu3D-Rhs3)^2 + norm(Lhs*Solu4D-Rhs4)^2;
+   phiS(iter) = norm(Lhs*Solu1S-Rhs1)^2 + norm(Lhs*Solu2S-Rhs2)^2 +...
+               norm(Lhs*Solu3S-Rhs3)^2 + norm(Lhs*Solu4S-Rhs4)^2;
+
+   phi(iter) = phiL(iter)^weights(1)*phiP(iter)^weights(2)*phiD(iter)^weights(3)*phiS(iter)^weights(4);
    
-   
-   phi(iter) = norm(Lhs*Solu1RG-Rhs1)^2 + norm(Lhs*Solu2RG-Rhs2)^2 +...
-               norm(Lhs*Solu3RG-Rhs3)^2 + norm(Lhs*Solu4RG-Rhs4)^2; % residual
+%   phi(iter) = sqrt( norm(Lhs*Solu1RG-Rhs1)^2 + norm(Lhs*Solu2RG-Rhs2)^2 +...
+%                     norm(Lhs*Solu3RG-Rhs3)^2 + norm(Lhs*Solu4RG-Rhs4)^2 ); % residual
+
 %   phi(iter) = norm(Lhs*Solu2RG-Rhs2)^2 +...
 %               norm(Lhs*Solu3RG-Rhs3)^2 + norm(Lhs*Solu4RG-Rhs4)^2; % residual
                
    if phi(iter) == min(phi) % It's the minimum : continue from this one
 %      iter
-      Solu1D = Solu1; Solu2D = Solu2; Solu3D = Solu3; Solu4D = Solu4;
-      theta1b = theta1;
-      theta2b = theta2;
-      nodes3b = nodes3;
+      Solu1B    = Solu1; Solu2B = Solu2; Solu3B = Solu3; Solu4B = Solu4;
+      theta1b   = theta1;
+      theta2b   = theta2;
+      nodes3b   = nodes3;
+      nbnotwork = 0; % Yay ! Got optimized !
       reloop = 1;
       while reloop % Check if we aren't in the same quarter
          theta1 = theta1 + (2*rand()-1)*anglestep; theta1 = mod(theta1,2*pi);
@@ -1017,6 +1201,12 @@ for iter = 1:nbstep % Markov chain loop
          reloop = in11&&in21 || in12&&in22 || in13&&in23 || in14&&in24;
       end
    else % otherwise : continue from the previous one
+      nbnotwork = nbnotwork+1; % Records the nb of consequent failures (to decrease step)
+      if nbnotwork > limnotwork
+         anglestep = anglestep/2;
+         nbnotwork = 0;%ceil(nbnotwork/2); % Let a chance to this new value
+      end
+
       reloop = 1;
       while reloop % Check if we aren't in the same quarter
          theta1 = theta1b + (2*rand()-1)*anglestep; theta1 = mod(theta1,2*pi);
@@ -1039,8 +1229,9 @@ for iter = 1:nbstep % Markov chain loop
    theta2rec(iter+1) = theta2;
 
 end
+disp(['Iterative method terminated ', num2str(toc) ]);
 
-Solu1 = Solu1D; Solu2 = Solu2D; Solu3 = Solu3D; Solu4 = Solu4D;
+Solu1 = Solu1B; Solu2 = Solu2B; Solu3 = Solu3B; Solu4 = Solu4B;
 
 % Post-process : reconstruct u and f from Solu
 fsolu1 = zeros(2*nboun2,1); usolu1 = zeros(2*nnodes2,1);
@@ -1134,6 +1325,8 @@ end
 
 theta1pi = theta1rec/pi;
 theta2pi = theta2rec/pi;
+
+try
 figure;
 hold on;
 plot(theta1pi,'Color','red');
@@ -1141,35 +1334,120 @@ plot(theta2pi,'Color','blue');
 plot(theta1ref/pi*theta1pi./theta1pi,'Color','black'); % I love disgusting hacks
 plot(theta2ref/pi*theta1pi./theta1pi,'Color','black');
 legend('theta1/pi', 'theta2/pi','theta1ref/pi', 'theta2ref/pi');
+end
+
+%% Recover the reference
+step = (xy2r-xy1r)/30;
+n = [-step(2);step(1)]; n = n/norm(n); % Normal
+nodes3r = [ xy1r(1):step(1):xy2r(1) ; xy1r(2):step(2):xy2r(2) ];
+nodes3r = nodes3r'; nnodes3r = size(nodes3r,1);
+% Check if need to reverse the nodes (for visu purposes)
+if norm(nodes3r(2,:)-nodes3b(1,:)) < norm(nodes3r(1,:)-nodes3b(1,:))
+   nodes3r = nodes3r(end:-1:1,:);
+end
+nodes3s = nodes3r + 1e-3*ones(size(nodes3r,1),1)*n';
+nodes3i = nodes3r - 1e-3*ones(size(nodes3r,1),1)*n';
+urs = passMesh2D( nodes, elements, nodes3s, [], [u1,u2,u3,u4] );
+uri = passMesh2D( nodes, elements, nodes3i, [], [u1,u2,u3,u4] );
+urg = uri-urs;  % Vectorial gap
+urg([1,2,end-1,end],:) = 0; % Overwrite the strange stuff that comes from the fact that we get out of the domain
+curvr = sqrt( (nodes3r(:,1)-nodes3r(1,1)).^2 + (nodes3r(:,2)-nodes3r(1,2)).^2 );
 
 % Vizualize the crack's line
+try
 figure; hold on;
-
 x1 = nodes3b(1,1);   y1 = nodes3b(1,2);
 x2 = nodes3b(end,1); y2 = nodes3b(end,2);
+x1r = xy1r(1); y1r = xy1r(2);
+x2r = xy2r(1); y2r = xy2r(2);
 plot( [xmin,xmax], [ymin,ymin], 'Color', 'black');
 plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
 plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
-plot( [x1,x2], [y1,y2], 'Color', 'black', 'LineWidth', 3 );
+plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
+plot( [x1,x2], [y1,y2], 'Color', 'red', 'LineWidth', 3 );
+axis equal;
+end
 
-figure;
-plot(phi,'Color','red');
-legend('residual vs iteration');
+%try
+%figure;
+%hold on;
+%plot(ind1+ind2+ind3+ind4,'Color','blue');
+%plot(indp1+indp2+indp3+indp4,'Color','black');
+%plot(indd1+indd2+indd3+indd4,'Color','green');
+%plot(inds1+inds2+inds3+inds4,'Color','magenta');
+%legend('stop Picard','stop L-curve','stop DL-curve','stop SL-curve');
+%end
+
+%try
+%figure;
+%hold on;
+%plot(log10(phiP),'Color','blue');
+%plot(log10(phiL),'Color','black');
+%plot(log10(phiD),'Color','green');
+%plot(log10(phiS),'Color','magenta');
+%plot(log10(phi),'Color','red');
+%legend('residual Picard','residual L-curve','residual DL-curve','residual SL-curve','residual');
+%end
 
 % Graph for f
-toplot = fsolu2no(b2nodesnoN); toplot2 = fr2(b2nodesnoN);
-figure;
-hold on;
-plot(toplot(1:2:end-1),'Color','red');
-plot(toplot2(1:2:end-1),'Color','blue');
-legend('Fy identified', 'Fy reference');
+if min(size(b2nodesnoN))>0
+   toplot = fsolu4no(b2nodesnoN); toplot2 = fr4(b2nodesnoN);
+   try
+   figure;
+   hold on;
+   plot(toplot(1:2:end-1),'Color','red');
+   plot(toplot2(1:2:end-1),'Color','blue');
+   legend('Fy identified (4)', 'Fy reference (4)');
+   end
+end
+% Graph for u
+if min(size(b2nodesnoD))>0
+   toplot = usolu4(b2nodesnoD); toplot2 = ur4(b2nodesnoD);
+   try
+   figure;
+   hold on;
+   plot(toplot(1:2:end-1),'Color','red');
+   plot(toplot2(1:2:end-1),'Color','blue');
+   legend('Uy identified (4)', 'Uy reference (4)');
+   end
+end
 
 % Graph for [[u]]
-toplot = ucrsol4;
+curv = sqrt( (nodes3b(:,1)-nodes3b(1,1)).^2 + (nodes3b(:,2)-nodes3b(1,2)).^2 );
+%toplot1  = sqrt( ucrsol1(1:2:end-1).^2 + ucrsol1(2:2:end).^2 );
+%toplot2  = sqrt( ucrsol2(1:2:end-1).^2 + ucrsol2(2:2:end).^2 );
+%toplot3  = sqrt( ucrsol3(1:2:end-1).^2 + ucrsol3(2:2:end).^2 );
+%toplot4  = sqrt( ucrsol4(1:2:end-1).^2 + ucrsol4(2:2:end).^2 );
+%toplotr1 = sqrt( urg(1:2:end-1,1).^2 + urg(2:2:end,1).^2 );
+%toplotr2 = sqrt( urg(1:2:end-1,2).^2 + urg(2:2:end,2).^2 );
+%toplotr3 = sqrt( urg(1:2:end-1,3).^2 + urg(2:2:end,3).^2 );
+%toplotr4 = sqrt( urg(1:2:end-1,4).^2 + urg(2:2:end,4).^2 );
+
+toplot1  = ucrsol1(1:2:end-1);
+toplot2  = ucrsol2(1:2:end-1);
+toplot3  = ucrsol3(1:2:end-1);
+toplot4  = ucrsol4(1:2:end-1);
+toplotr1 = urg(1:2:end-1,1);
+toplotr2 = urg(1:2:end-1,2);
+toplotr3 = urg(1:2:end-1,3);
+toplotr4 = urg(1:2:end-1,4);
+
+try
 figure;
-plot(toplot(1:2:end-1),'Color','red');
-legend('[[u]]');
+hold on;
+%plot( curv, toplot1,'Color','green' );
+%plot( curv, toplot2,'Color','black' );
+%plot( curv, toplot3,'Color','blue' );
+plot( curv, toplot4,'Color','red' );
+%plot( curvr, toplotr1,'Color','green' );
+%plot( curvr, toplotr2,'Color','black' );
+%plot( curvr, toplotr3,'Color','blue' );
+plot( curvr, toplotr4,'Color','red' );
+legend('[[u]] identified (4)', '[[u]] reference (4)');
+%legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
+%       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
+end
 
 %erroru = norm(usolu1(b2nodesnoD)-ur1(b2nodesnoD))   / norm(ur1(b2nodesnoD));
-errorf = norm(fsolu1no(b2nodesnoN)-fr1(b2nodesnoN)) / norm(fr1(b2nodesnoN));
+%errorf = norm(fsolu1no(b2nodesnoN)-fr1(b2nodesnoN)) / norm(fr1(b2nodesnoN));

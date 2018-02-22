@@ -77,6 +77,9 @@ surf(X,Y,uplo1);
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+caxis( [-8.9798e-04, 0.0035356 ]);
+colorbar('SouthOutside');
 
 McCoef = zeros(size(Rhs));
 McCoef(tokeep) = -Lhs(tokeep,tokeep)\Rhs(tokeep);
@@ -261,6 +264,9 @@ if Norm == 2
    shading interp;
    colorbar();
    axis('equal');
+   %caxis( [-0.011621, 0.016879] );
+   caxis( [-8.9798e-04, 0.0035356 ]);
+   colorbar('SouthOutside');
    
    error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
    
@@ -639,6 +645,9 @@ elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
    shading interp;
    colorbar();
    axis('equal');
+   %caxis( [-0.011621, 0.016879] );
+   caxis( [-8.9798e-04, 0.0035356 ]);
+   colorbar('SouthOutside');
    
    error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
    
@@ -687,34 +696,34 @@ end
  
 toc
  
-% Plot on the line X = 4
-figure;
-hold on;
-nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = pm4;
+%% Plot on the line X = 4
+%figure;
+%hold on;
+%nys = (max(Ys)-min(Ys))/100;
+%Y = min(Ys):nys:max(Ys); X = pm4;
 
-solup = 0;
-for k=0:ordp
-   for l=0:ordp
-      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
-   end
-end
+%solup = 0;
+%for k=0:ordp
+%   for l=0:ordp
+%      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+%   end
+%end
 
-%plot( Y, solup, 'Color', 'black' );
+%%plot( Y, solup, 'Color', 'black' );
 
-solupp = solup;
-for k=0:ordpD
-   for l=0:ordpD
+%solupp = solup;
+%for k=0:ordpD
+%   for l=0:ordpD
 
-      for ii=0:k
-         for jj=0:l
-            solupp = solupp + PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-                    McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
-         end
-      end
-  end
-end
-plot( Y, solupp, 'Color', 'green' );
+%      for ii=0:k
+%         for jj=0:l
+%            solupp = solupp + PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+%                    McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
+%         end
+%      end
+%  end
+%end
+%plot( Y, solupp, 'Color', 'green' );
 
-% Reference
-plot( Y, uplo(3:3:end), 'Color', 'red' );
+%% Reference
+%plot( Y, uplo(3:3:end), 'Color', 'red' );

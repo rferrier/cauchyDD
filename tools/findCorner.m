@@ -21,11 +21,27 @@ function [index] = findCorner (x, y, varargin)
     x = log10(x); y = log10(y);
  end
 
- sx = size(x,1);  % size of x (hopefully too the size of y)
- n  = floor(sx/d)+1;%max(sx-2,floor(sx/2)+1);   % degree of polynoms
- t  = (1:1:sx)';   % coarse mesh
- tp = (1:.1:sx)';  % fine mesh (useless for now)
+ sx = size(x,1);     % size of x (hopefully too the size of y)
+ n  = floor(sx/d)+1; %max(sx-2,floor(sx/2)+1);   % degree of polynoms
+ t  = (1:1:sx)';     % coarse mesh (unused)
+ tp = (1:.1:sx)';    % fine mesh (useless for now)
+
+ %% Compute the curvilign abscissa
+ % Differentiation matrix
+ Dd = zeros(sx-1,sx);
+ for i=1:sx-1
+    Dd(i,i) = 1; Dd(i,i+1) = -1;
+ end
+ dx = Dd*x; dx = [0;dx];
+ dy = Dd*y; dy = [0;dy];
+ dl = sqrt(dx.^2 + dy.^2);
+ t = cumsum(dl);
+ %%
  
+ if numel(varargin)>2 % This prescripted order erases the other one
+     n = cell2mat(varargin(3));
+ end
+
  % First, interpolate x and y
  px = polyfit(t,x,n)';
  py = polyfit(t,y,n)';
@@ -41,23 +57,23 @@ function [index] = findCorner (x, y, varargin)
  px2 = Md*px1;
  py1 = Md*py;
  py2 = Md*py1;
+
+ tt = zeros(n+1,sx);
+ for j=1:n+1
+    tt(j,:) = t.^(n+1-j);
+ end
+ xx = px'*tt; xx1 = px1'*tt; xx2 = px2'*tt;
+ yy = py'*tt; yy1 = py1'*tt; yy2 = py2'*tt;
+% figure
+% hold on
+% plot(xx,yy,'Color','red');
+% plot(x,y,'Color','blue');
  
  % Find the point with the smallest curve radius
  R = 0;
  index = 0;
- xx = zeros(sx,1);  yy = zeros(sx,1); %debug stuff
- xx1 = zeros(sx,1);  yy1 = zeros(sx,1);
- xx2 = zeros(sx,1);  yy2 = zeros(sx,1);
  Ga = zeros(sx,1);
  for i=2:sx-1  % First and last are forbitten (because of interpolation bound effects)
-    tt = zeros(n+1,1);
-    for j=1:n+1
-       tt(j) = t(i)^(n+1-j);
-    end
-    
-    % Compute values on this point
-    xx(i) = px'*tt; xx1(i) = px1'*tt; xx2(i) = px2'*tt;
-    yy(i) = py'*tt; yy1(i) = py1'*tt; yy2(i) = py2'*tt;
     
     denom = (xx1(i)^2 + yy1(i)^2)^(3/2);
     
@@ -69,8 +85,10 @@ function [index] = findCorner (x, y, varargin)
     
     % Test if the candidate is smaller than the current curvature
     if R == 0 || Ga(i) < R % Ga < 0
-       R = Ga(i);
-       index = i;
+       %if xx1(i+1)>0 % residual has to decrease
+          R = Ga(i);
+          index = i;
+       %end
     end
  end
  

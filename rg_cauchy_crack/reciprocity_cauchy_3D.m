@@ -20,7 +20,7 @@ nmaxRGSP   = 400;    % nb of computed eigenvalues
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
-recompute  = 1;      % Recompute the operators
+recompute  = 0;      % Recompute the operators
 matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
 RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 Npg        = 1;      % Nb Gauss points
@@ -407,9 +407,9 @@ for i=1:nboun2
    cco = [ 3*coef-2, 3*coef-1, 3*coef ];
    elemMass(ico,ico) = surfa*eye(3);
    nodeMass(cco,cco) = nodeMass(cco,cco) + ...
-                       surfa/3 * [ ones(3), zeros(3), zeros(3) ; ...
-                                   zeros(3), ones(3), zeros(3) ; ...
-                                   zeros(3), zeros(3), ones(3) ];
+                       surfa/3 * [ eye(3), zeros(3), zeros(3) ; ...
+                                   zeros(3), eye(3), zeros(3) ; ...
+                                   zeros(3), zeros(3), eye(3) ];
 end
 
 % Extract interesting parts
