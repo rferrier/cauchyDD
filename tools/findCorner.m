@@ -1,6 +1,5 @@
 function [index] = findCorner (x, y, varargin)
  % This function finds the corner of an L-curve
-
  if size(x,1) <= 2
     error(['Not enough points on L-curve : it has no corner', ...
       ' Rem : if you actually have lots of points, try to transpose the vectors'])
@@ -24,7 +23,7 @@ function [index] = findCorner (x, y, varargin)
  sx = size(x,1);     % size of x (hopefully too the size of y)
  n  = floor(sx/d)+1; %max(sx-2,floor(sx/2)+1);   % degree of polynoms
  t  = (1:1:sx)';     % coarse mesh (unused)
- tp = (1:.1:sx)';    % fine mesh (useless for now)
+ %tp = (1:.1:sx)';    % fine mesh (useless for now)
 
  %% Compute the curvilign abscissa
  % Differentiation matrix
@@ -37,7 +36,7 @@ function [index] = findCorner (x, y, varargin)
  dl = sqrt(dx.^2 + dy.^2);
  t = cumsum(dl);
  %%
- 
+
  if numel(varargin)>2 % This prescripted order erases the other one
      n = cell2mat(varargin(3));
  end
@@ -45,7 +44,7 @@ function [index] = findCorner (x, y, varargin)
  % First, interpolate x and y
  px = polyfit(t,x,n)';
  py = polyfit(t,y,n)';
- 
+
  % build the derivation matrix
  Md = zeros(n+1);
  for i=2:n+1

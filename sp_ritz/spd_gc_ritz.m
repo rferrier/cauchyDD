@@ -10,8 +10,8 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
-precond = 1;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
+niter   = 30;
+precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
 br      = .0;      % noise
@@ -439,7 +439,7 @@ legend('error')%legend('error (log)','residual (log)')
 figure;
 %L-curve :
 hold on;
-loglog(residual(2:iter+1),regulari(2:iter+1),'Color','red','-*');
+loglog(residual(2:iter+1),regulari2(2:iter+1),'Color','red','-*');
 %figure
 loglog(resS(2:iter+1),regS(2:iter+1),'-+');
 legend('L-curve','RL-curve')

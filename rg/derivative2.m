@@ -5,10 +5,10 @@ clear all;
 close all;
  
 Norm       = 1;
-ordpD      = 11;
-ordp       = 7;
+ordpD      = 12;
+ordp       = 9;
 sideL      = 20; % Nb of points on the domain (for integral approximation)
-pm4        = 4; % Position of the 1d line
+pm4        = -4; % Position of the 1d line
 upper_term = 0; % If 0 : keep only terms st i+j<ordp
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
 threshold  = .1;  % Threshold for the crack
@@ -17,12 +17,14 @@ threshold  = .1;  % Threshold for the crack
 %VAR = load('fields/AnBsmile615.mat');
 %VAR = load('fields/AnBlosange2l615.mat');
 %VAR = load('fields/AnBlosange615.mat');
-%VAR = load('fields/AnBm15b10.mat');
+VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBs1013.mat');
 %VAR = load('fields/AnBm15.mat');
+%VAR = load('fields/AnBm415.mat');
 %VAR = load('fields/AnBs15.mat');
-VAR = load('fields/AnBs15b1.mat');
+%VAR = load('fields/AnBs15b1.mat');
 %VAR = load('fields/AnBs215b1.mat');
+%VAR = load('fields/AnBnoplane2615.mat');
 
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
@@ -78,7 +80,7 @@ shading interp;
 colorbar();
 axis('equal');
 %caxis( [-0.011621, 0.016879] );
-caxis( [-8.9798e-04, 0.0035356 ]);
+%caxis( [-8.9798e-04, 0.0035356 ]);
 colorbar('SouthOutside');
 
 McCoef = zeros(size(Rhs));
@@ -265,10 +267,13 @@ if Norm == 2
    colorbar();
    axis('equal');
    %caxis( [-0.011621, 0.016879] );
-   caxis( [-8.9798e-04, 0.0035356 ]);
+   %caxis( [-8.9798e-04, 0.0035356 ]);
+   %caxis( [-0.0031520, 0.0044433 ]);
    colorbar('SouthOutside');
    
    error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
+   pospp = .5*(abs(solupp)+solupp);
+   errora = norm( pospp(:)-uplo1(:) ) / norm(uplo1(:));
    
    if id_crack == 1 % Identify the crack
       crackID = zeros(size(solupp));
@@ -646,7 +651,7 @@ elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
    colorbar();
    axis('equal');
    %caxis( [-0.011621, 0.016879] );
-   caxis( [-8.9798e-04, 0.0035356 ]);
+   %caxis( [-8.9798e-04, 0.0035356 ]);
    colorbar('SouthOutside');
    
    error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
@@ -696,34 +701,34 @@ end
  
 toc
  
-%% Plot on the line X = 4
-%figure;
-%hold on;
-%nys = (max(Ys)-min(Ys))/100;
-%Y = min(Ys):nys:max(Ys); X = pm4;
+% Plot on the line X = 4
+figure;
+hold on;
+nys = (max(Ys)-min(Ys))/100;
+Y = min(Ys):nys:max(Ys); X = pm4;
 
-%solup = 0;
-%for k=0:ordp
-%   for l=0:ordp
-%      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
-%   end
-%end
+solup = 0;
+for k=0:ordp
+   for l=0:ordp
+      solup = solup + McCoef(1+l+(ordp+1)*k) .* (X/Lx-X0)'.^k * (Y/Lx-Y0).^l;
+   end
+end
 
-%%plot( Y, solup, 'Color', 'black' );
+%plot( Y, solup, 'Color', 'black' );
 
-%solupp = solup;
-%for k=0:ordpD
-%   for l=0:ordpD
+solupp = solup;
+for k=0:ordpD
+   for l=0:ordpD
 
-%      for ii=0:k
-%         for jj=0:l
-%            solupp = solupp + PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
-%                    McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
-%         end
-%      end
-%  end
-%end
-%plot( Y, solupp, 'Color', 'green' );
+      for ii=0:k
+         for jj=0:l
+            solupp = solupp + PassD(jj+1+(ordpD+1)*ii, l+1+(ordpD+1)*k) * ...
+                    McCoefD(1+l+(ordpD+1)*k) .* (X/Lx-X0)'.^ii * (Y/Lx-Y0).^jj;
+         end
+      end
+  end
+end
+plot( Y, solupp, 'Color', 'green' );
 
-%% Reference
-%plot( Y, uplo(3:3:end), 'Color', 'red' );
+% Reference
+plot( Y, uplo(3:3:end), 'Color', 'red' );

@@ -213,6 +213,12 @@ eidp = real(Vdp)'*(d);
 %plot(log10(svd(Korth)),'Color','yellow');
 %legend('Sd-Sn','Sd-Sn cancel','Dn-Dd','Dn-Dd cancel','Dd(Sd-Sn)','Sn(Dn-Dd)','Korth')
 
+hold on;
+plot(log10(svd(K1k)),'Color','red');
+plot(log10(svd(D1*K1k)),'Color','green');
+plot(log10(svd(K2k*K1k)),'Color','blue');
+legend('Sd-Sn','Dd(Sd-Sn)','(Dd-Dn)(Sd-Sn)');
+
 %hold on;
 %plot(log10(svd(K1k)),'Color','red');
 %plot(log10(svd(K2k)),'Color','blue');
@@ -306,13 +312,13 @@ chibp = eibp./vpp; chiD = chibp; niter = size(chiD,1);
 %end
 %px = pol'*tt;
 
-figure;
-hold on;
-plot(log10(vpp),'Color','red');
-plot(log10(abs(eibp)),'Color','blue');
-plot(log10(abs(eibp)./vpp),'Color','green');
+%figure;
+%hold on;
+%plot(log10(vpp),'Color','red');
+%plot(log10(abs(eibp)),'Color','blue');
+%plot(log10(abs(eibp)./vpp),'Color','green');
 %plot(t,px,'Color','cyan')
-legend('primal prec','rhs','solution');%,'interpolation');
+%legend('primal prec','rhs','solution');%,'interpolation');
 
 %figure;
 %hold on;

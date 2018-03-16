@@ -5,15 +5,20 @@ clear all;
 close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
-pm4        = 4; % Position of the 1d line
+pm4        = -4; % Position of the 1d line
 kpen       = 0;%Penalization parameter
-ordp       = 13;
+ordp       = 9;
 upper_term = 0;
 
-%VAR = load('fields/AnBnoplane615.mat');
-%VAR = load('fields/AnBm15b2.mat');
-VAR = load('fields/AnBm15.mat');
+%VAR = load('fields/AnBnoplane2615.mat');
+VAR = load('fields/AnBm15b2.mat');
+%VAR = load('fields/AnBm15.mat');
+%VAR = load('fields/AnBm415.mat');
 %VAR = load('fields/AnBs15.mat');
+%VAR = load('fields/AnBslar215.mat');
+%VAR = load('fields/AnBsr215.mat');
+%VAR = load('fields/AnBsl215.mat');
+%VAR = load('fields/AnBsmile215.mat');
 %VAR = load('fields/AnBs15b1.mat');
 solpoly = csvread('fields/rg3d_four.csv');
 linesolpoly = load('fields/fourier3D2D.mat');
@@ -62,7 +67,9 @@ surf(X,Y,uplo1);
 shading interp;
 colorbar();
 axis('equal');
-caxis( [-0.004497, 0.020062] );
+%caxis( [-0.004497, 0.020062] );
+%caxis( [-0.0018890, 0.0065001] );
+caxis( [-0.0017318, 0.0062702] );
 colorbar('SouthOutside');
 
 tic
@@ -115,7 +122,9 @@ surf(X,Y,solu0);
 shading interp;
 colorbar();
 axis('equal');
-caxis( [-0.004497, 0.020062] );
+%caxis( [-0.004497, 0.020062] );
+%caxis( [-0.0018890, 0.0065001] );
+caxis( [-0.0017318, 0.0062702] );
 colorbar('SouthOutside');
 
 figure;
@@ -124,7 +133,9 @@ surf(X,Y,solup);
 shading interp;
 colorbar();
 axis('equal');
-caxis( [-0.004497, 0.020062] );
+%caxis( [-0.004497, 0.020062] );
+%caxis( [-0.0018890, 0.0065001] );
+caxis( [-0.0017318, 0.0062702] );
 colorbar('SouthOutside');
 
 figure;
@@ -133,7 +144,8 @@ surf(X,Y,solpoly);
 shading interp;
 colorbar();
 axis('equal');
-caxis( [-0.004497, 0.020062] );
+%caxis( [-0.004497, 0.020062] );
+%caxis( [-0.0018890, 0.0065001] );
 colorbar('SouthOutside');
 
 toc

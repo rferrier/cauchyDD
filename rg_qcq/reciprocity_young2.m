@@ -9,18 +9,21 @@ clear all;
 addpath(genpath('./tools'))
 
 % Parameters
-E1         = 70000;  %
-E2         = 210000; % MPa : Young modulus
-E          = E1;     % Reference young modulus
-nu         = 0.3;    % Poisson ratio
-fscalar    = 250;    % N.mm-1 : Loading on the plate
-br         = .0;     % Noise level
-jmax       = 20;     % Eigenvalues truncation number
+E1         = 70000;   %
+E2         = 210000;  % MPa : Young modulus
+E          = E1;      % Reference young modulus
+nu         = 0.3;     % Poisson ratio
+fscalar    = 250;     % N.mm-1 : Loading on the plate
+br         = .0;      % Noise level
+jmax       = 20;      % Eigenvalues truncation number
 upper_term = 0;
 recompute  = 1;
 ordertest  = 20;
 Npg        = 2;
-niter      = 1;      % Nb of Newton iterations
+niter      = 5;       % Nb of Newton iterations
+dofull     = 1;       % Use the full matrix inversion
+Cc         = [.4,.3]; % Center of the inclusion (for reference)
+Rad        = .2;      % Radius of the inclusion (for reference)
 
 mat = {}; mat{1} = [0, E1, nu]; mat{2} = [0, E2, nu];
 
@@ -208,8 +211,8 @@ boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
 for i=1:nboun2
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1),nelem2 ); % find gives line + column*size
-   cand2 = rem( find(elements2==no2),nelem2 );
+   cand1 = rem( find(elements2==no1)-1,nelem2 )+1; % find gives line + column*size
+   cand2 = rem( find(elements2==no2)-1,nelem2 )+1;
    boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -232,8 +235,8 @@ urr3  = zeros( nboun1, 2+2*order ); urr4 = zeros( nboun1, 2+2*order );
 for i=1:nboun1 % TODO : rationalize the stuff (don't do 2 times the same work)
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1),nelem1 ); % find gives line + column*size
-   cand2 = rem( find(elements2==no2),nelem1 );
+   cand1 = rem( find(elements2==no1)-1,nelem1 )+1; % find gives line + column*size
+   cand2 = rem( find(elements2==no2)-1,nelem1 )+1;
    boun2vol1(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -563,6 +566,9 @@ for i=1:nelemu
    L33(i,i) = S;
 end
 
+Res = zeros(niter,1); Deltau = zeros(niter,1);
+Deltak12 = zeros(niter,1); Deltak33 = zeros(niter,1);
+
 for iter = 1:niter
 
    tic
@@ -575,6 +581,22 @@ for iter = 1:niter
    Lhsij333 = sparse( size(coef,1), nelemu );   %
    Lhsij124 = sparse( size(coef,1), nelemu );   %
    Lhsij334 = sparse( size(coef,1), nelemu );   %
+
+   Ng = Npg; [ Xg, Wg ] = gaussPt( Ng ); sWg = size(Wg,1); % Could even be outside the iter loop
+
+   %% Build the list of Gauss points, and of construction-functions
+   Xxg = zeros( nelemu*sWg,1 ); Yyg = zeros( nelemu*sWg,1 ); Wwg = zeros( nelemu*sWg,1 );
+   Phi = sparse( 3*nelemu*sWg, 2*nnodesu );
+
+   Phi121 = sparse( 3*nelemu*sWg, nelemu );
+   Phi122 = sparse( 3*nelemu*sWg, nelemu );
+   Phi123 = sparse( 3*nelemu*sWg, nelemu );
+   Phi124 = sparse( 3*nelemu*sWg, nelemu );
+
+   Phi331 = sparse( 3*nelemu*sWg, nelemu );
+   Phi332 = sparse( 3*nelemu*sWg, nelemu );
+   Phi333 = sparse( 3*nelemu*sWg, nelemu );
+   Phi334 = sparse( 3*nelemu*sWg, nelemu );
 
    for j=1:nelemu % Compute the integrals
       bonod = elementsu(j,:);
@@ -597,9 +619,6 @@ for iter = 1:niter
       KeBe   = Ke*Be; % Gives sigma from u
       KeBe12 = Ke12*Be;
       KeBe33 = Ke33*Be;
-
-      Ng = Npg;
-      [ Xg, Wg ] = gaussPt( Ng );
       
       ind  = [ 2*no1-1, 2*no1, 2*no2-1, 2*no2, 2*no3-1, 2*no3 ];
       uloc1 = Uu1(ind); uloc2 = Uu2(ind);
@@ -610,150 +629,453 @@ for iter = 1:niter
       K12u3 = KeBe12 * uloc3; K33u3 = KeBe33 * uloc3;
       K12u4 = KeBe12 * uloc4; K33u4 = KeBe33 * uloc4;
 
-      for k=1:size(Wg,1)
+      for k=1:sWg
          xg = Xg(k,:); wg = Wg(k);
          swg = S*wg;
          xgr  = (1-xg(1)-xg(2))*[x1;y1] + xg(1)*[x2;y2] + xg(2)*[x3;y3] ; % abscissae
          X = xgr(1)/Lx; Y = xgr(2)/Lx;
-      
-         for ii=0:nmax
-            nimax = nmax-ii;
-            for jj=0:nimax
-               Exxa = 0; Exya = 0;
-               Eyyb = 0; Exyb = 0;
-               if ii>0 % integral of epsilon_ij on the surfacic element
-                  Exxa = ii*X^(ii-1)*Y^jj;
-                  Exyb = .5 * ii*X^(ii-1)*Y^jj;
-               end
-               if jj>0
-                  Eyyb = jj*X^ii*Y^(jj-1);
-                  Exya = .5 * jj*X^ii*Y^(jj-1);
-               end
 
-               Ea = [ Exxa ; 0 ; Exya ];
-               Eb = [ 0 ; Eyyb ; Exyb ];
+         indexg = sWg*(j-1) + k;
+         Xxg( indexg ) = X; Yyg( indexg ) = Y; Wwg( indexg ) = swg;
+         Phi( [3*indexg-2,3*indexg-1,3*indexg], ind )    = KeBe;
 
-               inda = (nmax+1)*ii + jj+1;
-               indb = nm2 + inda;
+         Phi121( [3*indexg-2,3*indexg-1,3*indexg], j ) = K12u1;
+         Phi122( [3*indexg-2,3*indexg-1,3*indexg], j ) = K12u2;
+         Phi123( [3*indexg-2,3*indexg-1,3*indexg], j ) = K12u3;
+         Phi124( [3*indexg-2,3*indexg-1,3*indexg], j ) = K12u4;
 
-               sEa = swg * Ea';
-               sEb = swg * Eb';
-
-               Lhsij(inda,ind) = Lhsij(inda,ind) + sEa * KeBe;
-               Lhsij(indb,ind) = Lhsij(indb,ind) + sEb * KeBe;
-
-               Lhsij121(inda,j) = Lhsij121(inda,j) + sEa * K12u1;
-               Lhsij121(indb,j) = Lhsij121(indb,j) + sEb * K12u1;
-               Lhsij331(inda,j) = Lhsij331(inda,j) + sEa * K33u1;
-               Lhsij331(indb,j) = Lhsij331(indb,j) + sEb * K33u1;
-
-               Lhsij122(inda,j) = Lhsij122(inda,j) + sEa * K12u2;
-               Lhsij122(indb,j) = Lhsij122(indb,j) + sEb * K12u2;
-               Lhsij332(inda,j) = Lhsij332(inda,j) + sEa * K33u2;
-               Lhsij332(indb,j) = Lhsij332(indb,j) + sEb * K33u2;
-
-               Lhsij123(inda,j) = Lhsij123(inda,j) + sEa * K12u3;
-               Lhsij123(indb,j) = Lhsij123(indb,j) + sEb * K12u3;
-               Lhsij333(inda,j) = Lhsij333(inda,j) + sEa * K33u3;
-               Lhsij333(indb,j) = Lhsij333(indb,j) + sEb * K33u3;
-
-               Lhsij124(inda,j) = Lhsij124(inda,j) + sEa * K12u4;
-               Lhsij124(indb,j) = Lhsij124(indb,j) + sEb * K12u4;
-               Lhsij334(inda,j) = Lhsij334(inda,j) + sEa * K33u4;
-               Lhsij334(indb,j) = Lhsij334(indb,j) + sEb * K33u4;
-            end
-         end
+         Phi331( [3*indexg-2,3*indexg-1,3*indexg], j ) = K33u1;
+         Phi332( [3*indexg-2,3*indexg-1,3*indexg], j ) = K33u2;
+         Phi333( [3*indexg-2,3*indexg-1,3*indexg], j ) = K33u3;
+         Phi334( [3*indexg-2,3*indexg-1,3*indexg], j ) = K33u4;
       end
    end
-   Lhs0   = coef'*Lhsij;
-   Lhs121 = coef'*Lhsij121; Lhs331 = coef'*Lhsij331;
-   Lhs122 = coef'*Lhsij122; Lhs332 = coef'*Lhsij332;
-   Lhs123 = coef'*Lhsij123; Lhs333 = coef'*Lhsij333;
-   Lhs124 = coef'*Lhsij124; Lhs334 = coef'*Lhsij334;
+
+   %% Build the matrix of test-functions
+   Vv = zeros( size(coef,1), 3*nelemu*sWg );
+   for ii=0:nmax
+      nimax = nmax-ii;
+      for jj=0:nimax
+         Exxa = zeros( nelemu*sWg, 1 );
+         Exya = zeros( nelemu*sWg, 1 );
+         Eyyb = zeros( nelemu*sWg, 1 );
+         Exyb = zeros( nelemu*sWg, 1 );
+
+         if ii>0 % epsilon_ij on the surfacic element
+            Exxa = ii*Xxg.^(ii-1).*Yyg.^jj;
+            Exyb = .5 * ii*Xxg.^(ii-1).*Yyg.^jj;
+         end
+         if jj>0
+            Eyyb = jj*Xxg.^ii.*Yyg.^(jj-1);
+            Exya = .5 * jj*Xxg.^ii.*Yyg.^(jj-1);
+         end
+
+%         Ea = [ Exxa ; 0 ; Exya ];
+%         Eb = [ 0 ; Eyyb ; Exyb ];
+
+         inda = (nmax+1)*ii + jj+1;
+         indb = nm2 + inda;
+
+%         sEa = swg * Ea';
+%         sEb = swg * Eb';
+
+         Vv(inda,1:3:3*nelemu*sWg-2) = Wwg .* Exxa;
+         %Vv(inda,2:3:3*nelemu*sWg-1) = Wwg .* Eyya;
+         Vv(inda,3:3:3*nelemu*sWg)   = Wwg .* Exya;
+         %Vv(indb,1:3:3*nelemu*sWg-2) = Wwg .* Exxb;
+         Vv(indb,2:3:3*nelemu*sWg-1) = Wwg .* Eyyb;
+         Vv(indb,3:3:3*nelemu*sWg)   = Wwg .* Exyb;
+      end
+   end
+   %%
+
+   Lhsijp    = Vv*Phi;
+   Lhsij121p = Vv*Phi121; Lhsij331p = Vv*Phi331;
+   Lhsij122p = Vv*Phi122; Lhsij332p = Vv*Phi332;
+   Lhsij123p = Vv*Phi123; Lhsij333p = Vv*Phi333;
+   Lhsij124p = Vv*Phi124; Lhsij334p = Vv*Phi334;
+
+%   toc
+%   tic
+
+%   for j=1:nelemu % Compute the integrals
+%      bonod = elementsu(j,:);
+
+%      no1 = bonod(1); no2 = bonod(2); no3 = bonod(3);
+%      x1 = nodesu(no1,1); y1 = nodesu(no1,2);
+%      x2 = nodesu(no2,1); y2 = nodesu(no2,2);
+%      x3 = nodesu(no3,1); y3 = nodesu(no3,2);
+
+%      S = abs(.5 * ((x2-x1)*(y3-y1) - (x3-x1)*(y2-y1)) );
+%   
+%      Be = [y2-y3,0,y3-y1,0,y1-y2,0; % Be*u = epsilon
+%            0,x3-x2,0,x1-x3,0,x2-x1;
+%            x3-x2,y2-y3,x1-x3,y3-y1,x2-x1,y1-y2]/(2*S);
+
+%      Ke   = [ 2*k33(j)+k12(j), k12(j), 0 ;... % Elemental stiffness matrix
+%               k12(j), 2*k33(j)+k12(j), 0 ;...
+%               0, 0, k33(j) ];
+
+%      KeBe   = Ke*Be; % Gives sigma from u
+%      KeBe12 = Ke12*Be;
+%      KeBe33 = Ke33*Be;
+%      
+%      ind  = [ 2*no1-1, 2*no1, 2*no2-1, 2*no2, 2*no3-1, 2*no3 ];
+%      uloc1 = Uu1(ind); uloc2 = Uu2(ind);
+%      uloc3 = Uu3(ind); uloc4 = Uu4(ind);
+
+%      K12u1 = KeBe12 * uloc1; K33u1 = KeBe33 * uloc1;
+%      K12u2 = KeBe12 * uloc2; K33u2 = KeBe33 * uloc2;
+%      K12u3 = KeBe12 * uloc3; K33u3 = KeBe33 * uloc3;
+%      K12u4 = KeBe12 * uloc4; K33u4 = KeBe33 * uloc4;
+
+%      for k=1:sWg
+%         xg = Xg(k,:); wg = Wg(k);
+%         swg = S*wg;
+%         xgr  = (1-xg(1)-xg(2))*[x1;y1] + xg(1)*[x2;y2] + xg(2)*[x3;y3] ; % abscissae
+%         X = xgr(1)/Lx; Y = xgr(2)/Lx;
+%      
+%         for ii=0:nmax
+%            nimax = nmax-ii;
+%            for jj=0:nimax
+%               Exxa = 0; Exya = 0;
+%               Eyyb = 0; Exyb = 0;
+%               if ii>0 % integral of epsilon_ij on the surfacic element
+%                  Exxa = ii*X^(ii-1)*Y^jj;
+%                  Exyb = .5 * ii*X^(ii-1)*Y^jj;
+%               end
+%               if jj>0
+%                  Eyyb = jj*X^ii*Y^(jj-1);
+%                  Exya = .5 * jj*X^ii*Y^(jj-1);
+%               end
+
+%               Ea = [ Exxa ; 0 ; Exya ];
+%               Eb = [ 0 ; Eyyb ; Exyb ];
+
+%               inda = (nmax+1)*ii + jj+1;
+%               indb = nm2 + inda;
+
+%               sEa = swg * Ea';
+%               sEb = swg * Eb';
+
+%               Lhsij(inda,ind) = Lhsij(inda,ind) + sEa * KeBe;
+%               Lhsij(indb,ind) = Lhsij(indb,ind) + sEb * KeBe;
+
+%               Lhsij121(inda,j) = Lhsij121(inda,j) + sEa * K12u1;
+%               Lhsij121(indb,j) = Lhsij121(indb,j) + sEb * K12u1;
+%               Lhsij331(inda,j) = Lhsij331(inda,j) + sEa * K33u1;
+%               Lhsij331(indb,j) = Lhsij331(indb,j) + sEb * K33u1;
+
+%               Lhsij122(inda,j) = Lhsij122(inda,j) + sEa * K12u2;
+%               Lhsij122(indb,j) = Lhsij122(indb,j) + sEb * K12u2;
+%               Lhsij332(inda,j) = Lhsij332(inda,j) + sEa * K33u2;
+%               Lhsij332(indb,j) = Lhsij332(indb,j) + sEb * K33u2;
+
+%               Lhsij123(inda,j) = Lhsij123(inda,j) + sEa * K12u3;
+%               Lhsij123(indb,j) = Lhsij123(indb,j) + sEb * K12u3;
+%               Lhsij333(inda,j) = Lhsij333(inda,j) + sEa * K33u3;
+%               Lhsij333(indb,j) = Lhsij333(indb,j) + sEb * K33u3;
+
+%               Lhsij124(inda,j) = Lhsij124(inda,j) + sEa * K12u4;
+%               Lhsij124(indb,j) = Lhsij124(indb,j) + sEb * K12u4;
+%               Lhsij334(inda,j) = Lhsij334(inda,j) + sEa * K33u4;
+%               Lhsij334(indb,j) = Lhsij334(indb,j) + sEb * K33u4;
+%            end
+%         end
+%      end
+%   end
+%   Lhs0   = coef'*Lhsij;
+%   Lhs121 = coef'*Lhsij121; Lhs331 = coef'*Lhsij331;
+%   Lhs122 = coef'*Lhsij122; Lhs332 = coef'*Lhsij332;
+%   Lhs123 = coef'*Lhsij123; Lhs333 = coef'*Lhsij333;
+%   Lhs124 = coef'*Lhsij124; Lhs334 = coef'*Lhsij334;
+
+   Lhs0   = coef'*Lhsijp;
+   Lhs121 = coef'*Lhsij121p; Lhs331 = coef'*Lhsij331p;
+   Lhs122 = coef'*Lhsij122p; Lhs332 = coef'*Lhsij332p;
+   Lhs123 = coef'*Lhsij123p; Lhs333 = coef'*Lhsij333p;
+   Lhs124 = coef'*Lhsij124p; Lhs334 = coef'*Lhsij334p;
 
    disp([ 'Left hand side generated ', num2str(toc) ]);
 
    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    %% Solve the linear system
-   %K12 = norm(Lhs0,'fro')/norm(Lhs12,'fro'); % Weight operators
-   %K33 = norm(Lhs0,'fro')/norm(Lhs33,'fro'); %
+   if norm(Lhs0,'fro') > 0
+      K121 = norm(Lhs0,'fro')/norm(Lhs121,'fro'); % Weight operators
+      K331 = norm(Lhs0,'fro')/norm(Lhs331,'fro'); %
+      K122 = norm(Lhs0,'fro')/norm(Lhs122,'fro'); %
+      K332 = norm(Lhs0,'fro')/norm(Lhs332,'fro'); %
+      K123 = norm(Lhs0,'fro')/norm(Lhs123,'fro'); %
+      K333 = norm(Lhs0,'fro')/norm(Lhs333,'fro'); %
+      K124 = norm(Lhs0,'fro')/norm(Lhs124,'fro'); %
+      K334 = norm(Lhs0,'fro')/norm(Lhs334,'fro'); %
+   else
+      K121 = 1; K122 = 1; K123 = 1; K124 = 1;
+      K331 = 1; K332 = 1; K333 = 1; K334 = 1;
+   end
+
    %Lhs = [ Lhs0, Lhs0, Lhs0, Lhs0, K12*Lhs12, K33*Lhs33 ]; % Order is [u1;u2;u3;u4;K12*k12;K33*k33]
+   tic;
    Z0 = zeros(size(Lhs0));
-   Lhs = [ Lhs0, Z0, Z0, Z0, Lhs121, Lhs331 ;...
-           Z0, Lhs0, Z0, Z0, Lhs122, Lhs332 ;...
-           Z0, Z0, Lhs0, Z0, Lhs123, Lhs333 ;...
-           Z0, Z0, Z0, Lhs0, Lhs124, Lhs334 ];
-   Rhs = [ Rhs1 - Lhs0*Uu1 ; Rhs2 - Lhs0*Uu2 ; Rhs3 - Lhs0*Uu3 ; Rhs4 - Lhs0*Uu4 ];
-   
-   A = Lhs'*Lhs; sA = size(A,1);
-   L = [ Lu, Zuu, Zuu, Zuu, Zue, Zue ; ...
-         Zuu, Lu, Zuu, Zuu, Zue, Zue ; ...
-         Zuu, Zuu, Lu, Zuu, Zue, Zue ; ...
-         Zuu, Zuu, Zuu, Lu, Zue, Zue ; ...
-         Zue',Zue',Zue',Zue', L12, Zee ; ...
-         Zue',Zue',Zue',Zue', Zee, L33 ];
 
-   [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
-   thetas = diag(Theta);
-   [thetas,Ind] = sort( thetas,'descend' );
-   Q = Q(:,Ind);
-   Thetas = diag(thetas); 
-   Theta = Theta(Ind,Ind);
+   if dofull == 1
+      Lhs = [ Lhs0, Z0, Z0, Z0, K121*Lhs121, K331*Lhs331 ;...
+              Z0, Lhs0, Z0, Z0, K121*Lhs122, K331*Lhs332 ;...
+              Z0, Z0, Lhs0, Z0, K121*Lhs123, K331*Lhs333 ;... %/!\ There is the same K on purpose, on order to reconstruct k12 and k33
+            Z0, Z0, Z0, Lhs0, K121*Lhs124, K331*Lhs334 ];
+      Rhs = [ Rhs1 - Lhs0*Uu1 ; Rhs2 - Lhs0*Uu2 ; Rhs3 - Lhs0*Uu3 ; Rhs4 - Lhs0*Uu4 ];
+      Res(iter) = norm(Rhs);
    
-   % Plot the Picard stuff
-   imax = min( find(thetas/thetas(1)<1e-16) );
-   if size(imax,1) == 0
-      imax = size(thetas,1);
-   end
+      A = Lhs'*Lhs; sA = size(A,1);
+      L = [ Lu, Zuu, Zuu, Zuu, Zue, Zue ; ...
+            Zuu, Lu, Zuu, Zuu, Zue, Zue ; ...
+            Zuu, Zuu, Lu, Zuu, Zue, Zue ; ...
+            Zuu, Zuu, Zuu, Lu, Zue, Zue ; ...
+            Zue',Zue',Zue',Zue', L12, Zee ; ...
+            Zue',Zue',Zue',Zue', Zee, L33 ];
+      Msmall = [ Zuu, Zuu, Zuu, Zuu, Zue, Zue ; ...
+                 Zuu, Zuu, Zuu, Zuu, Zue, Zue ; ...
+                 Zuu, Zuu, Zuu, Zuu, Zue, Zue ; ...
+                 Zuu, Zuu, Zuu, Zuu, Zue, Zue ; ...
+                 Zue',Zue',Zue',Zue', L12, Zee ; ...
+                 Zue',Zue',Zue',Zue', Zee, L33 ];
+
+      [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+      thetas = diag(Theta);
+      [thetas,Ind] = sort( thetas,'descend' );
+      Q = Q(:,Ind);
+      Thetas = diag(thetas); 
+      Theta = Theta(Ind,Ind);
    
-   tplo = thetas(1:imax);
-   bplo = Q'*Lhs'*Rhs; bplo = bplo(1:imax);
-   rplp = (Q'*Lhs'*Rhs)./thetas; rplo = rplp(1:imax);
+      % Plot the Picard stuff
+      imax = min( find(thetas/thetas(1)<1e-16) );
+      if size(imax,1) == 0
+         imax = size(thetas,1);
+      end
+   
+      tplo = thetas(1:imax);
+      bplo = Q'*Lhs'*Rhs; bplo = bplo(1:imax);
+      rplp = (Q'*Lhs'*Rhs)./thetas; rplo = rplp(1:imax);
 
-   % Remove Zeros in rploi (why on shit are there zeros in the first place ?)
-   me = mean(abs(rplp))/1e5; arplo = max(me,abs(rplp));
-   ind1 = findPicard2 (log10(arplo(1:imax)), ceil(imax/7), 1, 3);
-
-   try
-   figure
-   hold on;
-   plot(log10(abs(tplo)),'Color','green');
-   plot(log10(abs(bplo)),'Color','red');
-   plot(log10(abs(rplo)),'Color','black');
-   legend('Singular values','Rhs','sol');
-   end
+      % Remove Zeros in rploi (why on shit are there zeros in the first place ?)
+      me = mean(abs(rplp))/1e5; arplo = max(me,abs(rplp));
+      ind1 = findPicard2 (log10(arplo(1:imax)), ceil(imax/7), 1, 3);
 
 %   try
 %   figure
 %   hold on;
-%   plot(log10(abs(rplo1)),'Color','red');
-%   plot(log10(abs(rplo2)),'Color','black');
-%   plot(log10(abs(rplo3)),'Color','magenta');
-%   plot(log10(abs(rplo4)),'Color','blue');
-%   legend('sol1','sol2','sol3','sol4');
+%   plot(log10(abs(tplo)),'Color','green');
+%   plot(log10(abs(bplo)),'Color','red');
+%   plot(log10(abs(rplo)),'Color','black');
+%   legend('Singular values','Rhs','sol');
 %   end
 
-   % Filter eigenvalues
-   if jmax == 0
-      jmax = size(Thetas,1);
-    jmax1 = ind1;
+%   % Filter eigenvalues
+%   if jmax == 0
+%      jmax = size(Thetas,1);
+%    jmax1 = ind1;
+%   else
+%      jmax0 = min( size(Thetas,1) , jmax );
+%      jmax1 = jmax;
+%   end
+
+      if iter == 1
+         jmax1 = jmax;
+      else
+         jmax1 = 100;
+      end
+
+      nor = zeros(sA,1); res = zeros(sA,1);
+      for i=1:sA
+         xnor = Q(:,1:i)*rplp(1:i); nor(i) = xnor'*Msmall*xnor;
+         res(i)  = norm(Lhs*xnor - Rhs);
+      end
+      nares = find(isnan(log10(res))); nanor = find(isnan(log10(nor))); % Manage the nans
+      natot = union(nares,nanor); res(natot) = []; nor(nanor) = []; % We assume the nans are the last ones, so no impact on the numeroataion
+      indd = findCorner (res, nor, ceil(sA/4), 1, 7);
+
+      try
+      figure;
+      hold on;
+      loglog(res,nor,'Color','red','-*');
+      loglog(res(indd),nor(indd),'Color','red','o','markersize',15);
+      legend('L-curve','');
+      end
+
+      ThetaT = Thetas( 1:jmax1 , 1:jmax1 );
+      bU = Q'*Lhs'*Rhs; bT = bU(1:jmax1);
+      Solu = Q(:,1:jmax1) * (ThetaT\bT);
+
+      Uu1 = Uu1 + Solu(1:2*nnodesu);
+      Uu2 = Uu2 + Solu(2*nnodesu+1:4*nnodesu);
+      Uu3 = Uu3 + Solu(4*nnodesu+1:6*nnodesu);
+      Uu4 = Uu4 + Solu(6*nnodesu+1:8*nnodesu);
+
+      nnu8 = 8*nnodesu;
+      k12 = k12 + K121*Solu(nnu8+1:nnu8+nelemu);
+      k33 = k33 + K331*Solu(nnu8+nelemu+1:end);
+      disp([ 'System pinverted ', num2str(toc) ]);
+
+      Deltau(iter)   = norm(Solu(1:nnu8));
+      Deltak12(iter) = norm(K121*Solu(nnu8+1:nnu8+nelemu));
+      Deltak33(iter) = norm(K331*Solu(nnu8+nelemu+1:end));
+
    else
-      jmax0 = min( size(Thetas,1) , jmax );
-      jmax1 = jmax;
+      %% Separate resolutions : first the Uu (if the norm of Lhs0 is not zero)
+      if norm(Lhs0,'fro') ~= 0
+         Lhsu  = Lhs0;
+         Rhs11 = [ Rhs1 ];% - Lhs0*Uu1 ];% - Lhs121*k12 - Lhs331*k33 ];
+         Rhs22 = [ Rhs2 ];% - Lhs0*Uu2 ];% - Lhs122*k12 - Lhs332*k33 ];
+         Rhs33 = [ Rhs3 ];% - Lhs0*Uu3 ];% - Lhs123*k12 - Lhs333*k33 ];
+         Rhs44 = [ Rhs4 ];% - Lhs0*Uu4 ];% - Lhs124*k12 - Lhs334*k33 ];
+
+         A = Lhsu'*Lhsu; L = Lu;
+
+         [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2));
+         thetas = diag(Theta);
+         [thetas,Ind] = sort( thetas,'descend' );
+         Q = Q(:,Ind);
+         Thetas = diag(thetas); 
+         Theta = Theta(Ind,Ind);
+
+         % Plot the Picard stuff
+         imax = min( find(thetas/thetas(1)<1e-16) );
+         if size(imax,1) == 0
+            imax = size(thetas,1);
+         end
+   
+         tplo = thetas(1:imax);
+         bplo1 = Q'*Lhsu'*Rhs11; bplo1 = bplo1(1:imax);
+         rplp1 = (Q'*Lhsu'*Rhs11)./thetas; rplo1 = rplp1(1:imax);
+         bplo2 = Q'*Lhsu'*Rhs22; bplo2 = bplo2(1:imax);
+         rplp2 = (Q'*Lhsu'*Rhs22)./thetas; rplo2 = rplp2(1:imax);
+         bplo3 = Q'*Lhsu'*Rhs33; bplo3 = bplo3(1:imax);
+         rplp3 = (Q'*Lhsu'*Rhs33)./thetas; rplo3 = rplp3(1:imax);
+         bplo4 = Q'*Lhsu'*Rhs44; bplo4 = bplo4(1:imax);
+         rplp4 = (Q'*Lhsu'*Rhs44)./thetas; rplo4 = rplp4(1:imax);
+
+         try
+         figure
+         hold on;
+         plot(log10(abs(rplo1)),'Color','red');
+         plot(log10(abs(rplo2)),'Color','black');
+         plot(log10(abs(rplo3)),'Color','magenta');
+         plot(log10(abs(rplo4)),'Color','blue');
+         legend('sol1','sol2','sol3','sol4');
+         end
+
+         % Remove Zeros in rploi (why on shit are there zeros in the first place ?)
+         me1 = mean(abs(rplp1))/1e5; arplo1 = max(me1,abs(rplp1));
+         me2 = mean(abs(rplp2))/1e5; arplo2 = max(me2,abs(rplp2));
+         me3 = mean(abs(rplp3))/1e5; arplo3 = max(me3,abs(rplp3));
+         me4 = mean(abs(rplp4))/1e5; arplo4 = max(me4,abs(rplp4));
+         ind1 = findPicard2 (log10(arplo1(1:imax)), ceil(imax/7), 1, 3);
+         ind2 = findPicard2 (log10(arplo2(1:imax)), ceil(imax/7), 1, 3);
+         ind3 = findPicard2 (log10(arplo3(1:imax)), ceil(imax/7), 1, 3);
+         ind4 = findPicard2 (log10(arplo4(1:imax)), ceil(imax/7), 1, 3);
+
+         % Filter eigenvalues
+         if jmax == 0
+            jmax = size(Thetas,1);
+            jmax1 = ind1; jmax2 = ind2; jmax3 = ind3; jmax4 = ind4;
+         else
+            jmax0 = min( size(Thetas,1) , jmax );
+            jmax1 = jmax; jmax2 = jmax; jmax3 = jmax; jmax4 = jmax;
+         end
+
+         %jmax1 = 45; jmax2 = 45; jmax3 = 45; jmax4 = 45;
+
+         ThetaT1 = Thetas( 1:jmax1 , 1:jmax1 );
+         ThetaT2 = Thetas( 1:jmax2 , 1:jmax2 );
+         ThetaT3 = Thetas( 1:jmax3 , 1:jmax3 );
+         ThetaT4 = Thetas( 1:jmax4 , 1:jmax4 );
+   
+         bU1 = Q'*Lhsu'*Rhs11; bT1 = bU1(1:jmax1);
+         bU2 = Q'*Lhsu'*Rhs22; bT2 = bU2(1:jmax2);
+         bU3 = Q'*Lhsu'*Rhs33; bT3 = bU3(1:jmax3);
+         bU4 = Q'*Lhsu'*Rhs44; bT4 = bU4(1:jmax4);
+  
+         Solu1 = Q(:,1:jmax1) * (ThetaT1\bT1);
+         Solu2 = Q(:,1:jmax2) * (ThetaT2\bT2);
+         Solu3 = Q(:,1:jmax3) * (ThetaT3\bT3);
+         Solu4 = Q(:,1:jmax4) * (ThetaT4\bT4);
+
+%         Uu1 = Uu1 + Solu1;
+%         Uu2 = Uu2 + Solu2;
+%         Uu3 = Uu3 + Solu3;
+%         Uu4 = Uu4 + Solu4;
+
+         Deltau(iter) = norm( [Solu1-Uu1;Solu2-Uu2;Solu3-Uu3;Solu4-Uu4] );
+
+         Uu1 = Solu1; Uu2 = Solu2; Uu3 = Solu3; Uu4 = Solu4;
+
+      end
+
+      %% Then, solve for k12 and k33
+      Lhs = [ Lhs121, Lhs331 ; Lhs122, Lhs332 ; Lhs123, Lhs333 ; Lhs124, Lhs334 ];
+      Rhs = [ Rhs1 - Lhs0*Uu1; Rhs2 - Lhs0*Uu2; Rhs3 - Lhs0*Uu3 ; Rhs4 - Lhs0*Uu4 ];
+      Res(iter) = norm(Rhs);
+   
+      A = Lhs'*Lhs; sA = size(A,1);
+      L = [ L12, Zee ; Zee, L33 ];
+
+      [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
+      thetas = diag(Theta);
+      [thetas,Ind] = sort( thetas,'descend' );
+      Q = Q(:,Ind);
+      Thetas = diag(thetas); 
+      Theta = Theta(Ind,Ind);
+   
+      % Plot the Picard stuff
+      imax = min( find(thetas/thetas(1)<1e-16) );
+      if size(imax,1) == 0
+         imax = size(thetas,1);
+      end
+   
+      tplo = thetas(1:imax);
+      bplo = Q'*Lhs'*Rhs; bplo = bplo(1:imax);
+      rplp = (Q'*Lhs'*Rhs)./thetas; rplo = rplp(1:imax);
+
+      % Remove Zeros in rploi (why on shit are there zeros in the first place ?)
+      me = mean(abs(rplp))/1e5; arplo = max(me,abs(rplp));
+      ind1 = findPicard2 (log10(arplo(1:imax)), ceil(imax/7), 1, 3);
+
+      try
+      figure
+      hold on;
+      plot(log10(abs(tplo)),'Color','green');
+      plot(log10(abs(bplo)),'Color','red');
+      plot(log10(abs(rplo)),'Color','black');
+      legend('Singular values','Rhs','sol');
+      end
+
+      % Filter eigenvalues
+      if jmax == 0
+         jmax = size(Thetas,1);
+         jmax1 = ind1;
+      else
+         jmax0 = min( size(Thetas,1) , jmax );
+         jmax1 = jmax;
+      end
+
+%      if iter == 1
+%         jmax1 = jmax;
+%      else
+%         jmax1 = 100;
+%      end
+
+      ThetaT = Thetas( 1:jmax1 , 1:jmax1 );
+      bU = Q'*Lhs'*Rhs; bT = bU(1:jmax1);
+      Solu = Q(:,1:jmax1) * (ThetaT\bT);
+
+      k12 = k12 + Solu(1:nelemu);
+      k33 = k33 + Solu(nelemu+1:end);
+      disp([ 'System pinverted ', num2str(toc) ]);
+
+      Deltak12(iter) = norm(Solu(1:nelemu));
+      Deltak33(iter) = norm(Solu(nelemu+1:end));
    end
 
-   ThetaT = Thetas( 1:jmax1 , 1:jmax1 );
-   bU = Q'*Lhs'*Rhs; bT = bU(1:jmax1);
-   Solu = Q(:,1:jmax1) * (ThetaT\bT);
-
-   Uu1 = Uu1 + Solu(1:2*nnodesu);
-   Uu2 = Uu2 + Solu(2*nnodesu+1:4*nnodesu);
-   Uu3 = Uu3 + Solu(4*nnodesu+1:6*nnodesu);
-   Uu4 = Uu4 + Solu(6*nnodesu+1:8*nnodesu);
-
-   nnu8 = 8*nnodesu;
-   k12 = k12 + Solu(nnu8+1:nnu8+nelemu);
-   k33 = k33 + Solu(nnu8+nelemu+1:end);
 end
 
 lambda = 2*(k33.*k12)./(2*k33-k12);
@@ -761,21 +1083,42 @@ mu     = k33;
 Ed     = mu.*(3*lambda+2*mu)./(lambda+mu);
 nud    = lambda./(2*lambda+mu);
 
+try
+figure;
+hold on;
+plot(log10(Res/Res(1)),'Color','black');
+plot(2:niter,log10(Deltau(2:end)/Deltau(2)),'Color','blue');
+plot(log10(Deltak12/Deltak12(1)),'Color','red');
+plot(log10(Deltak33/Deltak33(1)),'Color','green');
+legend('residual', '\Delta u', '\Delta k_{12}', '\Delta k_{33}');
+end
+
+try
 figure;
 hold on
 patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Ed+E,'FaceColor','flat');
-legend('\sigma_{xx}');
+teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+plot( ixe, igrec, 'Color', 'black',  'LineWidth', 3 );
 colorbar; axis equal;
-legend('E');
+caxis([70000,210000]); legend('E');
+end
+
+try
 figure;
 hold on
 patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',nud+nu,'FaceColor','flat');
-legend('\sigma_{xx}');
+teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+plot( ixe, igrec, 'Color', 'black',  'LineWidth', 3 );
 colorbar; axis equal;
-legend('\nu');
+caxis([0,1]); legend('\nu');
+end
+
+try
 figure;
 hold on
 patch('Faces',elementsu(:,1:3),'Vertices',nodesu,'FaceVertexCData',Uu1(1:2:end-1),'FaceColor','interp');
-legend('\sigma_{xx}');
+teta = 0:.1:2*pi+.1; ixe = Rad*cos(teta)+Cc(1); igrec = Rad*sin(teta)+Cc(2);
+plot( ixe, igrec, 'Color', 'black',  'LineWidth', 3 );
 colorbar; axis equal;
 legend('u_1^x');
+end

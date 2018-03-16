@@ -10,15 +10,15 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 20;
-precond = 1;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
+niter   = 10;
+precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
 br      = .0;    % noise
 brt     = 0;      % "translation" noise
 epsilon = 1e-200; % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 0;      % inhomogeneous medium
+inhomog = 2;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -237,6 +237,8 @@ residual(1) = norm(Res( indexa,1));%sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res
 error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 regulari2(1) = norm( Itere(indexa) );
+regulari4(1) = 0; % Don't consider the initial norm
+residual4(1) = 0; piMx = 0;
 
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
@@ -269,6 +271,10 @@ for iter = 1:niter
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
     num = Res(indexa,iter)'*d(indexa,iter);
     
+    if iter == 1
+       normpi = num*sqrt(den);
+    end
+
     Itere         = Itere + d(:,iter)*num;%/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
@@ -287,27 +293,27 @@ for iter = 1:niter
         Zed(:,iter+1) = Res(:,iter+1);
     end
     
-    % Violent Computation of the residual and regulari (avoidable)
-    f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
-    uin1 = K1\f1;
-    lagr1 = uin1(2*nnodes+1:end,1);
-    MItere = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
-    %
-    regulari3(iter+1) = sqrt(Itere(indexa,1)'*MItere(indexa,1));
-    %
-    f1 = dirichletRhs2( Zed(:,iter+1), 2, c2node1, boundaryp1, nnodes );
-    uin1 = K1\f1;
-    lagr1 = uin1(2*nnodes+1:end,1);
-    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
-    % Solve 2
-    f2 = dirichletRhs2( Zed(:,iter+1), 2, c2node2, boundaryp2, nnodes );
-    uin2 = K2\f2;
-    lagr2 = uin2(2*nnodes+1:end,1);
-    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
-    %
-    AZed = lamb1-lamb2;
-    %
-    residual3(iter+1) = sqrt(AZed(indexa,1)'*Zed(indexa,iter+1));
+%    % Violent Computation of the residual and regulari (avoidable)
+%    f1 = dirichletRhs2( Itere, 2, c2node1, boundaryp1, nnodes );
+%    uin1 = K1\f1;
+%    lagr1 = uin1(2*nnodes+1:end,1);
+%    MItere = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+%    %
+%    regulari3(iter+1) = sqrt(Itere(indexa,1)'*MItere(indexa,1));
+%    %
+%    f1 = dirichletRhs2( Zed(:,iter+1), 2, c2node1, boundaryp1, nnodes );
+%    uin1 = K1\f1;
+%    lagr1 = uin1(2*nnodes+1:end,1);
+%    lamb1 = lagr2forces2( lagr1, c2node1, 2, boundaryp1, nnodes );
+%    % Solve 2
+%    f2 = dirichletRhs2( Zed(:,iter+1), 2, c2node2, boundaryp2, nnodes );
+%    uin2 = K2\f2;
+%    lagr2 = uin2(2*nnodes+1:end,1);
+%    lamb2 = lagr2forces2( lagr2, c2node2, 2, boundaryp2, nnodes );
+%    %
+%    AZed = lamb1-lamb2;
+%    %
+%    residual3(iter+1) = sqrt(AZed(indexa,1)'*Zed(indexa,iter+1));
     
     residual(iter+1) = norm(Res(indexa,iter+1));%sqrt(Zed(indexa,iter+1)'*Res(indexa,iter+1));%
     error(iter+1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
@@ -334,6 +340,12 @@ for iter = 1:niter
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
     end
     
+    %% L-curve assets
+    residual4(iter+1) = residual4(iter)- alpha(iter)^2*den; % - num^2*den;%
+    regulari4(iter+1) = regulari4(iter) + alpha(iter)^2*normpi + 2*alpha(iter)*piMx; %num^2*normpi + 2*num*piMx ;%
+    piMx = - beta(iter) * ( piMx + alpha(iter)*normpi ); %piMx = - beta(iter) * ( piMx + num*normpi ); %
+    normpi = num*sqrt(den) + beta(iter)^2*normpi; %
+
     %% Ritz algo : find the Ritz elements
     % Build the matrices
     V(:,iter) = zeros(2*nnodes,1);
