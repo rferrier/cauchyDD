@@ -1,5 +1,5 @@
-% 08/01/2018
-% Problèmes directs et de Cauchy par écart à la réciprocité, ajout d'une fissure, Tychonov
+% 22/03/2018
+% ID fissure par RG Petrov-Galerkin et Newton
 
 tic
 close all;
@@ -15,25 +15,24 @@ mat         = [0, E, nu];
 br          = .0;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
-froreg      = 1;      % frobenius preconditioner
+froreg      = 1;      % Frobenius preconditioner
 recompute   = 0;      % Recompute the operators
 theta1      = pi;     %3.7296;%pi;%pi/2;
 theta2      = 0;      %0.58800;%0%3*pi/2; % Initial angles of the crack
 anglestep   = pi/20;  % Step in angle for Markov search
 gaussian    = 0;      % Probability density for the Markov chain
-limnotwork  = 1501;   % Nb of failures to start adapting the step
-refine      = 1.5;   % Step refining factor
-nbstep      = 100;
-nstart      = 1;      % Shall we do restarts ?
-rstart      = pi/2;   % Influence radius of a previous minimum
+nbstep      = 10;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 ordertest   = 20;     % Order of test fonctions
+zerobound   = 1;      % Put the boundaries of the crack to 0
+nuzawa      = 1e2;     % (nuzawa = 1 means no Uzawa)
+kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
 %nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ never go above the nb of dofs)
 %nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
-%nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,11 ];
+nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -640,7 +639,7 @@ f_known3(tofindN) = 0; f_known4(tofindN) = 0;
 u_known1(tofindD) = 0; u_known2(tofindD) = 0;
 u_known3(tofindD) = 0; u_known4(tofindD) = 0;
 
-ndofs = size(f_known1(tofindN),1) + size(u_known1(tofindD),1) + 22;
+ndofs = size(f_known1(tofindN),1) + size(u_known1(tofindD),1) + 42;
 
 %% Restrict the operators
 Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
@@ -687,13 +686,6 @@ if regular == 1
    Duuk = Du(tofindD,knownD);  Dfuk = Df(tofindN,knownN);
 end
 
-ind1 = zeros(nbstep,1); ind2 = zeros(nbstep,1); % Store the stopping indices
-ind3 = zeros(nbstep,1); ind4 = zeros(nbstep,1); %
-indp1 = zeros(nbstep,1); indp2 = zeros(nbstep,1); % Store the stopping indices (L-curve)
-indp3 = zeros(nbstep,1); indp4 = zeros(nbstep,1); %
-indd1 = zeros(nbstep,1); indd2 = zeros(nbstep,1); % Store the stopping indices (L-curve)
-indd3 = zeros(nbstep,1); indd4 = zeros(nbstep,1); %
-
 theta1rec = theta1;
 theta2rec = theta2;
 theta1b   = theta1;
@@ -701,25 +693,39 @@ theta2b   = theta2;
 nbnotwork = 0; % Records the number of failures
 previous = []; % Stores the index of the previous solutions
 tic
-for star = 1:nstart
-   anglestepc = anglestep;
-   for iter = 1:nbstep % Markov chain loop
+for iter = 1:nbstep % Newton loop
+
+   pbmax = 2;
+%   if iter == nbstep
+%      pbmax == 0;
+%   end
+
+   for pb = 0:pbmax % Construct all the problems
+
+      if pb == 0
+         theta1c = theta1; theta2c = theta2;
+      elseif pb == 1
+         theta1c = theta1+anglestep; theta2c = theta2;
+      else
+         theta1c = theta1; theta2c = theta2+anglestep;
+      end
+
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
       %% Compute the crack RHS (from angle)
-   
+
       % Intersections
       %xb = mean(nodes2(:,1)); yb = mean(nodes2(:,2)); % Barycenter
       xmin = min(nodes2(:,1)); xmax = max(nodes2(:,1));
       ymin = min(nodes2(:,2)); ymax = max(nodes2(:,2));
       xb = .5*(xmin+xmax); yb = .5*(ymin+ymax);
-      ma11 = [ 0, -cos(theta1) ; ymin-ymax, -sin(theta1) ]; bh1 = [ xb-xmax ; yb-ymax];
-      ma12 = [ 0, -cos(theta2) ; ymin-ymax, -sin(theta2) ];
-      ma21 = [ xmax-xmin, -cos(theta1) ; 0, -sin(theta1) ]; bh2 = [ xb-xmin ; yb-ymax];
-      ma22 = [ xmax-xmin, -cos(theta2) ; 0, -sin(theta2) ];
-      ma31 = [ 0, -cos(theta1) ; ymax-ymin, -sin(theta1) ]; bh3 = [ xb-xmin ; yb-ymin];
-      ma32 = [ 0, -cos(theta2) ; ymax-ymin, -sin(theta2) ];
-      ma41 = [ xmin-xmax, -cos(theta1) ; 0, -sin(theta1) ]; bh4 = [ xb-xmax ; yb-ymin];
-      ma42 = [ xmin-xmax, -cos(theta2) ; 0, -sin(theta2) ];
+      ma11 = [ 0, -cos(theta1c) ; ymin-ymax, -sin(theta1c) ]; bh1 = [ xb-xmax ; yb-ymax];
+      ma12 = [ 0, -cos(theta2c) ; ymin-ymax, -sin(theta2c) ];
+      ma21 = [ xmax-xmin, -cos(theta1c) ; 0, -sin(theta1c) ]; bh2 = [ xb-xmin ; yb-ymax];
+      ma22 = [ xmax-xmin, -cos(theta2c) ; 0, -sin(theta2c) ];
+      ma31 = [ 0, -cos(theta1c) ; ymax-ymin, -sin(theta1c) ]; bh3 = [ xb-xmin ; yb-ymin];
+      ma32 = [ 0, -cos(theta2c) ; ymax-ymin, -sin(theta2c) ];
+      ma41 = [ xmin-xmax, -cos(theta1c) ; 0, -sin(theta1c) ]; bh4 = [ xb-xmax ; yb-ymin];
+      ma42 = [ xmin-xmax, -cos(theta2c) ; 0, -sin(theta2c) ];
 
       tr1s = zeros(2,4); % All the intersections
       tr2s = zeros(2,4);
@@ -740,15 +746,15 @@ for star = 1:nstart
       tr1s = tr1s( :, find(tr1s(2,:)>0) ); % Radius must be > 0
       [~,num] = min(tr1s(2,:));
       tr1 = tr1s(:,num); r = tr1(2);
-      xy1 = [ xb + r*cos(theta1) ; yb + r*sin(theta1) ]; % coords of the right intersection
+      xy1 = [ xb + r*cos(theta1c) ; yb + r*sin(theta1c) ]; % coords of the right intersection
    
       tr2s = tr2s( :, find(tr2s(2,:)>0), : ); % Radius must be > 0
       [~,num] = min(tr2s(2,:));
       tr2 = tr2s(:,num); r = tr2(2);
-      xy2 = [ xb + r*cos(theta2) ; yb + r*sin(theta2) ]; % coords of the right intersection
-   
+      xy2 = [ xb + r*cos(theta2c) ; yb + r*sin(theta2c) ]; % coords of the right intersection
+
       %% Build the elements on the crack's line
-      step = (xy2-xy1)/10;
+      step = (xy2-xy1)/20;
       nodes3 = [ xy1(1):step(1):xy2(1) ; xy1(2):step(2):xy2(2) ];
       nodes3 = nodes3'; nnodes3 = size(nodes3,1);
       boundary3 = zeros(nnodes3-1,3);
@@ -845,7 +851,7 @@ for star = 1:nstart
       end
 
       Rucij = Sv*Phi; clear Sv; clear Phi;
-      Ruc = coef'*Rucij;
+      Ruc = coef'*Rucij; noRuc = norm(Ruc,'fro');
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
       nodeMass3 = zeros(2*nboun3+2);
@@ -866,9 +872,9 @@ for star = 1:nstart
       else
          kB = 1;
       end
-      %Lhs = [LhsA,kB*LhsB];
-      Lhs = [LhsA,kB*LhsB,Ruc];
-   
+
+      Lhs = [LhsA,kB*LhsB,Ruc];   
+
       Rhs = Rhs1;
       A = Lhs'*Lhs; b = Lhs'*Rhs; sA = size(A,1);
    
@@ -909,147 +915,115 @@ for star = 1:nstart
       end
       ninfty = 0;
    %L = eye(size(A));
-   
-      SoluRG = (Lhs'*Lhs + mur*L) \ [(Lhs'*Rhs1-mur*L121),(Lhs'*Rhs2-mur*L122),...
-                                     (Lhs'*Rhs3-mur*L123),(Lhs'*Rhs4-mur*L124)];
+
+      %sL = L^(1/2);   % Square root of L
+
+      MAT = Lhs'*Lhs + mur*L;
+      VE1 = Lhs'*Rhs1-mur*L121; VE2 = Lhs'*Rhs2-mur*L122;
+      VE3 = Lhs'*Rhs3-mur*L123; VE4 = Lhs'*Rhs4-mur*L124;
+
+      % Build the contact inequation condition
+      C = zeros(nnodes3, 2*nnodes3);
+      C(1,2*1-1) = extnorm3(1,1); C(1,2*1) = extnorm3(1,2);
+      C(nnodes3,2*nnodes3-1) = extnorm3(end,1); C(nnodes3,2*nnodes3) = extnorm3(end,2);
+      for i=2:nnodes3-1
+         C(i,2*i-1) = .5*(extnorm3(i-1,1) + extnorm3(i,1));
+         C(i,2*i)   = .5*(extnorm3(i-1,2) + extnorm3(i,2));
+      end
+      C = [ zeros(nnodes3,ndofs-2*nnodes3), C ];
+      f = zeros(nnodes3,4); Ctf = C'*f;
+      respos = zeros(nuzawa,1); df = zeros(nuzawa,1);
+
+      if zerobound == 1
+         toremove = [ ndofs, ndofs-1, ndofs-2*nnodes3+2, ndofs-2*nnodes3+1 ];
+         tokeep = setdiff(1:size(L,1),toremove);
+         [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep));
+         kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
+      else
+         [Ll, Uu, Pp] = lu (MAT);  % P * M = L * U
+         kuzawa1 = .999*min(eig(MAT));
+      end
+
+      for i=1:nuzawa % Uzawa for the contact problems
+         if zerobound == 1
+            SoluRG = zeros(size(L,1),4);
+%            SoluRG(tokeep,:) = MAT(tokeep,tokeep) \ ( [VE1(tokeep),VE2(tokeep),...
+%                                                      VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) );
+            SoluRG(tokeep,:) = Uu \ ( Ll \ ( Pp * ( [VE1(tokeep),VE2(tokeep),...
+                                                    VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) ) ) );
+         else
+%            SoluRG = MAT \ [VE1+f,VE2+f,VE3+f,VE4+f];
+            SoluRG = Uu \ ( Ll \ ( Pp * ( [VE1,VE2,VE3,VE4] + Ctf ) ) );
+         end
+         respos(i) = norm(C*SoluRG - abs(C*SoluRG));
+         fp = f;
+         if kuzawa == 0
+            f = f - kuzawa1*C*SoluRG;
+         else
+            f = f - kuzawa*C*SoluRG;
+         end
+         f = .5*(f + abs(f)); Ctf = C'*f;
+         df(i) = norm(f-fp);
+      end
+
       Solu1 = SoluRG(:,1); Solu2 = SoluRG(:,2); Solu3 = SoluRG(:,3); Solu4 = SoluRG(:,4);
 
-      nor1 = Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1 + mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21;
-      nor2 = Solu2'*Lhs'*Lhs*Solu2 - 2*Solu2'*Lhs'*Rhs2 + Rhs2'*Rhs2 + mur*Solu2'*L*Solu2 + 2*mur*Solu2'*L122 + mur*L22;
-      nor3 = Solu3'*Lhs'*Lhs*Solu3 - 2*Solu3'*Lhs'*Rhs3 + Rhs3'*Rhs3 + mur*Solu3'*L*Solu3 + 2*mur*Solu3'*L123 + mur*L23;
-      nor4 = Solu4'*Lhs'*Lhs*Solu4 - 2*Solu4'*Lhs'*Rhs4 + Rhs4'*Rhs4 + mur*Solu4'*L*Solu4 + 2*mur*Solu4'*L124 + mur*L24;
+      if pb == 0
+         nor1 = Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1 + mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21;
+         nor2 = Solu2'*Lhs'*Lhs*Solu2 - 2*Solu2'*Lhs'*Rhs2 + Rhs2'*Rhs2 + mur*Solu2'*L*Solu2 + 2*mur*Solu2'*L122 + mur*L22;
+         nor3 = Solu3'*Lhs'*Lhs*Solu3 - 2*Solu3'*Lhs'*Rhs3 + Rhs3'*Rhs3 + mur*Solu3'*L*Solu3 + 2*mur*Solu3'*L123 + mur*L23;
+         nor4 = Solu4'*Lhs'*Lhs*Solu4 - 2*Solu4'*Lhs'*Rhs4 + Rhs4'*Rhs4 + mur*Solu4'*L*Solu4 + 2*mur*Solu4'*L124 + mur*L24;
+         phi( iter )  = nor1 + nor2 + nor3 + nor4;
 
-      phi( (star-1)*nbstep + iter )  = nor1 + nor2 + nor3 + nor4;
-      %regu( (star-1)*nbstep + iter ) = mur * (Solu1'*L*Solu1 + Solu2'*L*Solu2 + Solu3'*L*Solu3 + Solu4'*L*Solu4);
+         res1 = Lhs*Solu1 - Rhs1; % Residuals
+         res2 = Lhs*Solu2 - Rhs2; %
+         res3 = Lhs*Solu3 - Rhs3; %
+         res4 = Lhs*Solu4 - Rhs4; %
 
-      % Optimization condition
-      gothere = ( phi((star-1)*nbstep + iter ) == min(phi));
+         res = [ res1 ; res2 ; res3 ; res4 ];
+         Ax  = [ Lhs*Solu1 ; Lhs*Solu2 ; Lhs*Solu3 ; Lhs*Solu4 ];
+         xt  = [ Solu1 ; Solu2 ; Solu3 ; Solu4 ];
+         Lh0 = Lhs;
 
-      if star > 1
-         t12  = [ theta1 ; theta2 ]; t12p = [ theta1p ; theta2p ];
-         for i=1:star-1
-            prev = [ theta1rec(previous(i)) ; theta2rec(previous(i)) ];
-            % Distances are computed on the unit circle
-            dist1  = angleDist( prev, t12 );
-            dist1p = angleDist( prev, t12p );
+         Solu10 = Solu1; Solu20 = Solu2; Solu30 = Solu3; Solu40 = Solu4; % Store the values
 
-            if dist1 <= rstart^2 && dist1 >= dist1p % We're close AND getting away
-               gothere = 1;
-            end
-         end 
+         if phi(iter) == min(phi)
+            nodes3b = nodes3;
+         end
+
+      elseif pb == 1
+         D1  = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
+         Dx1 = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
+         Lh1 = (Lhs-Lh0)/anglestep;
+      elseif pb == 2
+         D2  = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
+         Dx2 = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
+         Lh2 = (Lhs-Lh0)/anglestep;
       end
-
-      if gothere % Continue from this one
-         Solu1B(:,star) = Solu1; Solu2B(:,star) = Solu2;
-         Solu3B(:,star) = Solu3; Solu4B(:,star) = Solu4;
-         theta1b(star) = theta1; theta2b(star) = theta2;
-         nodes3b(:,[2*star-1,2*star]) = nodes3;
-         phib(star) = phi((star-1)*nbstep + iter);
-         previous(star) = (star-1)*nbstep + iter;
-
-         nbnotwork = 0; % Yay ! Got optimized !
-         reloop = 1; loopNb = 0;
-         while reloop % Check if we aren't in the same quarter
-            loopNb = loopNb + 1;
-            if loopNb>1000, warning('sanity loop running for too long'); break; end % Safety
-
-            theta1p = theta1; theta2p = theta2;
-
-            if gaussian==1
-               theta1 = theta1 + randn()*anglestepc; theta1 = mod(theta1,2*pi);
-               theta2 = theta2 + randn()*anglestepc; theta2 = mod(theta2,2*pi);
-            else
-               theta1 = theta1 + randn()*anglestepc; theta1 = mod(theta1,2*pi);
-               theta2 = theta2 + randn()*anglestepc; theta2 = mod(theta2,2*pi);
-            end
-         
-            in11 = theta1 <= pi/4   || theta1 >= 7*pi/4;
-            in12 = theta1 >= pi/4   && theta1 <= 3*pi/4;
-            in13 = theta1 >= 3*pi/4 && theta1 <= 5*pi/4;
-            in14 = theta1 >= 5*pi/4 && theta1 <= 7*pi/4;;
-         
-            in21 = theta2 <= pi/4   || theta2 >= 7*pi/4;
-            in22 = theta2 >= pi/4   && theta2 <= 3*pi/4;
-            in23 = theta2 >= 3*pi/4 && theta2 <= 5*pi/4;
-            in24 = theta2 >= 5*pi/4 && theta2 <= 7*pi/4;
-         
-            reloop = in11&&in21 || in12&&in22 || in13&&in23 || in14&&in24;
-
-%            % Now, check we're going away from the previously computed points
-%            t12  = [ theta1 ; theta2 ]; t12p = [ theta1p ; theta2p ];
-%            for i=1:star-1
-%               prev = [ theta1rec(previous(i)) ; theta2rec(previous(i)) ];
-%               % Distances are computed on the unit circle
-%               dist1  = 2 - 2*cos( theta1  - prev(1) ); dist2  = 2 - 2*cos( theta2  - prev(2) );
-%               dist1p = 2 - 2*cos( theta1p - prev(1) ); dist2p = 2 - 2*cos( theta2p - prev(2) );
-
-%               if dist1+dist2 <= rstart^2 && dist1+dist2 <= dist1p+dist2p % We're close AND getting closer
-%                  reloop = 1;
-%               end
-%            end
-         end
-      else % otherwise : continue from the previous one
-         nbnotwork = nbnotwork+1; % Records the nb of consequent failures (to decrease step)
-         if nbnotwork > limnotwork
-            anglestepc = anglestepc/refine;
-            nbnotwork = 0;%ceil(nbnotwork/2); % Let a chance to this new value
-         end
-
-         reloop = 1; loopNb = 0;
-         while reloop % Check if we aren't in the same quarter
-            loopNb = loopNb + 1;
-            if loopNb>1000, warning('sanity loop running for too long'); break; end % Safety
-
-            theta1p = theta1; theta2p = theta2;
-            if gaussian==1
-               theta1 = theta1b(end) + randn()*anglestepc; theta1 = mod(theta1,2*pi);
-               theta2 = theta2b(end) + randn()*anglestepc; theta2 = mod(theta2,2*pi);
-            else
-               theta1 = theta1b(end) + randn()*anglestepc; theta1 = mod(theta1,2*pi);
-               theta2 = theta2b(end) + randn()*anglestepc; theta2 = mod(theta2,2*pi);
-            end
-         
-            in11 = theta1 <= pi/4   || theta1 >= 7*pi/4;
-            in12 = theta1 >= pi/4   && theta1 <= 3*pi/4;
-            in13 = theta1 >= 3*pi/4 && theta1 <= 5*pi/4;
-            in14 = theta1 >= 5*pi/4 && theta1 <= 7*pi/4;
-         
-            in21 = theta2 <= pi/4   || theta2 >= 7*pi/4;
-            in22 = theta2 >= pi/4   && theta2 <= 3*pi/4;
-            in23 = theta2 >= 3*pi/4 && theta2 <= 5*pi/4;
-            in24 = theta2 >= 5*pi/4 && theta2 <= 7*pi/4;
-         
-            reloop = in11&&in21 || in12&&in22 || in13&&in23 || in14&&in24;
-
-%            % Now, check we're going away from the previously computed points
-%            t12  = [ theta1 ; theta2 ]; t12p = [ theta1p ; theta2p ];
-%            for i=1:star-1
-%               prev = [ theta1rec(previous(i)) ; theta2rec(previous(i)) ];
-%               % Distances are computed on the unit circle
-%               dist1  = 2 - 2*cos( theta1  - prev(1) ); dist2  = 2 - 2*cos( theta2  - prev(2) );
-%               dist1p = 2 - 2*cos( theta1p - prev(1) ); dist2p = 2 - 2*cos( theta2p - prev(2) );
-
-%               if dist1+dist2 <= rstart^2 && dist1+dist2 <= dist1p+dist2p % We're close AND getting closer
-%                  reloop = 1;
-%               end
-%            end 
-         end
-      end
-      theta1rec((star-1)*nbstep + iter+1) = theta1;
-      theta2rec((star-1)*nbstep + iter+1) = theta2;
    end
+   D = [D1,D2]; Dx = [Dx1,Dx2];
+   Dd = [ Lh1*Solu10 , Lh2*Solu10 ; Lh1*Solu20 , Lh2*Solu20 ;...
+          Lh1*Solu30 , Lh2*Solu30 ; Lh1*Solu40 , Lh2*Solu40 ];
+
+%   ZL = zeros(size(L));
+%   Aile = [ L, ZL, ZL, ZL ; ...
+%            ZL, L, ZL, ZL ; ...
+%            ZL, ZL, L, ZL ; ...
+%            ZL, ZL, ZL, L ];
+
+   %dtheta = - ( D'*D + mur*Dx'*Aile*Dx ) \ ( D'*res - mur*Dx'*[L121;L122;L123;L124] );
+   dtheta = - ( D'*D ) \ ( D'*res );
+   %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
+
+   theta1 = theta1 + dtheta(1);
+   theta2 = theta2 + dtheta(2);
+
+   theta1rec(iter+1) = theta1;
+   theta2rec(iter+1) = theta2;
 end
 disp(['Iterative method terminated ', num2str(toc) ]);
 
-% Choose the best star
-[~,ZeStar] = min(phib);
-Solu1B = Solu1B(:,ZeStar); Solu2B = Solu2B(:,ZeStar);
-Solu3B = Solu3B(:,ZeStar); Solu4B = Solu4B(:,ZeStar);
-theta1b = theta1b(:,ZeStar); theta2b = theta2b(:,ZeStar);
-nodes3b = nodes3b(:,[2*ZeStar-1,2*ZeStar]);
-phib = phib(ZeStar);
-
-Solu1 = Solu1B; Solu2 = Solu2B; Solu3 = Solu3B; Solu4 = Solu4B;
+Solu1 = Solu10; Solu2 = Solu20; Solu3 = Solu30; Solu4 = Solu40;
 
 % Post-process : reconstruct u and f from Solu
 fsolu1 = zeros(2*nboun2,1); usolu1 = zeros(2*nnodes2,1);
@@ -1244,7 +1218,7 @@ plot( curv, toplot4,'Color','red','LineWidth',3 );
 %plot( curvr, toplotr1,'Color','green' );
 %plot( curvr, toplotr2,'Color','black' );
 %plot( curvr, toplotr3,'Color','blue' );
-plot( curvr, toplotr4,'Color','red','LineWidth',3 );
+plot( curvr, toplotr4,'Color','blue','LineWidth',3 );
 legend('[[u]] identified (4)', '[[u]] reference (4)');
 %legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
 %       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');

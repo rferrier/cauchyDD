@@ -10,7 +10,7 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 10;
+niter   = 30;
 precond = 0;      % 1 : Use a dual precond, 2 : use H1/2 precond, 3 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 5e-200; % Maximal ratio (for eigenfilter)
@@ -237,8 +237,6 @@ residual(1) = norm(Res( indexa,1));%sqrt(Zed(indexa,1)'*Res(indexa,1));%norm(Res
 error(1)    = norm(Itere(indexa) - uref(indexa)) / norm(uref(indexa));
 regulari(1) = sqrt( Itere'*regul(Itere, nodes, boundary, 2) );
 regulari2(1) = norm( Itere(indexa) );
-regulari4(1) = 0; % Don't consider the initial norm
-residual4(1) = 0; piMx = 0;
 
 ritzval  = 0; % Last ritz value that converged
 oldtheta = 0;
@@ -247,9 +245,17 @@ getmeout = 0; % utility
 %V = zeros(2*nnodes, iter);
 %H = zeros(iter);
 %%
+EA2=[0]; XM2 = [0];
+pMx = 0; xM2 = 0; eA2 = 0;
 for iter = 1:niter
+
+    if iter>1
+       xM2 = xM2 + num^2/den*pM2 + 2*num/sqrt(den)*pMx;
+       XM2 = [XM2,xM2];
+       pMx = -num*betaij/den*pM2 - betaij/sqrt(den)*pMx; %-beta(iter-1)
+    end
+
     %% Optimal step
-    
     % Solve 1
     rhs1 = d(:,iter);
     f1 = dirichletRhs2(rhs1, 2, c2node1, boundaryp1, nnodes);
@@ -271,9 +277,13 @@ for iter = 1:niter
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
     num = Res(indexa,iter)'*d(indexa,iter);
     
-    if iter == 1
-       normpi = num*sqrt(den);
+    if iter==1
+       pM2 = num*sqrt(den);
+    else
+       pM2 = num*sqrt(den) + betaij^2/denp * pM2; betaij^2/denp; %-beta(iter-1)
     end
+    eA2 = eA2 - num^2;
+    EA2 = [EA2, eA2];
 
     Itere         = Itere + d(:,iter)*num;%/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
@@ -339,12 +349,6 @@ for iter = 1:niter
             %( d(indexa,jter)'*Ad(indexa,jter) );
         d(:,iter+1) = d(:,iter+1) - d(:,jter) * betaij;
     end
-    
-    %% L-curve assets
-    residual4(iter+1) = residual4(iter)- alpha(iter)^2*den; % - num^2*den;%
-    regulari4(iter+1) = regulari4(iter) + alpha(iter)^2*normpi + 2*alpha(iter)*piMx; %num^2*normpi + 2*num*piMx ;%
-    piMx = - beta(iter) * ( piMx + alpha(iter)*normpi ); %piMx = - beta(iter) * ( piMx + num*normpi ); %
-    normpi = num*sqrt(den) + beta(iter)^2*normpi; %
 
     %% Ritz algo : find the Ritz elements
     % Build the matrices
@@ -398,6 +402,7 @@ for iter = 1:niter
 %    if getmeout == 1  % In case I use a while over there
 %       break;
 %    end
+   denp = den;
 end
 
 % Compute the solution
@@ -444,9 +449,20 @@ for i = 1:iter+1
    ZedS = u1;
    
    resS(i) = norm(ResS); %sqrt(ResS'*ZedS);%  
-   regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
+   regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );%norm(ItereS(indexa))
    errS(i) = norm(ItereS(indexa)-uref(indexa))/norm(uref(indexa));
 end
+
+%% Build Pieter's RL-curve
+EA2R = [0]; XM2R = [0]; ratio = [0];
+for i=1:iter
+   ui = (Y(:,i)'*Res(:,1)) / sqrt((Zed(:,1)'*Res(:,1)));
+   EA2R = [ EA2R, EA2R(end) - ui^2/Theta1(i,i) ] ;
+   XM2R = [ XM2R, XM2R(end) + ui^2/Theta1(i,i)^2 ] ;
+   %ratio = [ratio, 
+end
+EA2R = (Zed(:,1)'*Res(:,1))*EA2R;
+XM2R = (Zed(:,1)'*Res(:,1))*XM2R; % Coefficient (for offset)
 
 % Residual in the diagonal base :
 %resD = zeros(iter,1);  regD = zeros(iter,1);  bt = Y'*b;
@@ -486,27 +502,34 @@ plot(log10(abs(chiD)),'Color','black')
 plot(t,px,'Color','cyan')
 legend('Ritz Values','RHS values','solution coefficients', ...
        'polynomial approxiamtion')
+
+try
 figure;
-%
 hold on;
 plot(Itere(2*b2node2-1),'Color','red')
 plot(ItereR(2*b2node2-1),'Color','blue')
 plot(uref(2*b2node2-1),'Color','green')
 legend('brutal solution','filtred solution', 'reference')
-figure;
+end
 %
+%figure;
 %hold on;
 %plot(Itere(2*b2node2),'Color','red')
 %plot(ItereR(2*b2node2),'Color','blue')
 %plot(uref(2*b2node2),'Color','green')
 %legend('brutal solution','filtred solution', 'reference')
-%figure;
 
+
+try
+figure;
 hold on
 plot(log10(error(2:end)),'Color','blue')
 plot(log10(errS(2:end)),'Color','green')
 %plot(log10(residual(2:end)),'Color','red')
 legend('error','Ritz error')
+end
+
+try
 figure;
 %L-curve :
 hold on;
@@ -517,8 +540,22 @@ legend('L-curve','RL-curve')
 %legend('RL-curve')
 xlabel('residual')
 ylabel('H1 norm')
+end
 %findCorner (residual(2:iter+1), regulari(2:iter+1), 2)
 %findCorner (resS(2:iter+1), regS(2:iter+1), 2)
+
+%% Pieter's L-curves
+EA  = sqrt(EA2-min(EA2));   XM  = sqrt(XM2);
+EAR = sqrt(EA2R-min(EA2R)); XMR = sqrt(XM2R);
+figure;
+hold on;
+loglog( EA(2:end-1), XM(2:end), 'Color', 'red', '-+', 'linewidth', 3 );
+loglog( EAR(2:end-1), XMR(2:end-1), '-+', 'linewidth', 3 );
+%plot( EA2(2:end-1)-min(EA2), XM2(2:end), 'Color', 'red', '-+', 'linewidth', 3 );
+%plot( EA2R(2:end-1)-min(EA2R), XM2R(2:end-1), '-+', 'linewidth', 3 );
+legend('L-curve','RL-curve')
+xlabel('residual (A error)')
+ylabel('M norm')
 
 %%hold on;
 %%loglog(resS(2:iter+1),regS(2:iter+1),'Color','red','-*');

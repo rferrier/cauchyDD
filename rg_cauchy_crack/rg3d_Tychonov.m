@@ -606,7 +606,7 @@ nstep = 100;
 xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
 ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
 step = (ymax-ymin)/nstep;
-X = .5; Y = ymin:step:ymax; Z = .29999;
+X = .5; Y = ymin:step:ymax; Z = .29999;%.0001;%.29999;
 nodesplo = [X*ones(nstep+1,1),Y',Z*ones(nstep+1,1)];
 U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
 up = U1(:,1); upref = U1(:,2);
@@ -620,6 +620,7 @@ plot(Y,upref(3:3:end),'Color','blue','LineWidth',3);
 legend('identified','reference');
 end
 
+%boun21i = find( boundary2(:,1) == 1 );
 boun21i = find( boundary2(:,1) == 2 );
 boun22 = boundary2( boun21i, 2:end );
 

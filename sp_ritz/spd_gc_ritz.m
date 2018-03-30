@@ -10,15 +10,15 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-niter   = 30;
+niter   = 10;
 precond = 0;      % 1/2 : Use a dual precond, 3 : use H1/2 precond, 4 : use gradient precond
 mu      = 0.;     % Regularization parameter
 ratio   = 1e-300;    % Maximal ratio (for eigenfilter)
-br      = .0;      % noise
+br      = .1;      % noise
 brt     = 0;      % "translation" noise
-epsilon = 1e-1;   % Convergence criterion for ritz value
+epsilon = 1e-200;   % Convergence criterion for ritz value
 ntrunc  = 0;      % In case the algo finishes at niter
-inhomog = 2;      % inhomogeneous medium
+inhomog = 0;      % inhomogeneous medium
 
 if inhomog == 2  % load previously stored matrix
    mat = [2, E, nu, .1, 1];
@@ -234,9 +234,17 @@ getmeout = 0; % utility
 %V = zeros(2*nnodes, iter);
 %H = zeros(iter);
 %%
+EA2=[0]; XM2 = [0];
+pMx = 0; xM2 = 0; eA2 = 0;
 for iter = 1:niter
+
+    if iter>1
+       xM2 = xM2 + num^2/den*pM2 + 2*num/sqrt(den)*pMx;
+       XM2 = [XM2,xM2];
+       pMx = -num*betaij/den*pM2 - betaij/sqrt(den)*pMx; %-beta(iter-1)
+    end
+
     %% Optimal step
-    
     % Solve 1
     f1 = [d(:,iter); zeros(nbloq1d,1)];
     uin1 = K1d\f1;
@@ -256,6 +264,14 @@ for iter = 1:niter
     d(:,iter) = d(:,iter)/sqrt(den); Ad(:,iter) = Ad(:,iter)/sqrt(den);
     num = Res(indexa,iter)'*d(indexa,iter);
     
+    if iter==1
+       pM2 = num*sqrt(den);
+    else
+       pM2 = num*sqrt(den) + betaij^2/denp * pM2; betaij^2/denp; %-beta(iter-1)
+    end
+    eA2 = eA2 - num^2;
+    EA2 = [EA2, eA2];
+
     Itere         = Itere + d(:,iter)*num;%/den;
     Res(:,iter+1) = Res(:,iter) - Ad(:,iter)*num;%/den;
     
@@ -363,6 +379,7 @@ for iter = 1:niter
 %    if getmeout == 1  % In case I use a while over there
 %       break;
 %    end
+   denp = den;
 end
 
 % Compute the solution
@@ -401,6 +418,17 @@ for i = 1:iter+1
    resS(i) = norm(ResS);   
    regS(i) = sqrt( ItereS'*regul(ItereS, nodes, boundary, 2) );
 end
+
+%% Build Pieter's RL-curve
+EA2R = [0]; XM2R = [0]; ratio = [0];
+for i=1:iter
+   ui = (Y(:,i)'*Res(:,1)) / sqrt((Zed(:,1)'*Res(:,1)));
+   EA2R = [ EA2R, EA2R(end) - ui^2/Theta1(i,i) ] ;
+   XM2R = [ XM2R, XM2R(end) + ui^2/Theta1(i,i)^2 ] ;
+   %ratio = [ratio, 
+end
+EA2R = (Zed(:,1)'*Res(:,1))*EA2R;
+XM2R = (Zed(:,1)'*Res(:,1))*XM2R; % Coefficient (for offset)
 
 traD = 1 - sum(theta(1:ntrunc-1))/sum(theta);
 regD = zeros(niter,1); resD = zeros(niter,1); bt = Y'*b;
@@ -443,9 +471,21 @@ loglog(residual(2:iter+1),regulari2(2:iter+1),'Color','red','-*');
 %figure
 loglog(resS(2:iter+1),regS(2:iter+1),'-+');
 legend('L-curve','RL-curve')
-figure
 %findCorner (residual(2:iter+1), regulari(2:iter+1), 3)
 %findCorner (resS(2:iter+1), regS(2:iter+1), 3)
+
+%% Pieter's L-curves
+EA  = sqrt(EA2-min(EA2));   XM  = sqrt(XM2);
+EAR = sqrt(EA2R-min(EA2R)); XMR = sqrt(XM2R);
+figure;
+hold on;
+loglog( EA(2:end-1), XM(2:end), 'Color', 'red', '-+', 'linewidth', 3 );
+loglog( EAR(2:end-1), XMR(2:end-1), '-+', 'linewidth', 3 );
+%plot( EA2(2:end-1)-min(EA2), XM2(2:end), 'Color', 'red', '-+', 'linewidth', 3 );
+%plot( EA2R(2:end-1)-min(EA2R), XM2R(2:end-1), '-+', 'linewidth', 3 );
+legend('L-curve','RL-curve')
+xlabel('residual (A error)')
+ylabel('M norm')
 
 %%hold on;
 %%loglog(resS(2:iter+1),regS(2:iter+1),'Color','red','-*');
@@ -486,6 +526,7 @@ usoli = K \ (fdir4 + f2);
 usolR = usoli(1:2*nnodes,1);
 fsolR = Kinter*usol;
 
+figure
 hold on;
 %plot(usol(2*b2node2-1),'Color','red')
 plot(usolR(2*b2node2-1),'Color','blue')

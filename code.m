@@ -194,8 +194,8 @@ neumann   = [ 1,2,-fscalar ; 3,2,fscalar ];
 nnodes = size(nodes,1);
 
 % Then, build the stiffness matrix :
-%[K,C,nbloq,node2c,c2node] = Krig2 (nodes,[physical,elements],mat,order,boundary,dirichlet);
-[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+[K,C,nbloq,node2c,c2node] = Krig2 (nodes,[physical,elements],mat,order,boundary,dirichlet);
+%[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
 % The right hand side :
 f  = loading(nbloq,nodes,boundary,neumann);
 
