@@ -14,7 +14,7 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 250;    % N.mm-1 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 27;     % Eigenvalues truncation number
+jmaxRG     = 30;     % Eigenvalues truncation number
 jmaxSP     = 75;
 jmaxRGSP   = 95;
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
@@ -538,7 +538,7 @@ if recompute == 1
 
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
-   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat','-ASCII');
+   Anb  = load('fields/rg_cauchy_crack/reciprocity_direct_hat2r.mat');
    Rf  = Anb.Rf; Ru  = Anb.Ru;
 %   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
 %   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
@@ -559,12 +559,24 @@ Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
 
 % Build the matrix that passes f on dofs on the nodes from the bound
 Fntob = zeros( 2*nboun2, 2*nnbound2 );
+nodeMass = zeros(2*nnbound2);  % For u
+elemMass = zeros(2*nboun2);     % For f
 for i=1:nboun2
    coef = [ boun2doftot(i,1), boun2doftot(i,2) ];
    len = norm(nodes2(boundary2(i,2),:) - nodes2(boundary2(i,3),:));
    Fntob( 2*i-1, 2*coef-1 ) = len/2 * [1,1];
    Fntob( 2*i, 2*coef )     = len/2 * [1,1];
+
+   ico = [ 2*i-1, 2*i ];
+   cco = [ 2*coef-1, 2*coef ];
+   elemMass(ico,ico) = len*eye(2);
+   nodeMass(cco,cco) = nodeMass(cco,cco) + len/2 * [ eye(2), zeros(2) ; ...
+                                                     zeros(2), eye(2), ];
 end
+
+% Extract interesting parts
+Mfm = elemMass(tofindN,tofindN); Mfr = elemMass(knownN,knownN);
+Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
 
 % If needed, use the differential regularization matrix
 if regular == 2
@@ -631,7 +643,8 @@ elseif regular == 1
             zeros( size(Df,1) , size(Du,2) ) , Df ];
    L = Dtot'*Dtot;
 else
-   L = eye(size(A));
+   %L = eye(size(A));
+   L = [ Mum, zeros(size(Mum,1),size(Mfm,2)) ; zeros(size(Mfm,1),size(Mum,2)) , Mfm ]; % Weighted mass
 end
 ninfty = 0;
 
@@ -931,18 +944,22 @@ toplot = usolu1(b2nodesnoD); toplot2 = u1ref(b2nodesnoD);
 figure;
 hold on;
 set(gca, 'fontsize', 20);
-plot(toplot(2:2:end),'Color','red','LineWidth', 3);
-plot(toplot2(2:2:end),'Color','blue','LineWidth', 3);
-legend('Uy identified', 'Uy reference');
+plot(toplot(1:2:end-1),'Color','red','LineWidth', 3);
+plot(toplot2(1:2:end-1),'Color','blue','LineWidth', 3);
+plot(toplot(2:2:end),'Color','magenta','LineWidth', 3);
+plot(toplot2(2:2:end),'Color','green','LineWidth', 3);
+legend('Ux identified', 'Ux reference', 'Uy identified', 'Uy reference');
 
 % Graph for f
 toplot = fsolu1no(b2nodesnoN); toplot2 = f1ref(b2nodesnoN);
 figure;
 hold on;
 set(gca, 'fontsize', 20);
-plot(toplot(2:2:end),'Color','red','LineWidth', 3);
-plot(toplot2(2:2:end),'Color','blue','LineWidth', 3);
-legend('Fy identified', 'Fy reference');
+plot(toplot(1:2:end-1),'Color','red','LineWidth', 3);
+plot(toplot2(1:2:end-1),'Color','blue','LineWidth', 3);
+plot(toplot(2:2:end),'Color','magenta','LineWidth', 3);
+plot(toplot2(2:2:end),'Color','green','LineWidth', 3);
+legend('Fx identified', 'Fx reference', 'Fy identified', 'Fy reference');
 
 erroru = norm(usolu1(b2nodesnoD)-u1ref(b2nodesnoD))   / norm(u1ref(b2nodesnoD));
 errorf = norm(fsolu1no(b2nodesnoN)-f1ref(b2nodesnoN)) / norm(f1ref(b2nodesnoN));

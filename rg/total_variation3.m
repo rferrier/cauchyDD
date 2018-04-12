@@ -6,9 +6,9 @@ close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
 pm4        = -4; % Position of the 1d line
-mu         = 1e-4;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
+mu         = 1e-3;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
 %mu         = 1e-1;
-ordp       = 9;
+ordp       = 12;
 normU      = 1;   % Use L1 or L2 minimization
 upper_term = 0;
 klatin     = 0;%1e2; % Latin Research direction (0 means norm(GAG,'fro')/10)
@@ -17,10 +17,11 @@ omega      = .5; % Relaxation parameter
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
 threshold  = .1;  % Threshold for the crack
 
-%VAR = load('fields/AnBm15b2.mat');
+VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
-VAR = load('fields/AnBs15b1.mat');
+%VAR = load('fields/AnBs15b1.mat');
+%VAR = load('fields/AnBnoplane2615.mat');
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
 L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
@@ -66,6 +67,9 @@ surf(X,Y,uplo1);
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+%caxis( [-8.9798e-04, 0.0035356 ]);
+colorbar('SouthOutside');
 
 % Orthogonality is useless in this case
 tic
@@ -240,17 +244,23 @@ solu0 = solu0'; %
 
 figure;
 hold on;
-surf(X,Y,solu0);
+surf(X,Y,solu0);%surf(X,Y,solu0(:,end:-1:1));
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+caxis( [-0.0031520, 0.0044433 ]);
+colorbar('SouthOutside');
 
 figure;
 hold on;
-surf(X,Y,solup);
+surf(X,Y,solup(:,end:-1:1));
 shading interp;
 colorbar();
 axis('equal');
+%caxis( [-0.011621, 0.016879] );
+caxis( [-0.0031520, 0.0044433 ]);
+colorbar('SouthOutside');
 
 toc
 

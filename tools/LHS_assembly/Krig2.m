@@ -1,7 +1,7 @@
 function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
     boundary, bc, varargin)
  % Computes the global stiffness matrix
- % input : nodes    : list of nodes : [x1,y1;x2,y2;.....]
+ % input : nodes    : list of nodes : [x1,y1;x2,y2;.....] if the material is inhomogeneous, first column should be physical set
  %         elem     : list of elements
  %         mat      : Material : 0=isotropic, 1=orthotropic
  %         order    : order of the elements
@@ -30,58 +30,82 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
      mul = cell2mat(varargin(2));
  end
  
- if mat(1) == 0
-    E = mat(2); nu = mat(3);
-    if mo == 0
-       S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
-       Sm1 = inv(S);
-    else
-       kappa = E/(3*(1-2*nu));
-       mu = E/(2*(1+nu));
-       Sm1 = [4*mu/3+kappa, kappa-2*mu/3, 0;...
-              kappa-2*mu/3, 4*mu/3+kappa, 0;...
-              0, 0, mu];
+ % Test if the material is homogeneous
+ if size(elem,2)~=3 && size(elem,2)~=6 % TODO : more stable system
+    inh = 1;
+    physical = elem(:,1);
+    elem = elem(:,2:end);
+    if min(size(mat))==0
+       warning('First material is empty');
     end
- elseif mat(1) == 1
-    Ex = mat(2); Ey = mat(3); nuxy = mat(4); Gxy = mat(5);
-    S = [1/Ex, -nuxy/Ex, 0;...  % Rem : nuxy/Ex = nuyx/Ey
-         -nuxy/Ex, 1/Ey, 0;...
-         0, 0, 1/Gxy];
-    Sm1 = inv(S);
-    if mo == 1   % TODO : difference between plan constraints and deformations.
-       warning('Using plane deformation, not plane constraints as required')
-    end
- elseif mat(1) == 1.5
-    k11 = mat(2); k12 = mat(3); k22 = mat(4); k33 = mat(5);
-    Sm1 = [k11, k12, 0;... 
-         k12, k22, 0;...
-         0, 0, k33];
-    if mo == 1   % TODO : difference between plan constraints and deformations.
-       warning('Using plane deformation, not plane constraints as required')
-    end
- elseif mat(1) == 2
-    % Random inhomogeneous medium
-    E = mat(2); nu = mat(3); minE = mat(4); maxE = mat(5);
-    if mo == 0
-       S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
-       Sm1 = inv(S);
-    else
-       kappa = E/(3*(1-2*nu));
-       mu = E/(2*(1+nu));
-       Sm1 = [4*mu/3+kappa, kappa-2*mu/3, 0;...
-              kappa-2*mu/3, 4*mu/3+kappa, 0;...
-              0, 0, mu];
-    end
+    nmat = size(mat,2);
  else
-    error('The required material behaviour is not implemented')
+    inh = 0;
+    physical = ones(size(elem,1));
+    mat = {mat};
+    nmat = 1;
+ end
+
+ Sm1 = {};
+ randomH = 0;
+ for i=1:nmat
+    matt = mat{i};
+    if matt(1) == 0
+       E = matt(2); nu = matt(3);
+       if mo == 0
+          S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)]; % Voigt convention : 2 is on epsilon
+          Sm1{i} = inv(S);
+       else
+          kappa = E/(3*(1-2*nu));
+          mu = E/(2*(1+nu));
+          Sm1{i} = [4*mu/3+kappa, kappa-2*mu/3, 0;...
+                 kappa-2*mu/3, 4*mu/3+kappa, 0;...
+                 0, 0, mu];
+       end
+    elseif matt(1) == 1
+       Ex = matt(2); Ey = matt(3); nuxy = matt(4); Gxy = matt(5);
+       S = [1/Ex, -nuxy/Ex, 0;...  % Rem : nuxy/Ex = nuyx/Ey
+            -nuxy/Ex, 1/Ey, 0;...
+            0, 0, 1/Gxy];
+       Sm1{i} = inv(S);
+       if mo == 1   % TODO : difference between plan constraints and deformations.
+          warning('Using plane deformation, not plane constraints as required')
+       end
+    elseif matt(1) == 1.5
+       k11 = matt(2); k12 = matt(3); k22 = matt(4); k33 = matt(5);
+       Sm1{i} = [k11, k12, 0;... 
+            k12, k22, 0;...
+            0, 0, k33];
+       if mo == 1   % TODO : difference between plan constraints and deformations.
+          warning('Using plane deformation, not plane constraints as required')
+       end
+    elseif matt(1) == 2
+       % Random inhomogeneous medium
+       randomH = 1; % Flag to speed up things
+       E = matt(2); nu = matt(3); minE = matt(4); maxE = matt(5);
+       if mo == 0
+          S = 1/E*[1,-nu,0 ; -nu,1,0 ; 0,0,2*(1+nu)];
+          Sm1{i} = inv(S);
+       else
+          kappa = E/(3*(1-2*nu));
+          mu = E/(2*(1+nu));
+          Sm1{i} = [4*mu/3+kappa, kappa-2*mu/3, 0;...
+                 kappa-2*mu/3, 4*mu/3+kappa, 0;...
+                 0, 0, mu];
+       end
+    else
+       error('The required material behaviour is not implemented')
+    end
  end
  
  Kin = sparse(2*size(nodes,1), 2*size(nodes,1)); % 'cause I love when things go fast
- 
+
  for i=1:size(elem,1)
      Xloc1 = nodes(elem(i,:),:);    % Extract and adapt coords
      nnodes = size(Xloc1,1);
      Xloc = zeros(2*nnodes,1);
+
+     phys = physical(i);
 
      map = zeros(1,2*nnodes);
      for j=1:nnodes
@@ -89,11 +113,11 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
          Xloc([2*j-1,2*j],1) = [Xloc1(j,1);Xloc1(j,2)];
      end
      
-     if mat(1) == 2 % Random stuff
+     if randomH == 1 % Random stuff
         multip = rand()*(maxE-minE) + minE;
-        Ke = stifmat(Xloc,order,multip*Sm1,0);
+        Ke = stifmat(Xloc,order,multip*Sm1{phys},0);
      else
-        Ke = stifmat(Xloc,order,Sm1,0);
+        Ke = stifmat(Xloc,order,Sm1{phys},0);
      end
      
      % Build K

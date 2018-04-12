@@ -13,7 +13,7 @@ a2  = .15;   // Radius of the crack
 b2  = .2;
 // Discretization parameters
 
-lc1 = .12;     // element size at the border
+lc1 = .06;     // element size at the border
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc1};

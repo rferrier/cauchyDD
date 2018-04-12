@@ -13,14 +13,14 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-jmaxRG     = 150;     % Eigenvalues truncation number
+jmaxRG     = 40;     % Eigenvalues truncation number
 nmaxRG     = 200;    % nb of computed eigenvalues
 jmaxRGSP   = 250;
 nmaxRGSP   = 400;    % nb of computed eigenvalues
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
-recompute  = 1;      % Recompute the operators
+recompute  = 0;      % Recompute the operators
 matrixfile = 'fields/rg_cauchy_crack/reciprocity3D_NG8.mat';  % File for the integration matrix
 RGorSP     = 1;      % Use RG(1), SP(2) or mix(3)
 Npg        = 1;      % Nb Gauss points
@@ -407,82 +407,57 @@ for i=1:nboun2
    cco = [ 3*coef-2, 3*coef-1, 3*coef ];
    elemMass(ico,ico) = surfa*eye(3);
    nodeMass(cco,cco) = nodeMass(cco,cco) + ...
-                       surfa/3 * [ ones(3), zeros(3), zeros(3) ; ...
-                                   zeros(3), ones(3), zeros(3) ; ...
-                                   zeros(3), zeros(3), ones(3) ];
+                       surfa/3 * [ eye(3), zeros(3), zeros(3) ; ...
+                                   zeros(3), eye(3), zeros(3) ; ...
+                                   zeros(3), zeros(3), eye(3) ];
 end
 
 % Extract interesting parts
 Mfm = elemMass(tofindN,tofindN); Mfr = elemMass(knownN,knownN);
 Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
 
-% If required, use the differential regularization matrix
-if regular == 2 % /!\ Broken
-   Du = Kinter( [2*nodesbound2-1,2*nodesbound2] , [2*nodesbound2-1,2*nodesbound2] );
-   Df = Fntob;
-   Du0 = Du; Df0 = Df;
-   
-   if froreg == 1
-      kB = norm(LhsA,'fro')/norm(LhsB,'fro');
-   else
-      kB = 1;
-   end
-   
-   Dut  = Du0(tofindD,tofindD); Dft  = kB*Df0(tofindN,tofindN);
-   Duk  = Du0(knownD,knownD);   Dfk  = kB*Df0(knownN,knownN);
-   Dutk = Du0(tofindD,knownD);  Dftk = kB*Df0(tofindN,knownN);
-   
-   Zutft = zeros(size(Dut,1),size(Dft,2));
-   Zutuk = zeros(size(Dut,1),size(Duk,2));
-   Zutfk = zeros(size(Dut,1),size(Dft,2));
-   Zftuk = zeros(size(Dut,1),size(Dft,2));
-   Zftfk = zeros(size(Dut,1),size(Dft,2));
-   Zukfk = zeros(size(Dut,1),size(Dft,2));
-
-   Du = Dut; Df = Dft;
-   
-elseif regular == 1
-   Du = zeros(3*nnodeboun);
-   Df = eye(3*nboun2); % No derivative for f
-   for i=1:nboun2
-      coefU = [ boun2loc(i,1) , boun2loc(i,2) , boun2loc(i,3) ];
+% Derivative operators /!\ Buggy : see rg3d_Tychonov
+Du = zeros(3*nnodeboun);
+Df = eye(3*nboun2); % No derivative for f
+for i=1:nboun2
+   coefU = [ boun2loc(i,1) , boun2loc(i,2) , boun2loc(i,3) ];
 %       coefV = [ 3*boun2loc(i,1)-2 , 3*boun2loc(i,2)-1 , 3*boun2loc(i,3) ,...
 %                 3*boun2loc(i,1)-2 , 3*boun2loc(i,2)-1 , 3*boun2loc(i,3) ,...
 %                 3*boun2loc(i,1)-2 , 3*boun2loc(i,2)-1 , 3*boun2loc(i,3) ];
       
-      no1 = boundary2(i,2); no2 = boundary2(i,3); no3 = boundary2(i,4);
-      x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
-      x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
-      x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
+   no1 = boundary2(i,2); no2 = boundary2(i,3); no3 = boundary2(i,4);
+   x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
+   x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
+   x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
 
-      Jxy = [x2-x1,x3-x1;y2-y1,y3-y1];   %
-      Jxz = [x2-x1,x3-x1;z2-z1,z3-z1];   % Jacobians
-      Jyz = [y2-y1,y3-y1;z2-z1,z3-z1];   %
+   Jxy = [x2-x1,x3-x1;y2-y1,y3-y1];   %
+   Jxz = [x2-x1,x3-x1;z2-z1,z3-z1];   % Jacobians
+   Jyz = [y2-y1,y3-y1;z2-z1,z3-z1];   %
       
-      D    = [-1,1,0;-1,0,1];
+   D    = [-1,1,0;-1,0,1];
 %       D    = [-1,1,0;-1,0,1;0,0,0];
 %       Dexy = D; Dexz = D; Deyz = D; % No respect -- Vae victis
-      Dexy = D'*pinv(Jxy); Dexz = D'*pinv(Jxz); Deyz = D'*pinv(Jyz);
+   Dexy = D'*pinv(Jxy); Dexz = D'*pinv(Jxz); Deyz = D'*pinv(Jyz);
 
 %       Be = [ Dexy(1,1)+Dexz(1,1), Dexy(2,1)+Dexz(2,1), Dexy(3,1)+Dexz(3,1) ;
 %              Dexy(1,2)+Deyz(1,1), Dexy(2,2)+Deyz(2,1), Dexy(3,2)+Deyz(3,1) ;
 %              Dexz(1,2)+Deyz(1,2), Dexz(2,2)+Deyz(2,2), Dexz(3,2)+Deyz(3,2) ]; % (a .5 factor has been ommited)
 
-      Be = [ Dexy(1,1), Dexy(2,1), Dexy(3,1) ;
-             Dexy(1,2), Dexy(2,2), Dexy(3,2);
-             0, 0, 0 ];
+   Be = [ Dexy(1,1), Dexy(2,1), Dexy(3,1) ;
+          Dexy(1,2), Dexy(2,2), Dexy(3,2);
+          0, 0, 0 ];
 
 %       Be = D';
 
-      Du( 3*coefU-2, 3*coefU-2 ) = Du( 3*coefU-2, 3*coefU-2 ) + Be;
-      Du( 3*coefU-1, 3*coefU-1 ) = Du( 3*coefU-1, 3*coefU-1 ) + Be;
-      Du( 3*coefU  , 3*coefU   ) = Du( 3*coefU  , 3*coefU   ) + Be;
-   end
-   
-   Du0 = Du; Df0 = Df;
-   Du  = Du0(tofindD,tofindD); Df  = Df0(tofindN,tofindN);
-   Duk = Du0(knownD,knownD);   Dfk = Df0(knownN,knownN);
+   Du( 3*coefU-2, 3*coefU-2 ) = Du( 3*coefU-2, 3*coefU-2 ) + Be;
+   Du( 3*coefU-1, 3*coefU-1 ) = Du( 3*coefU-1, 3*coefU-1 ) + Be;
+   Du( 3*coefU  , 3*coefU   ) = Du( 3*coefU  , 3*coefU   ) + Be;
 end
+   
+Du0 = Du; Df0 = Df;
+Du  = Du0(tofindD,tofindD); Df  = Df0(tofindN,tofindN);
+Duk = Du0(knownD,knownD);   Dfk = Df0(knownN,knownN);
+% End derivative operator
 
 if RGorSP == 1
    %% Pure RG : Solve the linear system and recover the unknowns
@@ -495,13 +470,9 @@ if RGorSP == 1
    Lhs = [LhsA,kB*LhsB];
    
    Rhs = Rhs1;
-   A = Lhs'*Lhs; b = Lhs'*Rhs;
+   A = Lhs'*Lhs; b = Lhs'*Rhs; sA = size(A,1);
    
-   if regular == 2
-      Dtot = [ Dut , Zutft ;...
-               Zutft' , Dft ];
-      L = Dtot*Dtot';
-   elseif regular == 1
+   if regular == 1
       Dtot = [ Du/norm(Du,'fro'), zeros( size(Du,1) , size(Df,2) ) ;... %
                zeros( size(Df,1) , size(Du,2) ) , Df ];
       L = Dtot*Dtot'; L0 = L;
@@ -517,6 +488,7 @@ if RGorSP == 1
    % [~,Theta,Q] = svd(Lhs,L); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
    %[Q,Theta] = eig(Lhs'*L*Lhs); Q = Q*real((Q'*L*Q)^(-1/2)); Theta = Theta.^2;
    [Q,Theta] = gradEig(A, L, nmaxRG, 1, Lhs'*Rhs1, 0); Q = real(Q);%Q = Q*real((Q'*L*Q)^(-1/2));
+   % [Q,Theta] = eigs(A, L, nmaxRG); Q = real(Q);%Q = Q*real((Q'*L*Q)^(-1/2));
    % [Q,Theta] = eig(A,L); Q = Q*real((Q'*L*Q)^(-1/2)); % real should not be, but you know, numerical shit...
    thetas = diag(Theta);
    [thetas,Ind] = sort( thetas,'descend' );
@@ -547,6 +519,26 @@ if RGorSP == 1
    ThetaT = Thetas( ninfty+1:jmax , ninfty+1:jmax );
    bT1 = Q'*Lhs'*Rhs1; bT1 = bT1(ninfty+1:jmax);
    Solu1RG = Q(:,ninfty+1:jmax) * (ThetaT\bT1);
+
+   nori  = zeros(nmaxRG,1); resi  = zeros(nmaxRG,1);
+   Dtoti = [ Du/norm(Du,'fro'), zeros( size(Du,1) , size(Df,2) ) ;... %
+               zeros( size(Df,1) , size(Du,2) ) , Df ];
+   Li = Dtoti*Dtoti';
+   for i=1:nmaxRG
+      Thetai = Thetas( ninfty+1:i , ninfty+1:i );
+      bTi = Q'*Lhs'*Rhs1; bTi = bTi(ninfty+1:i);
+      Solu1i = Q(:,ninfty+1:i) * (Thetai\bTi);
+      nori(i) = Solu1i'*Li*Solu1i;
+      resi(i) = norm(Lhs*Solu1i - Rhs1);
+   end
+
+   try
+   figure
+   hold on;
+   loglog(resi,nori,'Color','red','-*');
+   loglog(resi(40),nori(40),'Color','red','o','markersize',15);
+   end
+
 end
 if RGorSP == 3
    % SP+RG : Solve the linear system and recover the unknowns
@@ -665,39 +657,56 @@ nodesplo = [X*ones(nstep+1,1),Y',Z*ones(nstep+1,1)];
 U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
 up = U1(:,1); upref = U1(:,2);
 
+try
 figure;
 hold on;
 set(gca, 'fontsize', 20);
 plot(Y,up(3:3:end),'Color','red','LineWidth',3);
 plot(Y,upref(3:3:end),'Color','blue','LineWidth',3);
 legend('identified','reference');
+end
 
-% Plot on surfaces
-nstep = 100;
-xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
-ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
-stepx = (xmax-xmin)/nstep; stepy = (ymax-ymin)/nstep;
-X = xmin:stepx:xmax; Y = ymin:stepx:ymax; Z = .29999;
-Xt = X'*ones(1,nstep+1); Yt = ones(1,nstep+1)'*Y;
-nodesplo = [ Xt(:), Yt(:), Z*ones((nstep+1)^2,1) ];
-U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
-up = U1(:,1); upref = U1(:,2);
+%% Plot on surfaces
+%nstep = 100;
+%xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
+%ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
+%stepx = (xmax-xmin)/nstep; stepy = (ymax-ymin)/nstep;
+%X = xmin:stepx:xmax; Y = ymin:stepx:ymax; Z = .29999;
+%Xt = X'*ones(1,nstep+1); Yt = ones(1,nstep+1)'*Y;
+%nodesplo = [ Xt(:), Yt(:), Z*ones((nstep+1)^2,1) ];
+%U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] ); % CPU costly
+%up = U1(:,1); upref = U1(:,2);
 
-upx = up(3:3:end); uprefx = upref(3:3:end);
-upx = reshape(upx,   [nstep+1,nstep+1]);
-% upx = .5*( upx - abs(upx) ); % Negative part
-uprefx = reshape(uprefx,[nstep+1,nstep+1]);
+%upx = up(3:3:end); uprefx = upref(3:3:end);
+%upx = reshape(upx,   [nstep+1,nstep+1]);
+%% upx = .5*( upx - abs(upx) ); % Negative part
+%uprefx = reshape(uprefx,[nstep+1,nstep+1]);
+
+%try
+%figure;
+%hold on;
+%set(gca, 'fontsize', 20);
+%surf(X,Y,upx');
+%shading interp;
+%colorbar(); set(colorbar, 'fontsize', 20);
+%end
+
+%try
+%figure;
+%hold on;
+%set(gca, 'fontsize', 20);
+%surf(X,Y,uprefx');
+%shading interp;
+%colorbar(); set(colorbar, 'fontsize', 20);
+%end
+
+boun21i = find( boundary2(:,1) == 2 );
+boun22 = boundary2( boun21i, 2:end );
 
 figure;
-hold on;
-set(gca, 'fontsize', 20);
-surf(X,Y,upx);
-shading interp;
+patch('Faces',boun22,'Vertices',nodes2(:,1:2),'FaceVertexCData',UsolT(3:3:end),'FaceColor','interp');
 colorbar(); set(colorbar, 'fontsize', 20);
 
 figure;
-hold on;
-set(gca, 'fontsize', 20);
-surf(X,Y,uprefx);
-shading interp;
+patch('Faces',boun22,'Vertices',nodes2(:,1:2),'FaceVertexCData',Uref(3:3:end),'FaceColor','interp');
 colorbar(); set(colorbar, 'fontsize', 20);

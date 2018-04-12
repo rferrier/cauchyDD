@@ -1,4 +1,4 @@
-function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
+function [ nodes,elements,ntoelem,boundary,order,physical ] = readmesh( adress )
  % Extracts the tables of nodes and elements
  % Adapted from a codebase from Pierre-Eric Allier
  
@@ -18,6 +18,7 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
         nb = sscanf(fgetl(file), '%d',1); % number of elements
         elements = zeros(nb,6);
         boundary = zeros(nb,4);
+        physical = zeros(nb,1);
         nelem = 1;
         nbound = 1;
         for i=1:nb
@@ -25,6 +26,7 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
             if data(2) == 2  % Core elements
                 order = 1;   % Yes, that's not very optimized
                 elements(nelem,1:3) = data(data(3)+4:end); % Only read index of nodes
+                physical(nelem) = data(data(3)+3); % Physical set
                 nelem = nelem+1;
             elseif data(2) == 1 % Boundary elements
                 boundary(nbound,1:3) = data([data(3)+2,data(3)+4:end]);
@@ -32,6 +34,7 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
             elseif data(2) == 9  % Core elements T6
                 order = 2;
                 elements(nelem,:) = data(data(3)+4:end); % Only read index of nodes
+                physical(nelem) = data(data(3)+3); % Physical set
                 nelem = nelem+1;
             elseif data(2) == 8 % Boundary elements S3
                 boundary(nbound,:) = data([data(3)+2,data(3)+4:end]);
@@ -44,6 +47,7 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh( adress )
         % Cut the database
         if nbound > 1
             elements(nelem:end,:) = [];
+            physical(nelem:end) = [];
             boundary(nbound:end,:) = [];
         else
             boundary = [];

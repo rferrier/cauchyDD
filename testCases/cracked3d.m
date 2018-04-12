@@ -13,7 +13,7 @@ fscalar  = 250;    % N.mm-2 : Loading
 mat      = [0, E, nu];
 regmu    = 0;      % Regularization parameter
 br       = .0;
-niter_up = 4;      % Number of iterations
+niter_up = 3;      % Number of iterations
 niter_do = 4;
 
 cracked_mesh   = 'meshes/rg3dm/platemSPc.msh';
