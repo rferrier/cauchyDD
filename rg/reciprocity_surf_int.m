@@ -20,11 +20,12 @@ nu      = 0.3;    % Poisson ratio
 fscalar = 250;    % N.mm-2 : Loading
 mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter;
+pm4     = 4;      % Sign change hack
 
-br      = .0;
+br      = .02;
 
 nbase     = 1;  % Number of Fourier basis functions
-ordp      = 15;
+ordp      = 0;
 
 ordpD     = 0;  % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2;  % If 0 : recompute the reference problem and re-pass mesh
@@ -33,7 +34,7 @@ loadfield = 2;  % If 0 : recompute the reference problem and re-pass mesh
                 % If 4 : meshes are conformal, read the u field
 
 usefourier = 0;
-usepolys   = 0;
+usepolys   = 1;
 plotref    = 1;
 comperror  = 1;
 Norm       = 0; % 0 means no derivative stuff (and not zero norm)
@@ -44,16 +45,16 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 
 % cracked_mesh = 'meshes/rg3dpp/plate_c_710t10u.msh';
 % uncracked_mesh = 'meshes/rg3dpp/plate710t10u.msh';
-% cracked_mesh = 'meshes/rg3dm/platem4_c.msh';
-% uncracked_mesh = 'meshes/rg3dm/platem4.msh';
+% cracked_mesh = 'meshes/rg3dm/platem10_c.msh';
+% uncracked_mesh = 'meshes/rg3dm/platem10.msh';
 %  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 %  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
-%  cracked_mesh = 'meshes/rg3dm/platem_c.msh';
-%  uncracked_mesh = 'meshes/rg3dm/platem.msh';
+ cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+ uncracked_mesh = 'meshes/rg3dm/platem.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/plates.msh';
- cracked_mesh = 'meshes/rg3ds/plates2_c.msh';
- uncracked_mesh = 'meshes/rg3ds/plates2.msh';
+%  cracked_mesh = 'meshes/rg3ds/plates2_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds/plates2.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates10_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/plates10.msh';
 %  cracked_mesh = 'meshes/rg3ds/platelosange6_c.msh';
@@ -68,8 +69,19 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 %  uncracked_mesh = 'meshes/rg3ds/platenoplane6.msh';
 %  cracked_mesh = 'meshes/rg3ds/platenoplanel6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platenoplanel6.msh';
+%  cracked_mesh = 'meshes/rg3ds/platenoplanel26_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds/platenoplanel26.msh';
 
-centCrack = [4;5;1]; % Point on the crack (for reference)
+%  cracked_mesh = 'meshes/rg3ds2/plates2_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds2/plates2.msh';
+%  cracked_mesh = 'meshes/rg3ds2/platerectangle2_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds2/platerectangle2.msh';
+%  cracked_mesh = 'meshes/rg3ds2/platelosange2_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds2/platelosange2.msh';
+%  cracked_mesh = 'meshes/rg3ds2/platesmile2_c.msh';
+%  uncracked_mesh = 'meshes/rg3ds2/platesmile2.msh';
+
+centCrack = [4;7;1]; % Point on the crack (for reference)
 
 if loadfield ~= 1 && loadfield ~= 4
    tic
@@ -154,9 +166,13 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
 % Add the noise
 if loadfield ~= 1 && loadfield ~= 4
     u1n = u1; u2n = u2;
-%     br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
-    noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
-%     noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
+%       br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+%     noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
+%     noise = load('noises/rg3de10s.mat'); br1 = noise.br1; br2 = noise.br2;
+%     noise = load('noises/rg3de6smi.mat'); br1 = noise.br1; br2 = noise.br2;
+%      noise = load('noises/rg3de6los.mat'); br1 = noise.br1; br2 = noise.br2;
+%      noise = load('noises/rg3de6rect.mat'); br1 = noise.br1; br2 = noise.br2;
+    noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de6s.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
     u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
@@ -468,9 +484,10 @@ Q = [ t , v , normal ];
 % if Q(3,1)<0, Q = Q'; end
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
-% Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
-Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
-% Qref = Q;
+Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
+%Qref = [ -sref, 0, cref ; 0, 1, 0 ; -cref, 0, -sref ];
+%Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
+%Qref = Q;
 % Q = Qref;
 %% Then the constant
 
@@ -617,7 +634,7 @@ end
 
 Cte  = -sqrt(Rt^2+Rv^2)/normT - K; % K was chosen so that Cte+K is negative
 Cte2 = -sqrt(Rt2^2+Rv2^2)/normT2 - K;
-% Cte = Cte2;
+%Cte = Cte2; % Uncomment only in case Cte sucks and Cte2 is acceptable
 % Reference : we know that the point P belongs to the plane.
 Pt = centCrack; QPt = Qref'*Pt; CteR = -QPt(3);
 % Cte = CteR;
@@ -627,6 +644,9 @@ b = max(nodes2(:,2)) - min(nodes2(:,2)) ;
 bt = max(nodes2(:,1)) - min(nodes2(:,1));
 % a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
 a = Qref(3,1)/Qref(3,1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
+
+% Compute the distance between the plane and the given point
+zzz = Q'*centCrack; distance = zzz(3)+Cte;
 
 disp([ 'Plane found ', num2str(toc) ]);
 %
@@ -1928,7 +1948,7 @@ end
 figure;
 hold on;
 nys = (max(Ys)-min(Ys))/100;
-Y = min(Ys):nys:max(Ys); X = 4;
+Y = min(Ys):nys:max(Ys); X = pm4;
 
 if usefourier == 1
    solu = 0;

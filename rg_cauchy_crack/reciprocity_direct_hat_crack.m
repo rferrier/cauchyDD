@@ -17,7 +17,7 @@ jmaxRG     = 0;     % Eigenvalues truncation number
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative, 2 : lumped)
 upper_term = 0;      % 1 : use i=0:10, j=0:10, 0 : use i>=0,j>=0,i+j<=10
 froreg     = 1;      % frobenius preconditioner
-recompute  = 0;      % Recompute the operators
+recompute  = 1;      % Recompute the operators
 RGorSP     = 1;      % Deactivated
 theta1     = pi;%0.58800;%pi;%pi%pi/2;%%pi/2;   %
 theta2     = 0;%3.7296;%0%3*pi/2;%0;%3*pi/2; % Angles of the crack (will be determined in a loop later)
@@ -35,8 +35,8 @@ neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
 neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
 
-%dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
+dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+neumann0   = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0 = [];
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
@@ -45,8 +45,8 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
 %neumann0   = [4,1,0 ; 4,2,0];
 %dirichlet0 = [1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+% dirichlet0 = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+% neumann0   = [1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
 [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );

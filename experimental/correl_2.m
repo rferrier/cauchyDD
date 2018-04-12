@@ -8,7 +8,8 @@ alpha = 100/E^2;%1000/E^2; % Regularization parameter
 mat   = [0,E,nu];
 niter = 30;
 
-load('e3_r0_000-015-Mesh.mat'); %15
+%load('e3_r0_000-015-Mesh.mat'); %15
+load("../MASTER/essai_T/img_0003-0030-Mesh.mat");
 
 nodes_c = Mesh.Znode;
 eleme_c = Mesh.TRI;
@@ -62,33 +63,86 @@ fprintf(fmid,'%s\n','$EndElements');
 [K,C,nbloq] = Krig2 (nodes,elements,mat,order,boundary,[]);
 
 % Transform u
-P = null(full(K));
-u  = u - P*inv(P'*P)*P'*u;
-
-% toremove = [254:264,212:222,233:243];
-toremove = [500:521,558:578,532:547];
+% g = zeros(2*nnodes,1);% Resizing mode
+% g(1:2:end-1) = nodes(:,1); g(2:2:end) = nodes(:,2);
+% u = u+4e-4*g;
+% P = null(full(K));
+% P = rigidModes(nodes);
+% u  = u - P*((P'*P)\P')*u;
+% Q = eye(2*nnodes) - P*((P'*P)\P');
+% 
+% % toremove = [254:264,212:222,233:243];
+% toremove = [500:521,558:578,532:547];
+% toremove = [2*toremove-1,2*toremove];
+% 
+tosmooth = 722:725; tosmooth1 = [2*tosmooth-1,2*tosmooth];
+coefsmoo = .75:-.25:0 ; coefsmoo1 = [coefsmoo,coefsmoo];
+tosmooth = 614:617; tosmooth2 = [2*tosmooth-1,2*tosmooth];
+coefsmoo = 0:.25:.75 ; coefsmoo2 = [coefsmoo,coefsmoo];
+tosmooth = 701:704; tosmooth3 = [2*tosmooth-1,2*tosmooth];
+coefsmoo = 0:.25:.75; coefsmoo3 = [coefsmoo,coefsmoo];
+tosmooth = 635:638; tosmooth4 = [2*tosmooth-1,2*tosmooth];
+coefsmoo = .75:-.25:0 ; coefsmoo4 = [coefsmoo,coefsmoo];
+tosmooth = 730:733; tosmooth5 = [2*tosmooth-1,2*tosmooth];
+coefsmoo = 0:.25:.75 ; coefsmoo5 = [coefsmoo,coefsmoo];
+tosmooth = 605:608; tosmooth6 = [2*tosmooth-1,2*tosmooth];
+coefsmoo = .75:-.25:0 ; coefsmoo6 = [coefsmoo,coefsmoo];
+toremove = [618:634,705:721,734:749,604];
 toremove = [2*toremove-1,2*toremove];
+K1 = K; K1(toremove,:) = 0;
+% K1(tosmooth1,:) = (1-coefsmoo1)'*ones(1,2*nnodes).*K1(tosmooth1,:);
+% K1(tosmooth2,:) = (1-coefsmoo2)'*ones(1,2*nnodes).*K1(tosmooth2,:);
+% K1(tosmooth3,:) = (1-coefsmoo3)'*ones(1,2*nnodes).*K1(tosmooth3,:);
+% K1(tosmooth4,:) = (1-coefsmoo4)'*ones(1,2*nnodes).*K1(tosmooth4,:);
+% K1(tosmooth5,:) = (1-coefsmoo5)'*ones(1,2*nnodes).*K1(tosmooth5,:);
+% K1(tosmooth6,:) = (1-coefsmoo6)'*ones(1,2*nnodes).*K1(tosmooth6,:);
 
-K1 = K; K1(toremove,:) = [];
+% Gonfling mode
+X = nodes(:,1); Y = nodes(:,2);
+P = zeros(2*nnodes,1);
+P(1:2:end-1,1) = X; P(2:2:end,1) = Y;
+% P(1:2:end-1,2) = X.*X.^1; P(2:2:end,2) = Y.*X.^1;
+% P(1:2:end-1,3) = X.*Y.^1; P(2:2:end,3) = Y.*Y.^1;
+% P(1:2:end-1,4) = X.*X.^2; P(2:2:end,4) = Y.*X.^2;
+% P(1:2:end-1,5) = X.*Y.^2; P(2:2:end,5) = Y.*Y.^2;
+% P(1:2:end-1,6) = X.*X.^3; P(2:2:end,6) = Y.*X.^3;
+% P(1:2:end-1,7) = X.*Y.^3; P(2:2:end,7) = Y.*Y.^3;
 
-% Equilibrium gap
-egg = u'*(K1'*K1)*u;
+% P = Q*hatP; % Orthogonal to rigid modes
+Ptilde = P;
 
-% for i=1:100
-    Op = eye(2*nnodes) + alpha* (K1'*K1);
-    v = Op\u;
-    residual = norm(v-u)/norm(u);
-    regul    = v'*K*v;
+alphatilde = -(Ptilde'*K1'*K1*Ptilde) \ (Ptilde'*K1'*K1*u);
+u = u+Ptilde*alphatilde;
+
+alpha = 1e-5*norm(K1'*K1,'fro');
+u = (alpha*eye(2*nnodes) + K1'*K1) \ (alpha*u);
+
+% 
+% % Equilibrium gap
+% egg = u'*(K1'*K1)*u;
+% 
+% % for i=1:100
+%     Op = eye(2*nnodes) + alpha* (K1'*K1);
+%     v = Op\u;
+%     residual = norm(v-u)/norm(u);
+%     regul    = v'*K*v;
 % end
 % loglog(residual,regul);
 % bug
 sigma  = stress(u,Ey,nu,nodes,elements,order,1,ntoelem);
-sigmav  = stress(v,Ey,nu,nodes,elements,order,1,ntoelem);
+%sigmav  = stress(v,Ey,nu,nodes,elements,order,1,ntoelem);
+
+f = K*u;
+
+list = 643:696;
+figure;
+plot(f(2*list-1));
+sum(f(2*list-1))
 
 % Export u
-plotGMSH({u,'Vect_U';sigma,'stress'},elements, nodes, 'output/correlation');
-plotGMSH({v,'Vect_U';sigmav,'stress'},elements, nodes, 'output/correlation_reg');
-
+plotGMSH({u,'Vect_U';f,'Vect_F';sigma,'stress'},elements, nodes, 'output/correlation');
+%plotGMSH({v,'Vect_U';sigmav,'stress'},elements, nodes, 'output/correlation_reg');
+bug
 % Build the bound
 % b2 = [269:297,207];
 % b31 = [212:222]; b32 = [254:264];

@@ -12,7 +12,7 @@ b     = 2;      //
 c     = 4;      //
 d     = 7;      //
 da    = pi/15; // angle of the cracks
-H     = 6;  //  height of plate 2-6
+H     = 10;  //  height of plate 2-6
 L     = 7;  //  width of plate
 E     = 10; //E     = 7;
 
