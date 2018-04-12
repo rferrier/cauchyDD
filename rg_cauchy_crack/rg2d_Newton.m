@@ -12,14 +12,14 @@ E           = 210000; % MPa : Young modulus
 nu          = 0.3;    % Poisson ratio
 fscalar     = 250;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
-br          = .0;      % Noise level
+br          = .05;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
 recompute   = 0;      % Recompute the operators
 theta1      = pi;     %3.7296;%pi;%pi/2;
 theta2      = 0;      %0.58800;%0%3*pi/2; % Initial angles of the crack
-anglestep   = pi/20;  % Step in angle for Markov search
+anglestep   = pi/1000;  % Step in angle for Finite Differences
 gaussian    = 0;      % Probability density for the Markov chain
 nbstep      = 10;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
@@ -27,12 +27,13 @@ ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
 nuzawa      = 1e2;     % (nuzawa = 1 means no Uzawa)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
+ndofcrack   = 20;      % Nb of elements on the crack
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
-%nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ never go above the nb of dofs)
+%nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ NEVER go above the nb of dofs)
 %nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
-nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
+%nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -55,6 +56,8 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
@@ -754,8 +757,16 @@ for iter = 1:nbstep % Newton loop
       xy2 = [ xb + r*cos(theta2c) ; yb + r*sin(theta2c) ]; % coords of the right intersection
 
       %% Build the elements on the crack's line
-      step = (xy2-xy1)/20;
-      nodes3 = [ xy1(1):step(1):xy2(1) ; xy1(2):step(2):xy2(2) ];
+      step = (xy2-xy1)/ndofcrack;
+
+      if step(1)*step(2) ~= 0
+         nodes3 = [ xy1(1):step(1):xy2(1) ; xy1(2):step(2):xy2(2) ];
+      elseif step(1) == 0
+         nodes3 = [ xy1(1)*ones(1,ndofcrack+1) ; xy1(2):step(2):xy2(2) ];
+      else %if step(2) == 0
+         nodes3 = [ xy1(1):step(1):xy2(1) ; xy1(2)*ones(1,ndofcrack+1) ];
+      end
+
       nodes3 = nodes3'; nnodes3 = size(nodes3,1);
       boundary3 = zeros(nnodes3-1,3);
       boundary3(:,2) = 1:nnodes3-1; boundary3(:,3) = 2:nnodes3;
@@ -916,7 +927,7 @@ for iter = 1:nbstep % Newton loop
       ninfty = 0;
    %L = eye(size(A));
 
-      %sL = L^(1/2);   % Square root of L
+      sL = real(L^(1/2));   % Square root of L (as usual, real should not be)
 
       MAT = Lhs'*Lhs + mur*L;
       VE1 = Lhs'*Rhs1-mur*L121; VE2 = Lhs'*Rhs2-mur*L122;
@@ -980,9 +991,14 @@ for iter = 1:nbstep % Newton loop
          res3 = Lhs*Solu3 - Rhs3; %
          res4 = Lhs*Solu4 - Rhs4; %
 
+         rel1 = sL*Solu1; rel2 = sL*Solu2; rel3 = sL*Solu3; rel4 = sL*Solu4; 
+
          res = [ res1 ; res2 ; res3 ; res4 ];
+         rel = [ rel1 ; rel2 ; rel3 ; rel4 ];
          Ax  = [ Lhs*Solu1 ; Lhs*Solu2 ; Lhs*Solu3 ; Lhs*Solu4 ];
          xt  = [ Solu1 ; Solu2 ; Solu3 ; Solu4 ];
+         sLx = [ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ];
+         L1x = [ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ];
          Lh0 = Lhs;
 
          Solu10 = Solu1; Solu20 = Solu2; Solu30 = Solu3; Solu40 = Solu4; % Store the values
@@ -992,16 +1008,20 @@ for iter = 1:nbstep % Newton loop
          end
 
       elseif pb == 1
-         D1  = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
-         Dx1 = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
-         Lh1 = (Lhs-Lh0)/anglestep;
+         D1    = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
+         Dx1   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
+         DL1   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep;
+         DL121 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep;
+         Lh1   = (Lhs-Lh0)/anglestep;
       elseif pb == 2
-         D2  = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
-         Dx2 = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
-         Lh2 = (Lhs-Lh0)/anglestep;
+         D2    = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
+         Dx2   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
+         DL2   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep;
+         DL122 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep;
+         Lh2   = (Lhs-Lh0)/anglestep;
       end
    end
-   D = [D1,D2]; Dx = [Dx1,Dx2];
+   D = [D1,D2]; Dx = [Dx1,Dx2]; DL = [DL1,DL2]; DL12 = [DL121,DL122];
    Dd = [ Lh1*Solu10 , Lh2*Solu10 ; Lh1*Solu20 , Lh2*Solu20 ;...
           Lh1*Solu30 , Lh2*Solu30 ; Lh1*Solu40 , Lh2*Solu40 ];
 
@@ -1012,7 +1032,8 @@ for iter = 1:nbstep % Newton loop
 %            ZL, ZL, ZL, L ];
 
    %dtheta = - ( D'*D + mur*Dx'*Aile*Dx ) \ ( D'*res - mur*Dx'*[L121;L122;L123;L124] );
-   dtheta = - ( D'*D ) \ ( D'*res );
+   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1)) );
+   %dtheta = - ( D'*D ) \ ( D'*res );
    %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
 
    theta1 = theta1 + dtheta(1);
