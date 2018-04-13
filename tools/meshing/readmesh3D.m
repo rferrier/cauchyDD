@@ -27,6 +27,7 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( adress )
                 elements(nelem,1:4) = data(data(3)+4:end); % Only read index of nodes
                 nelem = nelem+1;
             elseif data(2) == 2 % Boundary elements
+                order = 1;
                 boundary(nbound,1:4) = data([data(3)+2,data(3)+4:end]);
                 nbound = nbound+1;
             elseif data(2) == 11 % Tetra10 core elements

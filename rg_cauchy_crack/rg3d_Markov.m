@@ -13,14 +13,14 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-mur        = 5e4;      % Regularization parameter
+mur        = 5e7;      % Regularization parameter
 regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
 niter      = 1;      % Nb of iterations in the Markov chain
 init       = [0,0,0,0];%[0,0,1,-.5] % initialization for the plane parameters. If its norm is 0 : use the real plane
-
+zerobound  = 1;      % Put the boundaries of the crack to 0
 
 % Boundary conditions
 dirichlet  = [ 0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0 ];
@@ -70,19 +70,41 @@ neumann{13} = [ 2,1,-fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
                 4,1,fscalar ; 4,2,-fscalar ; 4,3,-fscalar ];
 
 % BCs for the Cauchy stuff
-dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-               6,1,0 ; 6,2,0 ; 6,3,0 ];
-neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ];
-
-%dirichlet0 = [ 2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%               
+dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+               6,1,0 ; 6,2,0 ; 6,3,0 ];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
@@ -270,16 +292,15 @@ for i=1:nboun2
    % Reference force from the BC's
    name = boundary2(i,1);
    fer = zeros(3,13);
-   for i=1:13
-      nm = neumann{i};
+   for k=1:13
+      nm = neumann{k};
       loads = find(name == nm(:,1));
       if min(size(loads)) > 0
          for j=1:max(size(loads))
-            fer(nm(loads(j),2),i) = nm(loads(j),3);
+            fer(nm(loads(j),2),k) = nm(loads(j),3);
          end
       end
    end
-
    ind0            = [ 3*i-2, 3*i-1, 3*i ];
    f_known(ind0,:) = fer;
 end
@@ -458,7 +479,7 @@ Ruij = Sv*Phi; clear Sv; clear Phi;
 Rfij = Vv*Psi; clear Vv; clear Psi;
 
 Ru = coef'*Ruij; Rf = coef'*Rfij;
-clear coef; clear Ruij; clear Rfij; % We can't afford not to clear
+clear Ruij; clear Rfij; % We can't afford not to clear
 
 % Clear zeros lines
 toremove = [];
@@ -488,7 +509,7 @@ nodeMass = zeros(3*nnodeboun);  % For u
 elemMass = zeros(3*nboun2);     % For f
 % msur = 10000;  % ~= Infinity
 for i=1:nboun2
-   coef = [ boun2loc(i,1), boun2loc(i,2), boun2loc(i,3) ];
+   coefU = [ boun2loc(i,1), boun2loc(i,2), boun2loc(i,3) ];
    
    no1 = boundary2(i,2); no2 = boundary2(i,3); no3 = boundary2(i,4);
    x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
@@ -501,15 +522,15 @@ for i=1:nboun2
    
 %    if surfa<msur msur = surfa; end % Just a debug asset
    
-   Fntob( 3*i-2, 3*coef-2 ) = 1/(3*surfa) * [1,1,1];
-   Fntob( 3*i-1, 3*coef-1 ) = 1/(3*surfa) * [1,1,1];
-   Fntob( 3*i  , 3*coef   ) = 1/(3*surfa) * [1,1,1];
-   Fbton( 3*coef-2, 3*i-2 ) = surfa/3 * [1,1,1];
-   Fbton( 3*coef-1, 3*i-1 ) = surfa/3 * [1,1,1];
-   Fbton( 3*coef  , 3*i   ) = surfa/3 * [1,1,1];
+   Fntob( 3*i-2, 3*coefU-2 ) = 1/(3*surfa) * [1,1,1];
+   Fntob( 3*i-1, 3*coefU-1 ) = 1/(3*surfa) * [1,1,1];
+   Fntob( 3*i  , 3*coefU   ) = 1/(3*surfa) * [1,1,1];
+   Fbton( 3*coefU-2, 3*i-2 ) = surfa/3 * [1,1,1];
+   Fbton( 3*coefU-1, 3*i-1 ) = surfa/3 * [1,1,1];
+   Fbton( 3*coefU  , 3*i   ) = surfa/3 * [1,1,1];
    
    ico = [ 3*i-2, 3*i-1, 3*i ];
-   cco = [ 3*coef-2, 3*coef-1, 3*coef ];
+   cco = [ 3*coefU-2, 3*coefU-1, 3*coefU ];
    elemMass(ico,ico) = surfa*eye(3);
    nodeMass(cco,cco) = nodeMass(cco,cco) + ...
                        surfa/3 * [ eye(3), zeros(3), zeros(3) ; ...
@@ -532,30 +553,31 @@ for i=1:nboun2
    x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
    x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
 
-   Jxy = [x2-x1,x3-x1;y2-y1,y3-y1];   %
-   Jxz = [x2-x1,x3-x1;z2-z1,z3-z1];   % Jacobians
-   Jyz = [y2-y1,y3-y1;z2-z1,z3-z1];   %
+   n = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
+         (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Normal to the triangle
+         (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
+   S = .5*norm(n);
+   n = n/norm(n);
+   t = [ x1-x3 ; y1-y3 ; z1-z3 ];   % Tangent vectorize
+   t = t/norm(t);
+   v = [ n(2)*t(3)-t(2)*n(3) ; t(1)*n(3)-n(1)*t(3) ; n(1)*t(2)-t(1)*n(2) ];
+   v = v/norm(v);
+   P = [n,t,v];
+   
+   % Pass the nodes onto the xy plane
+   xyz1 = P'*[x1;y1;z1]; xyz2 = P'*[x2;y2;z2]; xyz3 = P'*[x3;y3;z3];
+   x1 = xyz1(1); y1 = xyz1(2); z1 = xyz1(3);
+   x2 = xyz2(1); y2 = xyz2(2); z2 = xyz2(3);
+   x3 = xyz3(1); y3 = xyz3(2); z3 = xyz3(3);
       
-   D = [-1,1,0;-1,0,1];
-%       D = [-1,1,0;-1,0,1;0,0,0];
-%       Dexy = D; Dexz = D; Deyz = D; % No respect -- Vae victis
-   Dexy = D'*pinv(Jxy); Dexz = D'*pinv(Jxz); Deyz = D'*pinv(Jyz);
-
-%   Be = [ Dexy(1,1)+Dexz(1,1), Dexy(2,1)+Dexz(2,1), Dexy(3,1)+Dexz(3,1) ;
-%          Dexy(1,2)+Deyz(1,1), Dexy(2,2)+Deyz(2,1), Dexy(3,2)+Deyz(3,1) ;
-%          Dexz(1,2)+Deyz(1,2), Dexz(2,2)+Deyz(2,2), Dexz(3,2)+Deyz(3,2) ]; % (a .5 factor has been ommited)
-
-   Be = [ Dexy(1,1), Dexy(2,1), Dexy(3,1) ;
-          Dexy(1,2), Dexy(2,2), Dexy(3,2);
-          0, 0, 0 ];
+   Be = 1/(2*S)*[ x3-x2, x1-x3, x2-x1 ;...
+                  y2-y3, y3-y1, y1-y2 ];
 
    indelem = [ 3*i-2, 3*i-1, 3*i ];
-%   if norm(Du( 3*indelem-2, 3*coefU-2 ),'fro') ~= 0 || norm(Du( 3*indelem-1, 3*coefU-1 ),'fro') ~= 0 || norm(Du( 3*indelem, 3*coefU ),'fro') ~= 0
-%      warning('nonul !');
-%   end
-   Du( 3*indelem-2, 3*coefU-2 ) = Be;
-   Du( 3*indelem-1, 3*coefU-1 ) = Be;
-   Du( 3*indelem  , 3*coefU   ) = Be;
+                  
+   Du( 3*indelem-2, 3*coefU-2 ) = Be*sqrt(S);
+   Du( 3*indelem-1, 3*coefU-1 ) = Be*sqrt(S);
+   Du( 3*indelem  , 3*coefU   ) = Be*sqrt(S);
 end
    
 Du0 = Du; Df0 = Df;
@@ -609,7 +631,6 @@ for iter = 1:niter
    end
 
    %% Find the convex hull (we're sure the intersection is convex)
-
    % Compute a random vectorial product to get a reference
    x1 = dots(1,1); y1 = dots(2,1); z1 = dots(3,1);
    x2 = dots(1,2); y2 = dots(2,2); z2 = dots(3,2);
@@ -639,7 +660,7 @@ for iter = 1:niter
                      (x3-x1)*(z2-z1) - (x2-x1)*(z3-z1) ;...
                      (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1) ];
             if vpro'*vpre < 0 % There is at least 1 negative vectorial product
-               negative == 1;
+               negative = 1;
                break;
             end
          end
@@ -650,25 +671,229 @@ for iter = 1:niter
          end
       end
    end
-   bug
-   %% Generate the file for GMSH
 
+   %% Generate the file for GMSH
+   nnso = size(doso,2);
    fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
-   fprintf(fmid,'%d\n','lc1 = .1;');
-   for i=1:size(doso,2)
-      fprintf(fmid,'lc1 = .1;');
+   fprintf(fmid,'%s\n','lc1 = .1;');
+   for i=1:nnso
+      fprintf(fmid,'%s%d%s%f%s%f%s%f%s\n','Point(',i,') = {',doso(1,i),',',doso(2,i),',',doso(3,i),',lc1};');
    end
+   for i=1:nnso-1
+      fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',i,') = {',i,',',i+1,'};');
+   end
+   fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',nnso,') = {',nnso,',',1,'};');
+   
+   fprintf(fmid,'%s','Line Loop(11) = {');
+   for i=1:nnso-1
+      fprintf(fmid,'%d%s',i,',');
+   end
+   fprintf(fmid,'%d%s\n',nnso,'};');
+   fprintf(fmid,'%s\n','Plane Surface(1) = {11};');
+   fprintf(fmid,'%s','Physical Surface(11) = {1};');
    fclose(fmid);
 
+   % Use GMSH to mesh the surface
+   [stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
+   [ nodes3,elements3,ntoelem3,boundary3,order3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
+
+   % Write the normal to the elements
+   nboun3   = size(boundary3,1); nnodes3 = size(nodes3,1);
+   extnorm3 = ones(nboun3,1)*[theta(1),theta(2),theta(3)];
+   
+   %%%% Build the operator
+   %% Build the list of Gauss points, and of construction-functions
+   Xxg = zeros( nboun3*Ndots,1 ); Yyg = zeros( nboun3*Ndots,1 );
+   Zzg = zeros( nboun3*Ndots,1 ); Wwg = zeros( nboun3*Ndots,1 );
+   Phi = sparse( 3*nboun3*Ndots, 3*nnodes3 );
+   exnor = zeros( nboun3*Ndots,3); % Normal
+  
+   for i=1:nboun3
+      bonod = boundary3(i,:); exno = extnorm(i,:)';
+     
+      no1 = bonod(2); no2 = bonod(3); no3 = bonod(4); boname = bonod(1);
+      x1 = nodes3(no1,1); y1 = nodes3(no1,2); z1 = nodes3(no1,3);
+      x2 = nodes3(no2,1); y2 = nodes3(no2,2); z2 = nodes3(no2,3);
+      x3 = nodes3(no3,1); y3 = nodes3(no3,2); z3 = nodes3(no3,3);
+        
+      nsurf = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
+                (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
+                (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
+      surfa = .5*norm(nsurf);
+       
+      % Dofs in the numerotation of the boundary nodes
+      N = boundary3(i,2:4);
+      indDtot = [ 3*N(1)-2, 3*N(1)-1, 3*N(1),...
+                  3*N(2)-2, 3*N(2)-1, 3*N(2),...
+                  3*N(3)-2, 3*N(3)-1, 3*N(3) ];
+                    
+      % Dofs in the numerotation of the boundary elements
+      indNtot = [ 3*i-2, 3*i-1, 3*i ];
+                  
+      for j=1:Ndots
+         xg = Xg(j,:); wg = Wg(j);
+         xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; % abscissae
+  
+         X = xgr(1)/Lx; Y = xgr(2)/Lx; Z = xgr(3)/Lx; % Normalize
+         Swg   = surfa * wg;
+  
+         indexg = Ndots*(i-1) + j;
+         Xxg( indexg ) = X; Yyg( indexg ) = Y; Zzg( indexg ) = Z; Wwg( indexg ) = Swg;
+         exnor( indexg, :) = exno';
+  
+         umxgx = 1-xg(1)-xg(2);
+         Phi( 3*indexg-2, indDtot)  = [ umxgx, 0, 0, xg(1), 0, 0, xg(2), 0, 0 ];
+         Phi( 3*indexg-1, indDtot)  = [ 0, umxgx, 0, 0, xg(1), 0, 0, xg(2), 0 ];
+         Phi( 3*indexg  , indDtot)  = [ 0, 0, umxgx, 0, 0, xg(1), 0, 0, xg(2) ];
+      end
+   end
+  
+   %% Build the matrix of test-functions
+   Sv = zeros( size(coef,1), 3*nboun3*Ndots );
+   exnoX = exnor(:,1); exnoY = exnor(:,2); exnoZ = exnor(:,3);
+  
+   for ii=0:nmax
+      nd1 = nmax-ii;
+      for jj=0:nd1
+         nd2 = nmax-ii-jj;
+         for kk=0:nd2
+                    
+            % Build the test field's basis
+            if ii>0
+               XYZi = ii*Xxg.^(ii-1).*Yyg.^jj.*Zzg.^kk;
+               sloc11a = (lambda+2*mu)*XYZi;
+               sloc22a = lambda*XYZi;
+               sloc33a = lambda*XYZi;
+               sloc12b = mu*XYZi;
+               sloc13c = mu*XYZi;
+            else
+               sloc11a = zeros(nboun3*Ndots,1);
+               sloc22a = zeros(nboun3*Ndots,1);
+               sloc33a = zeros(nboun3*Ndots,1);
+               sloc12b = zeros(nboun3*Ndots,1);
+               sloc13c = zeros(nboun3*Ndots,1);
+            end
+  
+            if jj>0
+               XYZj = jj*Xxg.^ii.*Yyg.^(jj-1).*Zzg.^kk;
+               sloc12a = mu*XYZj; 
+               sloc11b = lambda*XYZj; 
+               sloc22b = (lambda+2*mu)*XYZj;
+               sloc33b = lambda*XYZj;
+               sloc23c = mu*XYZj;
+            else
+               sloc12a = zeros(nboun3*Ndots,1);
+               sloc11b = zeros(nboun3*Ndots,1);
+               sloc22b = zeros(nboun3*Ndots,1);
+               sloc33b = zeros(nboun3*Ndots,1);
+               sloc23c = zeros(nboun3*Ndots,1);
+            end
+  
+            if kk>0
+               XYZk = kk*Xxg.^ii.*Yyg.^jj.*Zzg.^(kk-1);
+               sloc13a = mu*XYZk; 
+               sloc23b = mu*XYZk;
+               sloc11c = lambda*XYZk; 
+               sloc22c = lambda*XYZk;
+               sloc33c = (lambda+2*mu)*XYZk;
+            else
+               sloc13a = zeros(nboun3*Ndots,1);
+               sloc23b = zeros(nboun3*Ndots,1);
+               sloc11c = zeros(nboun3*Ndots,1);
+               sloc22c = zeros(nboun3*Ndots,1);
+               sloc33c = zeros(nboun3*Ndots,1);
+            end
+  
+            fpaax = sloc11a.*exnoX + sloc12a.*exnoY + sloc13a.*exnoZ;
+            fpaay = sloc12a.*exnoX + sloc22a.*exnoY;% + sloc23a.*exnoZ;
+            fpaaz = sloc13a.*exnoX + sloc33a.*exnoZ;% + sloc23a.*exnoY 
+  
+            fpabx = sloc11b.*exnoX + sloc12b.*exnoY;% + sloc13b.*exnoZ;
+            fpaby = sloc12b.*exnoX + sloc22b.*exnoY + sloc23b.*exnoZ;
+            fpabz = sloc23b.*exnoY + sloc33b.*exnoZ;% + sloc13b.*exnoX
+  
+            fpacx = sloc11c.*exnoX + sloc13c.*exnoZ;% + sloc12c.*exnoY
+            fpacy = sloc22c.*exnoY + sloc23c.*exnoZ;% + sloc12c.*exnoX
+            fpacz = sloc13c.*exnoX + sloc23c.*exnoY + sloc33c.*exnoZ;
+  
+            XYZ = Xxg.^ii.*Yyg.^jj.*Zzg.^kk;
+            vpaax = XYZ; vpaby = XYZ; vpacz = XYZ;
+  
+            index = (nmax+1)^2*ii + (nmax+1)*jj + kk + 1;
+                    
+            Sv( index, 1:3:3*nboun3*Ndots-2 )         = Wwg' .* fpaax';
+            Sv( nm3 + index, 1:3:3*nboun3*Ndots-2 )   = Wwg' .* fpabx';
+            Sv( 2*nm3 + index, 1:3:3*nboun3*Ndots-2 ) = Wwg' .* fpacx';
+  
+            Sv( index, 2:3:3*nboun3*Ndots-1 )         = Wwg' .* fpaay';
+            Sv( nm3 + index, 2:3:3*nboun3*Ndots-1 )   = Wwg' .* fpaby';
+            Sv( 2*nm3 + index, 2:3:3*nboun3*Ndots-1 ) = Wwg' .* fpacy';
+  
+            Sv( index, 3:3:3*nboun3*Ndots )           = Wwg' .* fpaaz';
+            Sv( nm3 + index, 3:3:3*nboun3*Ndots )     = Wwg' .* fpabz';
+            Sv( 2*nm3 + index, 3:3:3*nboun3*Ndots )   = Wwg' .* fpacz';
+         end
+      end
+   end
+  
+   Rucij = Sv*Phi; clear Sv; clear Phi;
+   Ruc = coef'*Rucij; clear Rucij; % don't clear coef as we reuse it
+   Ruc(toremove,:) = [];    % Clear zeros lines
+   
+   %%%% End of the building of the operator
+   
+   %% Surface mass matrix and pass F from elements to nodes
+   Fbton3 = zeros( 3*nnodes3, 3*nboun3 ); Fntob3 = zeros( 3*nboun3, 3*nnodes3 ); 
+   nodeMass3 = zeros(3*nnodes3);  % For u
+   for i=1:nboun3
+      coefU = boundary3(i,2:4); % List of the nodes linked to this element
+      
+      no1 = boundary3(i,2); no2 = boundary3(i,3); no3 = boundary3(i,4);
+      x1 = nodes3(no1,1); y1 = nodes3(no1,2); z1 = nodes3(no1,3);
+      x2 = nodes3(no2,1); y2 = nodes3(no2,2); z2 = nodes3(no2,3);
+      x3 = nodes3(no3,1); y3 = nodes3(no3,2); z3 = nodes3(no3,3);
+      nsurf = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
+                (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
+                (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
+      surfa = .5*norm(nsurf);
+      
+      Fntob3( 3*i-2, 3*coefU-2 ) = 1/(3*surfa) * [1,1,1];
+      Fntob3( 3*i-1, 3*coefU-1 ) = 1/(3*surfa) * [1,1,1];
+      Fntob3( 3*i  , 3*coefU   ) = 1/(3*surfa) * [1,1,1];
+      Fbton3( 3*coefU-2, 3*i-2 ) = surfa/3 * [1,1,1];
+      Fbton3( 3*coefU-1, 3*i-1 ) = surfa/3 * [1,1,1];
+      Fbton3( 3*coefU  , 3*i   ) = surfa/3 * [1,1,1];
+      
+      cco = [ 3*coefU-2, 3*coefU-1, 3*coefU ];
+      nodeMass3(cco,cco) = nodeMass3(cco,cco) + ...
+                           surfa/3 * [ eye(3), zeros(3), zeros(3) ; ...
+                                       zeros(3), eye(3), zeros(3) ; ...
+                                       zeros(3), zeros(3), eye(3) ];
+   end
+   
    %% Solve the linear system and recover the unknowns
-   if froreg == 1
-      kB = norm(LhsA,'fro')/norm(LhsB,'fro'); % In order to regularize the stuff
+   if froreg == 1 && min(size(LhsB))>0
+      kB = sqrt(norm(LhsA,'fro')^2+norm(Ruc,'fro')^2)/norm(LhsB,'fro'); % In order to regularize the stuff
    else
       kB = 1;
    end
-   Lhs = [LhsA,kB*LhsB];
-
-   A = Lhs'*Lhs; b = Lhs'*Rhs; sA = size(A,1);
+   
+   offset = size(LhsA,2)+size(LhsB,2);
+   tormv = [];
+   if zerobound == 1 % Remove the boundaries of the surface
+      for i=1:nnodes3
+         if any(nodes3(i,:)==0) || any(nodes3(i,:)==1)
+            tormv = [tormv,3*i-2,3*i-1,3*i];
+         end
+      end
+   end
+   tokeep = setdiff( 1:3*nnodes3 , offset+tormv );
+   
+   Lhs = [LhsA,kB*LhsB,Ruc]; sA = size(Lhs,2);
+   
+   Z12    = zeros(size(Mum,1),size(Mfm,2)); Z13 = zeros(size(Mum,1),size(nodeMass3,2));
+   Z23    = zeros(size(Mfm,1),size(nodeMass3,2));
+   Mtot   = [ Mum, Z12, Z13  ; Z12', Mfm, Z23 ; Z13', Z23', nodeMass3 ]; % Weighted mass
    
    if regular == 1
       Lu = Du'*Du; Lu = Lu/norm(Lu,'fro');
@@ -676,13 +901,18 @@ for iter = 1:niter
             zeros( size(Df,1) , size(Lu,2) ) , Df ];
       L0 = L;
    else
-      L = [ Mum, zeros(size(Mum,1),size(Mfm,2)) ; zeros(size(Mfm,1),size(Mum,2)) , Mfm ]; % Weighted mass
+      L = Mtot;
    end
 
-   Llu = [ Mum, zeros(size(Mum,1),size(Mfm,2)) ; zeros(size(Mfm,1),size(Mum,2)) , zeros(size(Mfm)) ];
-   Llf = [ zeros(size(Mum)), zeros(size(Mum,1),size(Mfm,2)) ; zeros(size(Mfm,1),size(Mum,2)) , Mfm ];
-
-   Solu1 = (Lhs'*Lhs + mur*L)\(Lhs'*Rhs1);
+   Solu1 = zeros(sA,13);
+   MAT = Lhs'*Lhs + mur*L;
+   VEC = Lhs'*Rhs1;
+   
+   if zerobound == 1
+      Solu1(tokeep,:) = MAT(tokeep,tokeep)\VEC(tokeep,:);
+   else
+      Solu1 = MAT\VEC;
+   end
 end
 
 disp([ 'Markov algorithm terminated ', num2str(toc) ]);
@@ -701,6 +931,141 @@ for i=1:nnodeboun
    Usol(ind1,:) = usolu1(ind2,:); Fsol(ind1,:) = fsoluN(ind2,:);
    Uref(ind1,:) = u_refer(ind2,:); Fref(ind1,:) = f_refeN(ind2,:);
 end
+
+ucrsol1 = Solu1(end-3*nnodes3+1:end,:);
+
+% Visulaize the gap in the crack's plane
+eno = extnorm3(1,:); % All the normals are the same
+UsN = ucrsol1(1:3:end-2,:)*eno(1) + ucrsol1(2:3:end-1,:)*eno(2) + ucrsol1(3:3:end,:)*eno(3);
+try
+figure;
+patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UsN(:,11),'FaceColor','interp');
+colorbar(); set(colorbar, 'fontsize', 20);
+end
+
+%%%% And recover the reference
+%% Build the intersection of the plane with the domain
+mm{1} = [ abcd(1),abcd(2),abcd(3) ; 0,1,0 ; 0,0,1 ]; rr{1} = [ -abcd(4) ; 0 ; 0 ];
+mm{2} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,0,1 ]; rr{2} = [ -abcd(4) ; 1 ; 0 ];
+mm{3} = [ abcd(1),abcd(2),abcd(3) ; 0,1,0 ; 0,0,1 ]; rr{3} = [ -abcd(4) ; 1 ; 0 ];
+mm{4} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,0,1 ]; rr{4} = [ -abcd(4) ; 0 ; 0 ];
+
+mm{5} = [ abcd(1),abcd(2),abcd(3) ; 0,1,0 ; 0,0,1 ]; rr{5} = [ -abcd(4) ; 0 ; 1 ];
+mm{6} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,0,1 ]; rr{6} = [ -abcd(4) ; 1 ; 1 ];
+mm{7} = [ abcd(1),abcd(2),abcd(3) ; 0,1,0 ; 0,0,1 ]; rr{7} = [ -abcd(4) ; 1 ; 1 ];
+mm{8} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,0,1 ]; rr{8} = [ -abcd(4) ; 0 ; 1 ];
+
+mm{9}  = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,1,0 ]; rr{9}  = [ -abcd(4) ; 0 ; 0 ];
+mm{10} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,1,0 ]; rr{10} = [ -abcd(4) ; 1 ; 0 ];
+mm{11} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,1,0 ]; rr{11} = [ -abcd(4) ; 1 ; 1 ];
+mm{12} = [ abcd(1),abcd(2),abcd(3) ; 1,0,0 ; 0,1,0 ]; rr{12} = [ -abcd(4) ; 0 ; 1 ];
+
+dots = zeros(3,0);
+for i=1:12
+   zemat = mm{i};
+   if rank(zemat) == 3
+      zerhs = rr{i};
+      zedot = zemat\zerhs;
+      if zedot(1) >= 0 && zedot(1) <= 1 && zedot(2) >= 0 && zedot(2) <= 1 && zedot(3) >= 0 && zedot(3) <= 1
+         dots = [dots,zedot];
+      end
+   end
+end
+
+%% Find the convex hull (we're sure the intersection is convex)
+% Compute a random vectorial product to get a reference
+x1 = dots(1,1); y1 = dots(2,1); z1 = dots(3,1);
+x2 = dots(1,2); y2 = dots(2,2); z2 = dots(3,2);
+x3 = dots(1,3); y3 = dots(2,3); z3 = dots(3,3);
+vpre = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1) ;...
+         (x3-x1)*(z2-z1) - (x2-x1)*(z3-z1) ;...
+         (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1) ];
+
+% Test all the vectorial products
+stilltodo = 1;
+curr = dots(:,1);
+doso = curr;
+while size(doso,2) < size(dots,2);
+   x1 = curr(1); y1 = curr(2); z1 = curr(3);
+   for i=1:size(dots,2) % Find the next one
+      x2 = dots(1,i); y2 = dots(2,i); z2 = dots(3,i);
+      if x1==x2 && y1==y2 && z1==z2
+         continue;
+      end
+      negative = 0;
+      for j=1:size(dots,2)
+         x3 = dots(1,j); y3 = dots(2,j); z3 = dots(3,j);
+         if (x3==x2 && y3==y2 && z3==z2) || (x3==x1 && y3==y1 && z3==z1)
+            continue;
+         end
+         vpro = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1) ;...
+                  (x3-x1)*(z2-z1) - (x2-x1)*(z3-z1) ;...
+                  (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1) ];
+         if vpro'*vpre < 0 % There is at least 1 negative vectorial product
+            negative = 1;
+            break;
+         end
+      end
+      if negative == 0 % It's the good one !
+         doso = [doso,dots(:,i)];
+         curr = dots(:,i);
+         break;
+      end
+   end
+end
+
+%% Generate the file for GMSH
+nnso = size(doso,2);
+fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
+fprintf(fmid,'%s\n','lc1 = .1;');
+for i=1:nnso
+   fprintf(fmid,'%s%d%s%f%s%f%s%f%s\n','Point(',i,') = {',doso(1,i),',',doso(2,i),',',doso(3,i),',lc1};');
+end
+for i=1:nnso-1
+   fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',i,') = {',i,',',i+1,'};');
+end
+fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',nnso,') = {',nnso,',',1,'};');
+
+fprintf(fmid,'%s','Line Loop(11) = {');
+for i=1:nnso-1
+   fprintf(fmid,'%d%s',i,',');
+end
+fprintf(fmid,'%d%s\n',nnso,'};');
+fprintf(fmid,'%s\n','Plane Surface(1) = {11};');
+fprintf(fmid,'%s','Physical Surface(11) = {1};');
+fclose(fmid);
+
+% Use GMSH to mesh the surface
+[stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
+[ nodes3,elements3,ntoelem3,boundary3,order3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
+
+% First, make a slight contraction to make sure nothing is outside
+xm = mean(nodes3(:,1)); ym = mean(nodes3(:,2)); zm = mean(nodes3(:,3));
+nodes3(:,1) = (nodes3(:,1)-xm)*.999 + xm;
+nodes3(:,2) = (nodes3(:,2)-ym)*.999 + ym;
+nodes3(:,3) = (nodes3(:,3)-zm)*.999 + zm;
+
+normal3 = abcd(1:3)/norm(abcd(1:3));
+nodes_up = nodes3 + 1e-4*ones(nnodes3,1)*normal3';
+nodes_do = nodes3 - 1e-4*ones(nnodes3,1)*normal3';
+U_up = passMesh3D( nodes, elements, nodes_up, [], uref );
+U_do = passMesh3D( nodes, elements, nodes_do, [], uref );
+U_diff = U_up-U_do;
+
+UrN = U_diff(1:3:end-2,:)*normal3(1) + U_diff(2:3:end-1,:)*normal3(2) + U_diff(3:3:end,:)*normal3(3);
+try
+figure;
+patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrN(:,11),'FaceColor','interp');
+colorbar(); set(colorbar, 'fontsize', 20);
+end
+
+%for i=1:13
+%   try
+%   figure;
+%   patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrN(:,i),'FaceColor','interp');
+%   colorbar(); set(colorbar, 'fontsize', 20);
+%   end
+%end
 
 %% Add known
 %FsolT = Fsol; %/!\ this is true because we do know that F=0 on the other points
