@@ -6,48 +6,50 @@ clear all;
 
 addpath(genpath('./tools'))
 
-%% Parameters
-%E       = 200000; % MPa : Young modulus
-%nu      = 0.3;    % Poisson ratio
-%fscalar = 250;    % N.mm-2 : Loading on the plate
-%mat = [0, E, nu];
-%
-%% Boundary conditions
-%% first index  : index of the boundary
-%% second index : 1=x, 2=y, 3=z
-%% third        : value
-%% [0,1,value] marks a dirichlet regularization therm on x
-%%dirichlet = [1,1,0 ; 1,2,0 ; 1,3,0];
-%dirichlet = [0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0];
-%%dirichlet = [2,1,0 ; 2,2,0 ; 1,3,0 ; 2,3,0];
-%neumann   = [ 2,3,fscalar ; 1,3,-fscalar ];
-%
-%% First, import the mesh
+% Parameters
+E       = 200000; % MPa : Young modulus
+nu      = 0.3;    % Poisson ratio
+fscalar = 250;    % N.mm-2 : Loading on the plate
+mat = [0, E, nu];
+
+% Boundary conditions
+% first index  : index of the boundary
+% second index : 1=x, 2=y, 3=z
+% third        : value
+% [0,1,value] marks a dirichlet regularization therm on x
+%dirichlet = [1,1,0 ; 1,2,0 ; 1,3,0];
+dirichlet = [0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0];
+%dirichlet = [2,1,0 ; 2,2,0 ; 1,3,0 ; 2,3,0];
+neumann   = [ 2,3,fscalar ; 1,3,-fscalar ];
+
+% First, import the mesh
 %[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3dm/platem_c.msh' );
-%%[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/tetra10/plate3d.msh' );
-%nnodes = size(nodes,1);
-%
-%% Then, build the stiffness matrix :
-%[K,C,nbloq,node2c,c2node] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
-%% The right hand side :
-%f  = loading3D(nbloq,nodes,boundary,neumann);
-%%f = volumicLoad( 0, nodes, elements, 2, -fscalar );
-%%udir = ones( 3*nnodes, 1 );
-%%udi = keepField3D( udir, 2, boundary, 3 );
-%%f = [ zeros(3*nnodes,1) ; C'*udi ];
-%
-%% Solve the problem :
-%uin = K\f;
-%% Extract displacement :
-%u = uin(1:3*nnodes,1);
-%ui = reshape(u,3,[])';  ux = ui(:,1);  uy = ui(:,2);  uz = ui(:,3);
-%
-%% Compute stress :
-%sigma = stress3D(u,mat,nodes,elements,order,1,ntoelem);
-%
-%% Output :
-%% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
-%plotGMSH3D({ux,'U_x';uy,'U_y';uz,'U_z';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
+[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/tetra10/plate3d.msh' );
+nnodes = size(nodes,1);
+
+% Then, build the stiffness matrix :
+tic, [K,C,nbloq,node2c,c2node] = Krig3D (nodes,elements,mat,order,boundary,dirichlet); toc
+
+% The right hand side :
+f  = loading3D(nbloq,nodes,boundary,neumann);
+%f = volumicLoad( 0, nodes, elements, 2, -fscalar );
+%udir = ones( 3*nnodes, 1 );
+%udi = keepField3D( udir, 2, boundary, 3 );
+%f = [ zeros(3*nnodes,1) ; C'*udi ];
+
+% Solve the problem :
+uin = K\f;
+% Extract displacement :
+u = uin(1:3*nnodes,1);
+ui = reshape(u,3,[])';  ux = ui(:,1);  uy = ui(:,2);  uz = ui(:,3);
+
+% Compute stress :
+sigma = stress3D(u,mat,nodes,elements,order,1,ntoelem);
+
+% Output :
+% plotNodes(u,elements,nodes); : TODO debug on Matlab r>2013
+plotGMSH3D({ux,'U_x';uy,'U_y';uz,'U_z';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -175,42 +177,46 @@ addpath(genpath('./tools'))
 %plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Inhomogen domain
-% Parameters
-E1      = 210000;  % MPa : Young modulus
-E2      = 70000;  % MPa : Young modulus
-nu      = 0.3;     % Poisson ratio
-fscalar = 250;     % N.mm-2 : Loading on the plate
-%mat = [2, E1, nu, .1, 10];
+%% Inhomogeneous (or not) domain
+%% Parameters
+%E1      = 210000;  % MPa : Young modulus
+%E2      = 70000;  % MPa : Young modulus
+%nu      = 0.3;     % Poisson ratio
+%fscalar = 250;     % N.mm-2 : Loading on the plate
+%%mat = [2, E1, nu, .1, 10];
 %mat = [0, E1, nu];
-mat = {}; mat{1} = [0, E1, nu]; mat{2} = [0, E2, nu];
-
-% Boundary conditions
-dirichlet = [ 0,1,0 ; 0,2,0 ; 0,3,0 ];
-neumann   = [ 1,2,-fscalar ; 3,2,fscalar ];
-
-% First, import the mesh
-[ nodes,elements,ntoelem,boundary,order,physical ] = readmesh( 'meshes/inclusion/plate_incl.msh' );
-nnodes = size(nodes,1);
-
-% Then, build the stiffness matrix :
-[K,C,nbloq,node2c,c2node] = Krig2 (nodes,[physical,elements],mat,order,boundary,dirichlet);
+%%mat = {}; mat{1} = [0, E1, nu]; mat{2} = [0, E2, nu];
+%
+%% Boundary conditions
+%%dirichlet = [ 0,1,0 ; 0,2,0 ; 0,3,0 ];
+%%neumann   = [ 1,2,-fscalar ; 3,2,fscalar ];
+%dirichlet = [ 1,1,0 ; 1,2,0 ];
+%neumann   = [ 3,2,fscalar ];
+%
+%% First, import the mesh
+%%[ nodes,elements,ntoelem,boundary,order,physical ] = readmesh( 'meshes/inclusion/plate_incl.msh' );
+%[ nodes,elements,ntoelem,boundary,order,physical ] = readmesh( 'meshes/t6/plate.msh' );
+%nnodes = size(nodes,1);
+%
+%% Then, build the stiffness matrix :
+%%[K,C,nbloq,node2c,c2node] = Krig2 (nodes,[physical,elements],mat,order,boundary,dirichlet);
 %[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
-% The right hand side :
-f  = loading(nbloq,nodes,boundary,neumann);
-
-% Solve the problem :
-uin = K\f;
-
-% Extract displacement :
-u = uin(1:2*nnodes,1);
-ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
-
-% Compute stress :
-sigma = stress(u,E1,nu,nodes,elements,order,1,ntoelem);
-
-% Output :
-plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
+%% The right hand side :
+%f  = loading(nbloq,nodes,boundary,neumann);
+%
+%% Solve the problem :
+%uin = K\f;
+%
+%% Extract displacement :
+%u = uin(1:2*nnodes,1);
+%ui = reshape(u,2,[])';  ux = ui(:,1);  uy = ui(:,2);
+%
+%% Compute stress :
+%%sigma = stress2(u,nodes,[physical,elements],mat,order,1,ntoelem);
+%sigma = stress2(u,nodes,elements,mat,order,1,ntoelem);
+%
+%% Output :
+%plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output/linear_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -413,7 +419,7 @@ plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output
 % plotGMSH({uv,'U_Vect';sigmav,'stress'}, elements, nodes, 'viscosity_field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%% Contact problem
 %% Parameters
 %E       = 210000; % MPa : Young modulus
 %nu      = 0.3;    % Poisson ratio
@@ -476,7 +482,7 @@ plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'output
 %plotGMSH({ux,'U_x';uy,'U_y';u,'U_vect';sigma,'stress'}, elements, nodes, 'field');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%% Elastoplastic problem
 %% Parameters
 %E       = 200000; % MPa : Young modulus
 %nu      = 0.3;    % Poisson ratio

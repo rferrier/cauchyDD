@@ -13,14 +13,16 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-mur        = 5e7;      % Regularization parameter
-regular    = 0;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
+mur        = 1e2;%5e7;      % Regularization parameter
+regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 1;      % Nb of iterations in the Markov chain
-init       = [0,0,0,0];%[0,0,1,-.5] % initialization for the plane parameters. If its norm is 0 : use the real plane
+niter      = 100;      % Nb of iterations in the Markov chain
+init       = [0;0;-1;.5];%[0;0;0;0];%[0;0;-1;.5]% % initialization for the plane parameters. If its norm is 0 : use the real plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
+step       = .2;     % Step for the Markov chain
+nuzawa     = 1;    % Nb of Uzawa iterations /!\ UNIMPLEMENTED /!\
 
 % Boundary conditions
 dirichlet  = [ 0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0 ];
@@ -92,7 +94,7 @@ neumann{13} = [ 2,1,-fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
-%               
+            
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
                2,1,0 ; 2,2,0 ; 2,3,0 ; 
                3,1,0 ; 3,2,0 ; 3,3,0 ; 
@@ -544,10 +546,8 @@ Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
 
 % Derivative operators
 Du = zeros(9*nboun2,3*nnodeboun);
-Df = eye(3*nboun2); % No derivative for f
-for i=1:nboun2
-   coefU = [ boun2loc(i,1) , boun2loc(i,2) , boun2loc(i,3) ];
-      
+Df = elemMass;%eye(3*nboun2); % No derivative for f
+for i=1:nboun2    
    no1 = boundary2(i,2); no2 = boundary2(i,3); no3 = boundary2(i,4);
    x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
    x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
@@ -556,13 +556,12 @@ for i=1:nboun2
    n = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
          (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Normal to the triangle
          (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
-   S = .5*norm(n);
-   n = n/norm(n);
-   t = [ x1-x3 ; y1-y3 ; z1-z3 ];   % Tangent vectorize
+   S = .5*norm(n); n = n/norm(n);
+   t = [ x1-x3 ; y1-y3 ; z1-z3 ];   % Tangent vector
    t = t/norm(t);
    v = [ n(2)*t(3)-t(2)*n(3) ; t(1)*n(3)-n(1)*t(3) ; n(1)*t(2)-t(1)*n(2) ];
    v = v/norm(v);
-   P = [n,t,v];
+   P = [t,v,n];
    
    % Pass the nodes onto the xy plane
    xyz1 = P'*[x1;y1;z1]; xyz2 = P'*[x2;y2;z2]; xyz3 = P'*[x3;y3;z3];
@@ -570,19 +569,24 @@ for i=1:nboun2
    x2 = xyz2(1); y2 = xyz2(2); z2 = xyz2(3);
    x3 = xyz3(1); y3 = xyz3(2); z3 = xyz3(3);
       
-   Be = 1/(2*S)*[ x3-x2, x1-x3, x2-x1 ;...
-                  y2-y3, y3-y1, y1-y2 ];
+   Be = 1/(2*S)*[ x3-x2, 0, 0, x1-x3, 0, 0, x2-x1, 0, 0 ;...
+                  y2-y3, 0, 0, y3-y1, 0, 0, y1-y2, 0, 0 ;...
+                  0, x3-x2, 0, 0, x1-x3, 0, 0, x2-x1, 0 ;...
+                  0, y2-y3, 0, 0, y3-y1, 0, 0, y1-y2, 0 ;...
+                  0, 0, x3-x2, 0, 0, x1-x3, 0, 0, x2-x1 ;...
+                  0, 0, y2-y3, 0, 0, y3-y1, 0, 0, y1-y2 ];
 
-   indelem = [ 3*i-2, 3*i-1, 3*i ];
+   indelem = [ 6*i-5, 6*i-4, 6*i-3, 6*i-2, 6*i-1, 6*i ];
+   coefU   = [ 3*boun2loc(i,1)-2, 3*boun2loc(i,1)-1, 3*boun2loc(i,1),...
+               3*boun2loc(i,2)-2, 3*boun2loc(i,2)-1, 3*boun2loc(i,2),...
+               3*boun2loc(i,3)-2, 3*boun2loc(i,3)-1, 3*boun2loc(i,3) ];
                   
-   Du( 3*indelem-2, 3*coefU-2 ) = Be*sqrt(S);
-   Du( 3*indelem-1, 3*coefU-1 ) = Be*sqrt(S);
-   Du( 3*indelem  , 3*coefU   ) = Be*sqrt(S);
+   Du( indelem, coefU ) = Be*sqrt(S);
 end
    
-Du0 = Du; Df0 = Df;
+Du0 = Du; Df0 = Df*norm(Du,'fro')/norm(Df,'fro');
 Du  = Du0(:,tofindD); Df  = Df0(tofindN,tofindN);
-Duk = Du0(:,knownD);   Dfk = Df0(knownN,knownN);
+Duk = Du0(:,knownD);  Dfk = Df0(knownN,knownN);
 % End derivative operator
 
 % Recover the reference parameters of the plane
@@ -596,8 +600,11 @@ abc = -M\ones(3,1); abcd = [abc;1]; abcd = abcd/norm(abcd);
 if norm(init)==0
    init = abcd;
 end
+init = init/norm(init);
 
-theta = init;
+theta = init; thetap = theta; thetarec = theta;
+phi   = zeros(niter,1);
+nori  = zeros(niter,13);
 
 %% Markov chain
 for iter = 1:niter
@@ -632,12 +639,13 @@ for iter = 1:niter
 
    %% Find the convex hull (we're sure the intersection is convex)
    % Compute a random vectorial product to get a reference
-   x1 = dots(1,1); y1 = dots(2,1); z1 = dots(3,1);
-   x2 = dots(1,2); y2 = dots(2,2); z2 = dots(3,2);
-   x3 = dots(1,3); y3 = dots(2,3); z3 = dots(3,3);
-   vpre = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1) ;...
-            (x3-x1)*(z2-z1) - (x2-x1)*(z3-z1) ;...
-            (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1) ];
+%   x1 = dots(1,1); y1 = dots(2,1); z1 = dots(3,1);
+%   x2 = dots(1,2); y2 = dots(2,2); z2 = dots(3,2);
+%   x3 = dots(1,3); y3 = dots(2,3); z3 = dots(3,3);
+%   vpre = [ (y2-y1)*(z3-z1) - (y3-y1)*(z2-z1) ;...
+%            (x3-x1)*(z2-z1) - (x2-x1)*(z3-z1) ;...
+%            (x2-x1)*(y3-y1) - (x3-x1)*(y2-y1) ];
+   vpre = [theta(1);theta(2);theta(3)];
 
    % Test all the vectorial products
    stilltodo = 1;
@@ -709,7 +717,7 @@ for iter = 1:niter
    exnor = zeros( nboun3*Ndots,3); % Normal
   
    for i=1:nboun3
-      bonod = boundary3(i,:); exno = extnorm(i,:)';
+      bonod = boundary3(i,:); exno = extnorm3(i,:)';
      
       no1 = bonod(2); no2 = bonod(3); no3 = bonod(4); boname = bonod(1);
       x1 = nodes3(no1,1); y1 = nodes3(no1,2); z1 = nodes3(no1,3);
@@ -805,15 +813,15 @@ for iter = 1:niter
             end
   
             fpaax = sloc11a.*exnoX + sloc12a.*exnoY + sloc13a.*exnoZ;
-            fpaay = sloc12a.*exnoX + sloc22a.*exnoY;% + sloc23a.*exnoZ;
-            fpaaz = sloc13a.*exnoX + sloc33a.*exnoZ;% + sloc23a.*exnoY 
+            fpaay = sloc12a.*exnoX + sloc22a.*exnoY;
+            fpaaz = sloc13a.*exnoX + sloc33a.*exnoZ; 
   
-            fpabx = sloc11b.*exnoX + sloc12b.*exnoY;% + sloc13b.*exnoZ;
+            fpabx = sloc11b.*exnoX + sloc12b.*exnoY;
             fpaby = sloc12b.*exnoX + sloc22b.*exnoY + sloc23b.*exnoZ;
-            fpabz = sloc23b.*exnoY + sloc33b.*exnoZ;% + sloc13b.*exnoX
+            fpabz = sloc23b.*exnoY + sloc33b.*exnoZ;
   
-            fpacx = sloc11c.*exnoX + sloc13c.*exnoZ;% + sloc12c.*exnoY
-            fpacy = sloc22c.*exnoY + sloc23c.*exnoZ;% + sloc12c.*exnoX
+            fpacx = sloc11c.*exnoX + sloc13c.*exnoZ;
+            fpacy = sloc22c.*exnoY + sloc23c.*exnoZ;
             fpacz = sloc13c.*exnoX + sloc23c.*exnoY + sloc33c.*exnoZ;
   
             XYZ = Xxg.^ii.*Yyg.^jj.*Zzg.^kk;
@@ -887,7 +895,7 @@ for iter = 1:niter
          end
       end
    end
-   tokeep = setdiff( 1:3*nnodes3 , offset+tormv );
+   tokeep = setdiff( 1:offset+3*nnodes3 , offset+tormv );
    
    Lhs = [LhsA,kB*LhsB,Ruc]; sA = size(Lhs,2);
    
@@ -895,27 +903,117 @@ for iter = 1:niter
    Z23    = zeros(size(Mfm,1),size(nodeMass3,2));
    Mtot   = [ Mum, Z12, Z13  ; Z12', Mfm, Z23 ; Z13', Z23', nodeMass3 ]; % Weighted mass
    
+   %% And the derivative operator
+   D3 = zeros(9*nboun3,3*nnodes3);
+   for i=1:nboun3
+      no1 = boundary3(i,2); no2 = boundary3(i,3); no3 = boundary3(i,4);
+      x1 = nodes3(no1,1); y1 = nodes3(no1,2); z1 = nodes3(no1,3);
+      x2 = nodes3(no2,1); y2 = nodes3(no2,2); z2 = nodes3(no2,3);
+      x3 = nodes3(no3,1); y3 = nodes3(no3,2); z3 = nodes3(no3,3);
+   
+      n = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
+            (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Normal to the triangle
+            (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
+      S = .5*norm(n); n = n/norm(n);
+      t = [ x1-x3 ; y1-y3 ; z1-z3 ];   % Tangent vector
+      t = t/norm(t);
+      v = [ n(2)*t(3)-t(2)*n(3) ; t(1)*n(3)-n(1)*t(3) ; n(1)*t(2)-t(1)*n(2) ];
+      v = v/norm(v);
+      P = [t,v,n];
+      
+      % Pass the nodes onto the xy plane
+      xyz1 = P'*[x1;y1;z1]; xyz2 = P'*[x2;y2;z2]; xyz3 = P'*[x3;y3;z3];
+      x1 = xyz1(1); y1 = xyz1(2); z1 = xyz1(3);
+      x2 = xyz2(1); y2 = xyz2(2); z2 = xyz2(3);
+      x3 = xyz3(1); y3 = xyz3(2); z3 = xyz3(3);
+         
+      Be = 1/(2*S)*[ x3-x2, 0, 0, x1-x3, 0, 0, x2-x1, 0, 0 ;...
+                     y2-y3, 0, 0, y3-y1, 0, 0, y1-y2, 0, 0 ;...
+                     0, x3-x2, 0, 0, x1-x3, 0, 0, x2-x1, 0 ;...
+                     0, y2-y3, 0, 0, y3-y1, 0, 0, y1-y2, 0 ;...
+                     0, 0, x3-x2, 0, 0, x1-x3, 0, 0, x2-x1 ;...
+                     0, 0, y2-y3, 0, 0, y3-y1, 0, 0, y1-y2 ];
+   
+      indelem = [ 6*i-5, 6*i-4, 6*i-3, 6*i-2, 6*i-1, 6*i ];
+      coefU   = [ 3*boundary3(i,2)-2, 3*boundary3(i,2)-1, 3*boundary3(i,2),...
+                  3*boundary3(i,3)-2, 3*boundary3(i,3)-1, 3*boundary3(i,3),...
+                  3*boundary3(i,4)-2, 3*boundary3(i,4)-1, 3*boundary3(i,4) ];
+                     
+      D3( indelem, coefU ) = Be*sqrt(S);
+   end
+   
    if regular == 1
-      Lu = Du'*Du; Lu = Lu/norm(Lu,'fro');
-      L = [ Lu, zeros( size(Lu,1) , size(Df,2) ) ;...
-            zeros( size(Df,1) , size(Lu,2) ) , Df ];
-      L0 = L;
+%      Lu = Du'*Du; Lu = Lu/norm(Lu,'fro');
+%      L = [ Lu, zeros( size(Lu,1) , size(Df,2) ) ;...
+%            zeros( size(Df,1) , size(Lu,2) ) , Df ];
+%      L0 = L;
+      Duu = Du'*Du; Dfu = Df'*Df; D3u = D3'*D3;
+      Z12 = zeros( size(Duu,1) , size(Dfu,1) ); Z13 = zeros( size(Duu,1), size(D3u,1) );
+      Z23 = zeros( size(Dfu,1), size(D3u,1) );
+      Dtot = [ Duu ,Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3u ];
+      L = Dtot;
+%
+%      L12 = [ Du(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
+%      L2 = Du(knownD,knownD);
+%      L121 = L12*u_known1(knownD); L21 = u_known1(knownD)'*Du(knownD,knownD)*u_known1(knownD);
+%      L122 = L12*u_known2(knownD); L22 = u_known2(knownD)'*Du(knownD,knownD)*u_known2(knownD);
+%      L123 = L12*u_known3(knownD); L23 = u_known3(knownD)'*Du(knownD,knownD)*u_known3(knownD);
+%      L124 = L12*u_known4(knownD); L24 = u_known4(knownD)'*Du(knownD,knownD)*u_known4(knownD);
+      
    else
       L = Mtot;
    end
 
+   sL = L^(1/2);
+
    Solu1 = zeros(sA,13);
    MAT = Lhs'*Lhs + mur*L;
    VEC = Lhs'*Rhs1;
+
+   % TODO : Impose the inequation U3 > 0   
    
    if zerobound == 1
       Solu1(tokeep,:) = MAT(tokeep,tokeep)\VEC(tokeep,:);
    else
       Solu1 = MAT\VEC;
    end
+   
+   % Compute the cost function
+   for i=1:13
+      nori(iter,i) = Solu1(:,i)'*Lhs'*Lhs*Solu1(:,i) - 2*Solu1(:,i)'*Lhs'*Rhs1(:,i) +...
+                     Rhs1(:,i)'*Rhs1(:,i) + mur*Solu1(:,i)'*L*Solu1(:,i);
+      phi(iter)    = phi(iter) + nori(iter,i);
+   end
+   
+   if phi(iter) == min(phi(1:iter)) % Continue from this one
+      thetap = theta;
+      nodes3p = nodes3; Solu1p = Solu1;
+      extnorm3p = extnorm3; boundary3p = boundary3;
+   end
+   
+   % Build the basis orthogonal to thetap (Gramm-Schmidt)
+   theta1 = [1;0;0;0];
+   theta1 = theta1 - (thetap'*theta1)*thetap; theta1 = theta1/norm(theta1);
+   theta2 = [0;1;0;0];
+   theta2 = theta2 - (thetap'*theta2)*thetap;
+   theta2 = theta2 - (theta1'*theta2)*theta1; theta2 = theta2/norm(theta2);
+   theta3 = [0;0;1;0];
+   theta3 = theta3 - (thetap'*theta3)*thetap;
+   theta3 = theta3 - (theta1'*theta3)*theta1;
+   theta3 = theta3 - (theta2'*theta3)*theta2; theta3 = theta3/norm(theta3);
+   Q = [theta1,theta2,theta3];
+   
+   % Actualize on 3 dofs (orthogonal to thetap)
+   theta = thetap + 2*step*Q*(rand(3,1)-.5*ones(3,1));
+   
+   % Normalize and record
+   theta    = theta/norm(theta);
+   thetarec = [thetarec,theta];
 end
 
 disp([ 'Markov algorithm terminated ', num2str(toc) ]);
+
+Solu1 = Solu1p;
 
 % Post-process : reconstruct u and f from Solu
 fsolu1 = zeros(3*nboun2,13); usolu1 = zeros(3*nnodeboun,13);
@@ -932,15 +1030,15 @@ for i=1:nnodeboun
    Uref(ind1,:) = u_refer(ind2,:); Fref(ind1,:) = f_refeN(ind2,:);
 end
 
-ucrsol1 = Solu1(end-3*nnodes3+1:end,:);
+ucrsol1 = Solu1(end-3*size(nodes3p,1)+1:end,:); nnodes3o = size(nodes3p,1);
 
 % Visulaize the gap in the crack's plane
-eno = extnorm3(1,:); % All the normals are the same
+eno = extnorm3p(1,:); % All the normals are the same
 UsN = ucrsol1(1:3:end-2,:)*eno(1) + ucrsol1(2:3:end-1,:)*eno(2) + ucrsol1(3:3:end,:)*eno(3);
 try
 figure;
-patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UsN(:,11),'FaceColor','interp');
-colorbar(); set(colorbar, 'fontsize', 20);
+patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',UsN(:,11),'FaceColor','interp');
+colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
 end
 
 %%%% And recover the reference
@@ -1038,6 +1136,7 @@ fclose(fmid);
 % Use GMSH to mesh the surface
 [stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
 [ nodes3,elements3,ntoelem3,boundary3,order3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
+nnodes3 = size(nodes3,1);
 
 % First, make a slight contraction to make sure nothing is outside
 xm = mean(nodes3(:,1)); ym = mean(nodes3(:,2)); zm = mean(nodes3(:,3));
@@ -1054,57 +1153,33 @@ U_diff = U_up-U_do;
 
 UrN = U_diff(1:3:end-2,:)*normal3(1) + U_diff(2:3:end-1,:)*normal3(2) + U_diff(3:3:end,:)*normal3(3);
 try
+%hold on;
 figure;
 patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrN(:,11),'FaceColor','interp');
-colorbar(); set(colorbar, 'fontsize', 20);
+colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
 end
 
-%for i=1:13
-%   try
-%   figure;
-%   patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrN(:,i),'FaceColor','interp');
-%   colorbar(); set(colorbar, 'fontsize', 20);
-%   end
-%end
+% Compare both planes
+try
+figure;
+hold on;
+patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',ones(size(nodes3p,1),1),'FaceColor','interp');
+patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',zeros(size(nodes3p,1),1),'FaceColor','interp');
+colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+end
 
-%% Add known
-%FsolT = Fsol; %/!\ this is true because we do know that F=0 on the other points
-%UsolT = Usol; UsolT(knownD) = Uref(knownD);
-%Ferro = (FsolT-Fref)/max(abs(Fref)); Ferro = sqrt( Ferro(1:3:end-2).^2 + Ferro(2:3:end-1).^2 + Ferro(3:3:end).^2 );
-%Uerro = (UsolT-Uref)/max(abs(Uref)); Uerro = sqrt( Uerro(1:3:end-2).^2 + Uerro(2:3:end-1).^2 + Uerro(3:3:end).^2 );
-%plotGMSH3D({UsolT,'U_sol';FsolT,'F_sol';Uref,'U_ref';Fref,'F_ref';...
-%            Ferro,'error_f';Uerro,'error_u'}, elements2, nodes2, 'output/solution');
-%%
-%erroru = norm(UsolT-Uref) / norm(Uref);
-%errorf = norm(FsolT-Fref) / norm(Fref);
-
-%% Plot on a line
-%nstep = 100;
-%xmax = max(nodes2(:,1)); xmin = min(nodes2(:,1)); 
-%ymax = max(nodes2(:,2)); ymin = min(nodes2(:,2)); 
-%step = (ymax-ymin)/nstep;
-%X = .5; Y = ymin:step:ymax; Z = .29999;%.0001;%.29999;
-%nodesplo = [X*ones(nstep+1,1),Y',Z*ones(nstep+1,1)];
-%U1 = passMesh3D( nodes2, elements2, nodesplo, [], [UsolT,Uref] );
-%up = U1(:,1); upref = U1(:,2);
-
-%try
-%figure;
-%hold on;
-%set(gca, 'fontsize', 20);
-%plot(Y,up(3:3:end),'Color','red','LineWidth',3);
-%plot(Y,upref(3:3:end),'Color','blue','LineWidth',3);
-%legend('identified','reference');
-%end
-
-%%boun21i = find( boundary2(:,1) == 1 );
-%boun21i = find( boundary2(:,1) == 2 );
-%boun22 = boundary2( boun21i, 2:end );
-
-%figure;
-%patch('Faces',boun22,'Vertices',nodes2(:,1:2),'FaceVertexCData',UsolT(3:3:end),'FaceColor','interp');
-%colorbar(); set(colorbar, 'fontsize', 20);
-
-%figure;
-%patch('Faces',boun22,'Vertices',nodes2(:,1:2),'FaceVertexCData',Uref(3:3:end),'FaceColor','interp');
-%colorbar(); set(colorbar, 'fontsize', 20);
+%% Plot the evolution of the parameters
+try
+figure;
+hold on;
+plot(thetarec(1,:),'Color','red');
+plot(thetarec(2,:),'Color','blue');
+plot(thetarec(3,:),'Color','green');
+plot(thetarec(4,:),'Color','magenta');
+plot(abcd(1)*ones(niter,1),'Color','red');
+plot(abcd(2)*ones(niter,1),'Color','blue');
+plot(abcd(3)*ones(niter,1),'Color','green');
+plot(abcd(4)*ones(niter,1),'Color','magenta');
+%plot( [thisone,thisone], [0,2], 'Color', 'black' );
+legend('a', 'b','c', 'd');
+end

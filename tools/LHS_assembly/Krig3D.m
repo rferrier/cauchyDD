@@ -35,8 +35,11 @@ function [K,C,ntot,node2c,c2node] = Krig3D (nodes, elem, mat, order,...
     error('The required material behaviour is not implemented')
  end
  
- Kin = sparse(3*size(nodes,1), 3*size(nodes,1)); % 'cause I love when things go fast
-
+% Kin = sparse(3*size(nodes,1), 3*size(nodes,1)); % 'cause I love when things go fast
+ ndof = 3*size(nodes(elem(1,:),:),1); % /!\ Assume that all the elements have the same ndof
+ indI = zeros( 1, size(elem,1)*ndof^2 ); 
+ indJ = zeros( 1, size(elem,1)*ndof^2 );
+ Koef = zeros( 1, size(elem,1)*ndof^2 );
  for i=1:size(elem,1)
      Xloc1 = nodes(elem(i,:),:);    % Extract and adapt coords
      nnodes = size(Xloc1,1);
@@ -51,9 +54,16 @@ function [K,C,ntot,node2c,c2node] = Krig3D (nodes, elem, mat, order,...
      Ke = stifmat3D(Xloc,order,Sm1,0);
 
      % Build K
-     Kin(map,map) = Kin(map,map) + Ke;
+     map1 = map'*ones(1,size(map,2)); map1 = map1(:);
+     map2 = ones(size(map,2),1)*map;  map2 = map2(:);
+%     Kin(map,map) = Kin(map,map) + Ke;
+     indI( (i-1)*ndof^2 + (1:ndof^2) ) = map1;
+     indJ( (i-1)*ndof^2 + (1:ndof^2) ) = map2;
+     Koef( (i-1)*ndof^2 + (1:ndof^2) ) = Ke(:);
  end
 
+ Kin = sparse( indI, indJ, Koef, 3*size(nodes,1), 3*size(nodes,1) );
+ 
 %  % Boundary conditions with Lagrange multiplicators
 %  d_lines = [];
 %  for i = 1:size(bc,1)

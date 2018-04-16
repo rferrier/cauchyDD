@@ -53,9 +53,25 @@ function K = stifmat3D (Xloc,order,A,format)
     Be = Onmat*[Al, zeros(3,8)
                 zeros(3,4), Al, zeros(3,4)
                 zeros(3,8), Al] * Permu;
+                
+    % This one is 10/20% slower
+%    Xloc1 = [Xloc(1:3:10) , Xloc(2:3:11) , Xloc(3:3:12)];
+%
+%    DN=[-1 1 0 0 ; -1 0 1 0 ; -1 0 0 1 ]'; % derivative of shape functions
+%    J=Xloc1'*DN;                               % jacobian matrix
+%    detJ=det(J);                               % jacobian
+%    invJ=inv(J);                               % inverse of jacobian matrix
+%
+%    GN=DN*invJ;                                % gradient of shape functions
+%    Be=[GN(1,1) 0 0 GN(2,1) 0 0 GN(3,1) 0 0 GN(4,1) 0 0 ;
+%        0 GN(1,2) 0 0 GN(2,2) 0 0 GN(3,2) 0 0 GN(4,2) 0 ;
+%        0 0 GN(1,3) 0 0 GN(2,3) 0 0 GN(3,3) 0 0 GN(4,3) ;
+%        GN(1,2) GN(1,1) 0 GN(2,2) GN(2,1) 0 GN(3,2) GN(3,1) 0 GN(4,2) GN(4,1) 0 ;
+%        GN(1,3) 0 GN(1,1) GN(2,3) 0 GN(2,1) GN(3,3) 0 GN(3,1) GN(4,3) 0 GN(4,1) ;
+%        0 GN(1,3) GN(1,2) 0 GN(2,3) GN(2,2) 0 GN(3,3) GN(3,2) 0 GN(4,3) GN(4,2) ] ;
 
     if format == 0
-        K=abs(V)*Be'*A*Be;
+        K=abs(V)*Be'*A*Be;%Be'*A*Be*detJ/6;%1/6 is the Gauss weight
     elseif format == 1
         K=A*Be;
     else
