@@ -642,7 +642,7 @@ f_known3(tofindN) = 0; f_known4(tofindN) = 0;
 u_known1(tofindD) = 0; u_known2(tofindD) = 0;
 u_known3(tofindD) = 0; u_known4(tofindD) = 0;
 
-ndofs = size(f_known1(tofindN),1) + size(u_known1(tofindD),1) + 42;
+ndofs = size(f_known1(tofindN),1) + size(u_known1(tofindD),1) + 2*(ndofcrack+1);
 
 %% Restrict the operators
 Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
