@@ -22,10 +22,10 @@ mat = [0, E, nu];
 regmu   = 0;      % Regularization parameter;
 pm4     = 4;      % Sign change hack
 
-br      = .02;
+br      = .0;
 
 nbase     = 1;  % Number of Fourier basis functions
-ordp      = 0;
+ordp      = 15;
 
 ordpD     = 0;  % Order of the differential H1 post-regularization whatsoever.
 loadfield = 2;  % If 0 : recompute the reference problem and re-pass mesh
@@ -49,8 +49,8 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 % uncracked_mesh = 'meshes/rg3dm/platem10.msh';
 %  cracked_mesh = 'meshes/rg3dm/platem_cu.msh';
 %  uncracked_mesh = 'meshes/rg3dm/platemu.msh';
- cracked_mesh = 'meshes/rg3dm/platem_c.msh';
- uncracked_mesh = 'meshes/rg3dm/platem.msh';
+%  cracked_mesh = 'meshes/rg3dm/platem_c.msh';
+%  uncracked_mesh = 'meshes/rg3dm/platem.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/plates.msh';
 %  cracked_mesh = 'meshes/rg3ds/plates2_c.msh';
@@ -69,8 +69,8 @@ Norm       = 0; % 0 means no derivative stuff (and not zero norm)
 %  uncracked_mesh = 'meshes/rg3ds/platenoplane6.msh';
 %  cracked_mesh = 'meshes/rg3ds/platenoplanel6_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds/platenoplanel6.msh';
-%  cracked_mesh = 'meshes/rg3ds/platenoplanel26_c.msh';
-%  uncracked_mesh = 'meshes/rg3ds/platenoplanel26.msh';
+ cracked_mesh = 'meshes/rg3ds/platenoplanel26_c.msh';
+ uncracked_mesh = 'meshes/rg3ds/platenoplanel26.msh';
 
 %  cracked_mesh = 'meshes/rg3ds2/plates2_c.msh';
 %  uncracked_mesh = 'meshes/rg3ds2/plates2.msh';
@@ -166,13 +166,13 @@ indexbound2 = [3*b2node12-2 ; 3*b2node12-1 ; 3*b2node12 ;...
 % Add the noise
 if loadfield ~= 1 && loadfield ~= 4
     u1n = u1; u2n = u2;
-%       br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
+       br1 = randn(3*nnodes,1); br2 = randn(3*nnodes,1);
 %     noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de10s.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de6smi.mat'); br1 = noise.br1; br2 = noise.br2;
 %      noise = load('noises/rg3de6los.mat'); br1 = noise.br1; br2 = noise.br2;
 %      noise = load('noises/rg3de6rect.mat'); br1 = noise.br1; br2 = noise.br2;
-    noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
+ %   noise = load('noises/rg3de2.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de6s.mat'); br1 = noise.br1; br2 = noise.br2;
 %     noise = load('noises/rg3de2s.mat'); br1 = noise.br1; br2 = noise.br2;
     u1 = ( 1 + br*br1 ) .* u1; u2 = ( 1 + br*br2 ) .* u2;
@@ -484,10 +484,10 @@ Q = [ t , v , normal ];
 % if Q(3,1)<0, Q = Q'; end
 alpharef = pi/15; sref = sin(alpharef); cref = cos(alpharef);
 % Qref = [ cref, 0, -sign(Q(3,1))*sref ; 0, 1, 0 ; sign(Q(3,1))*sref, 0, cref ];
-Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
+%Qref = [ -cref, 0, sref ; 0, 1, 0 ; -sref, 0, -cref ];
 %Qref = [ -sref, 0, cref ; 0, 1, 0 ; -cref, 0, -sref ];
 %Qref = [ cref, 0, -sref ; 0, 1, 0 ; sref, 0, cref ];
-%Qref = Q;
+Qref = Q;
 % Q = Qref;
 %% Then the constant
 
@@ -643,8 +643,7 @@ Pt = centCrack; QPt = Qref'*Pt; CteR = -QPt(3);
 b = max(nodes2(:,2)) - min(nodes2(:,2)) ;
 bt = max(nodes2(:,1)) - min(nodes2(:,1));
 % a = t(3)/t(1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
-a = Qref(3,1)/Qref(3,1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
-
+a = Qref(3,1)/Qref(1,1)*bt; Lx = sqrt(a^2+bt^2); Ly = b;
 % Compute the distance between the plane and the given point
 zzz = Q'*centCrack; distance = zzz(3)+Cte;
 
@@ -853,8 +852,9 @@ if usefourier == 1
 %   plotGMSH({ Xs,'x' ; Ys,'y' ; Zs,'z' ; real(vp),'U_vect'}, elements2, nodes2, 'test field');
    
    % plot the identified normal gap
-   nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   offset = Qref(1,3)/Qref(1,1)*CteR; maxoff = offset + Lx;
+   nxs = (maxoff-offset)/100; nys = (max(Ys)-min(Ys))/100;
+   X = offset:nxs:maxoff; Y = min(Ys):nys:max(Ys); 
    solu = 0;
    for kpx=1:nbase+1
       for kpy=1:nbase+1
@@ -1725,8 +1725,9 @@ if usepolys == 1
    
    Xs = Xs*Lx; Ys = Ys*Lx; % use the standard basis (reverse homotetical dilatation)
    % plot the identified normal gap
-   nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   offset = Qref(1,3)/Qref(1,1)*CteR; maxoff = offset + Lx;
+   nxs = (maxoff-offset)/100; nys = (max(Ys)-min(Ys))/100;
+   X = offset:nxs:maxoff; Y = min(Ys):nys:max(Ys); 
    solup = zeros(101,101);
    for k=0:ordp
       for l=0:ordp

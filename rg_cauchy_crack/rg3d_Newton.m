@@ -21,7 +21,7 @@ ordertest  = 20;     % Order of test fonctions
 niter      = 20;      % Nb of iterations in the Newton algorithm
 init       = [0;0;-1;.5];%[0;0;0;0];%%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
-step       = 1e-2;   % Step for the finite differences
+step       = 0;%1e-2;   % Step for the finite differences 0 means auto-aaptation
 nuzawa     = 100;    % Nb of Uzawa iterations
 
 % Boundary conditions
@@ -84,6 +84,18 @@ neumann{13} = [ 2,1,-fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
@@ -120,6 +132,8 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
+%[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_noplane.msh' );
+%[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_smile.msh' );
 nnodes = size(nodes,1);
 [K,C,nbloq] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
 Kinter = K(1:3*nnodes, 1:3*nnodes);
@@ -625,6 +639,12 @@ theta = init; thetap = theta; thetarec = theta;
 phi   = zeros(niter,1);
 nori  = zeros(niter,13);
 
+if step == 0
+   stepstep = .1;
+else
+   stepstep = step;
+end
+
 %% Newton algorithm
 for iter = 1:niter
 
@@ -642,16 +662,20 @@ for iter = 1:niter
    
    pbmax = 3; % 3 directions
    
+   if step == 0 && iter > 1 % Adapt the step
+      stepstep = norm(dtheta)/10;
+   end
+   
    for pb = 0:pbmax
 
       if pb == 0
          thetac = theta;
       elseif pb == 1
-         thetac = theta + step*theta1;
+         thetac = theta + stepstep*theta1;
       elseif pb == 2
-         thetac = theta + step*theta2;
+         thetac = theta + stepstep*theta2;
       else
-         thetac = theta + step*theta3;
+         thetac = theta + stepstep*theta3;
       end
    
       %% Build the intersection of the plane with the domain
@@ -1019,8 +1043,8 @@ for iter = 1:niter
    
       %% Impose the inequation U3.n > 0
       C = zeros(nnodes3, 3*nnodes3);
-      C(1,2*1-1) = extnorm3(1,1); C(1,2*1) = extnorm3(1,2);
-      C(nnodes3,2*nnodes3-1) = extnorm3(end,1); C(nnodes3,2*nnodes3) = extnorm3(end,2);
+%      C(1,2*1-1) = extnorm3(1,1); C(1,2*1) = extnorm3(1,2);
+%      C(nnodes3,2*nnodes3-1) = extnorm3(end,1); C(nnodes3,2*nnodes3) = extnorm3(end,2);
       for i=1:nboun3 %ux*nx + uy*ny + uz*nz > 0
          no1 = boundary3(i,2); no2 = boundary3(i,3); no3 = boundary3(i,4);
          C(no1,3*no1-2) = C(no1,3*no1-2) + extnorm3(i,1);%ux*nx for i=1,2,3
@@ -1091,22 +1115,22 @@ for iter = 1:niter
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
          topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
          sLx1 = [ sLx1 ; topass ];
-         Dd1  = (Ax1(:)-Ax(:))/step;
-         DL1  = (sLx1(:)-sLx(:))/step;
+         Dd1  = (Ax1(:)-Ax(:))/stepstep;
+         DL1  = (sLx1(:)-sLx(:))/stepstep;
       elseif pb == 2
          Ax2  = Lhs*Solu1;
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
          topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
          sLx2 = [ sLx2 ; topass ];
-         Dd2  = (Ax2(:)-Ax(:))/step;
-         DL2  = (sLx2(:)-sLx(:))/step;
+         Dd2  = (Ax2(:)-Ax(:))/stepstep;
+         DL2  = (sLx2(:)-sLx(:))/stepstep;
       else
          Ax3  = Lhs*Solu1;
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
          topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
          sLx3 = [ sLx3 ; topass ];
-         Dd3  = (Ax3(:)-Ax(:))/step;
-         DL3  = (sLx3(:)-sLx(:))/step;
+         Dd3  = (Ax3(:)-Ax(:))/stepstep;
+         DL3  = (sLx3(:)-sLx(:))/stepstep;
       end
       
    end
