@@ -65,8 +65,8 @@ function [ nodes,elements,ntoelem,boundary,order ] =...
  if numel( varargin ) > 0
      name = cell2mat( varargin(1) );
      
-     fmid = fopen(name,'w');
-     fprintf(fmid,'%s\n%s\n%s\n','$MeshFormat','2.2 0 8','$EndMeshFormat');
+    fmid = fopen(name,'w');
+    fprintf(fmid,'%s\n%s\n%s\n','$MeshFormat','2.2 0 8','$EndMeshFormat');
      
     % Nodes
     fprintf(fmid,'%s\n','$Nodes');

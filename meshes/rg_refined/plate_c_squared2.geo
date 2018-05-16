@@ -4,7 +4,7 @@ H   = 1;  //  height of plate
 L   = 1;  //  width of plate
 eps = L/30; // refined boundary
 
-// Coords of the tops of the crack
+// Coords of the tips of the crack
 x5 = L/4;   y5 = H/3;
 x6 = L/2;   y6 = H/2;
 

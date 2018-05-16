@@ -97,13 +97,13 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
        error('The required material behaviour is not implemented')
     end
  end
- 
+
 % Kin  = sparse(2*size(nodes,1), 2*size(nodes,1)); % 'cause I love when things go fast
  ndof = 2*size(nodes(elem(1,:),:),1); % /!\ Assume that all the elements have the same ndof
  indI = zeros( 1, size(elem,1)*ndof^2 ); 
  indJ = zeros( 1, size(elem,1)*ndof^2 );
  Koef = zeros( 1, size(elem,1)*ndof^2 );
-  
+
  for i=1:size(elem,1)
      Xloc1 = nodes(elem(i,:),:);    % Extract and adapt coords
      nnodes = size(Xloc1,1);
@@ -132,9 +132,9 @@ function [K,C,ntot,node2c,c2node] = Krig2 (nodes, elem, mat, order,...
      indJ( (i-1)*ndof^2 + (1:ndof^2) ) = map2;
      Koef( (i-1)*ndof^2 + (1:ndof^2) ) = Ke(:);
  end
- 
+
  Kin = sparse( indI, indJ, Koef, 2*size(nodes,1), 2*size(nodes,1) );
- 
+
 %  % Boundary conditions with Lagrange multiplicators
 %  d_lines = [];
 %  for i = 1:size(bc,1)

@@ -5,8 +5,8 @@ clear all;
 close all;
  
 Norm       = 1;
-ordpD      = 15;
-ordp       = 15;
+ordpD      = 6;
+ordp       = 6;
 sideL      = 20; % Nb of points on the domain (for integral approximation)
 pm4        = -4; % Position of the 1d line
 upper_term = 0; % If 0 : keep only terms st i+j<ordp
@@ -19,12 +19,12 @@ threshold  = .1;  % Threshold for the crack
 %VAR = load('fields/AnBlosange615.mat');
 %VAR = load('fields/AnBm15b10.mat');
 %VAR = load('fields/AnBs1013.mat');
-VAR = load('fields/AnBm15.mat');
+%VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBm415.mat');
 %VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs15b1.mat');
 %VAR = load('fields/AnBs215b1.mat');
-%VAR = load('fields/AnBnoplane2615.mat');
+VAR = load('fields/AnBnoplane2615.mat');
 
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
@@ -70,8 +70,11 @@ else
    tokeepD = 1:(ordpD+1)^2;
 end
 
-nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+beginning = min(Xs); ending = max(Xs);
+%beginning = -1.0375; ending = 6.5547;
+
+nxs = (ending-beginning)/100; nys = (max(Ys)-min(Ys))/100;
+X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys); 
 % The reference
 figure;
 hold on;
@@ -240,7 +243,7 @@ if Norm == 2
    McCoefD0 = PassD*McCoefD;
 
    % Add it to solup
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys); 
    solupp = solup'; % Because of the transpose
 %   for k=0:ordpD
 %      for l=0:ordpD
@@ -269,6 +272,7 @@ if Norm == 2
    %caxis( [-0.011621, 0.016879] );
    %caxis( [-8.9798e-04, 0.0035356 ]);
    %caxis( [-0.0031520, 0.0044433 ]);
+   %caxis( [-0.0028362, 0.0044425 ])
    colorbar('SouthOutside');
    
    error = norm( solupp(:)-uplo1(:) ) / norm(uplo1(:));
@@ -322,8 +326,8 @@ if Norm == 2
 
 elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
    % First task : build the matrix giving the derivatives from the coefficients
-   nxs = (max(Xs)-min(Xs))/sideL; nys = (max(Ys)-min(Ys))/sideL;
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   nxs = (ending-beginning)/sideL; nys = (max(Ys)-min(Ys))/sideL;
+   X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys);
     
    Ax0 = zeros((sideL+1)^2,(ordpD+1)^2); Ay0 = zeros((sideL+1)^2,(ordpD+1)^2);
    for k=1:ordpD
@@ -636,8 +640,8 @@ elseif Norm == 1 % L1 norm of the gradient (new beautyful stuff)
 %   val0 = C*[McCoef0;Xx0;Yy0];
    
    % Add it to solup
-   nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-   X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+   nxs = (ending-beginning)/100;  nys = (max(Ys)-min(Ys))/100;
+   X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys); 
    solupp = solup'; % Because of the transpose
    for k=0:ordpD
       for l=0:ordpD

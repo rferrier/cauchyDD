@@ -5,11 +5,11 @@ clear all;
 close all;
 
 sideL      = 10; % Nb of points on the domain (for integral approximation)
-pm4        = -4; % Position of the 1d line
-mu         = 1e-3;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
-%mu         = 1e-1;
-ordp       = 12;
-normU      = 1;   % Use L1 or L2 minimization
+pm4        = 4; % Position of the 1d line
+%mu         = 1e-3;%1e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
+mu         = 1e-1;
+ordp       = 6;
+normU      = 2;   % Use L1 or L2 minimization
 upper_term = 0;
 klatin     = 0;%1e2; % Latin Research direction (0 means norm(GAG,'fro')/10)
 nlatin     = 500;
@@ -17,11 +17,11 @@ omega      = .5; % Relaxation parameter
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
 threshold  = .1;  % Threshold for the crack
 
-VAR = load('fields/AnBm15b2.mat');
+%VAR = load('fields/AnBm15b2.mat');
 %VAR = load('fields/AnBm15.mat');
 %VAR = load('fields/AnBs15.mat');
 %VAR = load('fields/AnBs15b1.mat');
-%VAR = load('fields/AnBnoplane2615.mat');
+VAR = load('fields/AnBnoplane2615.mat');
 Lhso = VAR.Lhs; Rhso = VAR.Rhs; Xs = VAR.Xs; Ys = VAR.Ys; ordpo = VAR.ordp;
 X0 = VAR.X0; Y0 = VAR.Y0; Lx = VAR.Lx; Ly = VAR.Ly;
 L1x = VAR.L1x; L2x = VAR.L2x; L1y = VAR.L1y; L2y = VAR.L2y;
@@ -58,8 +58,10 @@ else
    tokeep = 1:size(Rhs,1);
 end
 
-nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+beginning = min(Xs); ending = max(Xs);
+%beginning = -1.0375; ending = 6.5547;
+nxs = (ending-beginning)/100; nys = (max(Ys)-min(Ys))/100;
+X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys);
 % The reference
 figure;
 hold on;
@@ -75,8 +77,8 @@ colorbar('SouthOutside');
 tic
 
 % First task : build the matrix giving the derivatives from the coefficients
-nxs = (max(Xs)-min(Xs))/sideL; nys = (max(Ys)-min(Ys))/sideL;
-X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+nxs = (ending-beginning)/sideL; nys = (max(Ys)-min(Ys))/sideL;
+X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys);
 Ax = zeros((sideL+1)^2,(ordp+1)^2); Ay = zeros((sideL+1)^2,(ordp+1)^2); % Derivative
 Bxy = zeros((sideL+1)^2,(ordp+1)^2); % Value
 
@@ -229,8 +231,8 @@ nor = .5*McCoef'*Lhs*McCoef + McCoef'*Rhs;
 reg = mu*( Isum'*abs(Ax*McCoef) + Isum'*abs(Ay*McCoef) );
 
 % Plot the old stuff
-nxs = (max(Xs)-min(Xs))/100; nys = (max(Ys)-min(Ys))/100;
-X = min(Xs):nxs:max(Xs); Y = min(Ys):nys:max(Ys); 
+nxs = (ending-beginning)/100; nys = (max(Ys)-min(Ys))/100;
+X = beginning:nxs:ending; Y = min(Ys):nys:max(Ys);
 solup = zeros(101,101);
 solu0 = zeros(101,101);
 for k=0:ordp
@@ -254,7 +256,7 @@ colorbar('SouthOutside');
 
 figure;
 hold on;
-surf(X,Y,solup(:,end:-1:1));
+surf(X,Y,solup);%(:,end:-1:1)); % /!\ May be necessary to revert that axis
 shading interp;
 colorbar();
 axis('equal');

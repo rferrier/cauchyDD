@@ -12,22 +12,23 @@ E           = 210000; % MPa : Young modulus
 nu          = 0.3;    % Poisson ratio
 fscalar     = 250;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
-br          = .05;      % Noise level
+br          = .0;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
 recompute   = 0;      % Recompute the operators
-theta1      = pi;     %3.7296;%pi;%pi/2;
-theta2      = 0;      %0.58800;%0%3*pi/2; % Initial angles of the crack
-anglestep   = pi/1000;  % Step in angle for Finite Differences
-gaussian    = 0;      % Probability density for the Markov chain
-nbstep      = 10;     % Nb of Newton Iterations
+theta1      = pi;     %3.7296;%pi;%pi/2; 3.7083;%
+theta2      = 0;      %0.58800;%0%3*pi/2; 5.5975;% % Initial angles of the crack
+anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
+kauto       = 10;     % Coefficient for the auto-adaptation
+nbstep      = 20;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
-nuzawa      = 1e2;     % (nuzawa = 1 means no Uzawa)
+nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 ndofcrack   = 20;      % Nb of elements on the crack
+teskase     = 4;       % Choice of the test case
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
@@ -44,16 +45,10 @@ neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
 neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
               1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
 
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0 = [];
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
-%neumann0   = [ 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 4,1,0 ; 4,2,0];
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
@@ -68,7 +63,13 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
+if teskase == 3
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared3.msh' );
+elseif teskase == 4
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared4.msh' );
+elseif teskase == 2
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
+end
 nnodes = size(nodes,1);
 
 % mapBounds
@@ -115,53 +116,23 @@ x2 = nodes(6,1); y2 = nodes(6,2);
 xmin = min(nodes(:,1)); xmax = max(nodes(:,1));
 ymin = min(nodes(:,2)); ymax = max(nodes(:,2));
 xb = .5*(xmin+xmax); yb = .5*(ymin+ymax);
-ma11 = [ 0, -(xb-x1) ; ymin-ymax, -(yb-y1) ]; bh11 = [ x1-xmax ; y1-ymax];
-ma12 = [ 0, -(xb-x2) ; ymin-ymax, -(yb-y2) ]; bh12 = [ x2-xmax ; y2-ymax];
-ma21 = [ xmax-xmin, -(xb-x1) ; 0, -(yb-y1) ]; bh21 = [ x1-xmin ; y1-ymax];
-ma22 = [ xmax-xmin, -(xb-x2) ; 0, -(yb-y2) ]; bh22 = [ x2-xmin ; y2-ymax];
-ma31 = [ 0, -(xb-x1) ; ymax-ymin, -(yb-y1) ]; bh31 = [ x1-xmin ; y1-ymin];
-ma32 = [ 0, -(xb-x2) ; ymax-ymin, -(yb-y2) ]; bh32 = [ x2-xmin ; y2-ymin];
-ma41 = [ xmin-xmax, -(xb-x1) ; 0, -(yb-y1) ]; bh41 = [ x1-xmax ; y1-ymin];
-ma42 = [ xmin-xmax, -(xb-x2) ; 0, -(yb-y2) ]; bh42 = [ x2-xmax ; y2-ymin];
 
-tr1s = zeros(2,4); % All the intersections
-tr2s = zeros(2,4);
-ran1 = [ rank(ma11) , rank(ma21) , rank(ma31) , rank(ma41) ]; % Ranks
-ran2 = [ rank(ma12) , rank(ma22) , rank(ma32) , rank(ma42) ]; %
-
-% Warning free implementation
-if ran1(1) == 2, tr1s(:,1) = ma11\bh11; end
-if ran1(2) == 2, tr1s(:,2) = ma21\bh21; end
-if ran1(3) == 2, tr1s(:,3) = ma31\bh31; end
-if ran1(4) == 2, tr1s(:,4) = ma41\bh41; end
-
-if ran2(1) == 2, tr2s(:,1) = ma12\bh12; end
-if ran2(2) == 2, tr2s(:,2) = ma22\bh22; end
-if ran2(3) == 2, tr2s(:,3) = ma32\bh32; end
-if ran2(4) == 2, tr2s(:,4) = ma42\bh42; end
-
-if max(ran1) < 2 % It's the center !
-   xy1 = [ xb ; yb ]; xy1r = xy1;% TODO : something to get theta1ref = -theta2ref;
-else
-   tr1s = tr1s( :, find(tr1s(2,:)>1) ); % Abscissa must be > 1
-   [~,num] = min(tr1s(2,:));
-   tr1 = tr1s(:,num); u = tr1(2);
-   xy1 = [ (1-u)*x1 + u*xb ; (1-u)*y1 + u*yb ]; % coords of the right intersection
-   xy1r = xy1; % Store it
-   theta1ref = atan2( xy1(2)-yb , xy1(1)-xb );
-end
-
-if max(ran2) < 2
-   xy2 = [ xb ; yb ]; xy2r = 2*xy2-xy1;
-   theta2ref = theta1ref + pi;
-else
-   tr2s = tr2s( :, find(tr2s(2,:)>1), : ); % Radius must be > 0
-   [~,num] = min(tr2s(2,:));
-   tr2 = tr2s(:,num); u = tr2(2);
-   xy2 = [ (1-u)*x2 + u*xb ; (1-u)*y2 + u*yb ]; % coords of the right intersection
-   xy2r = xy2; % Store it
-   theta1ref = atan2( xy2(2)-yb , xy2(1)-xb );
-end
+% 4 intersections of the line with the boundaries
+t1 = (xmin-x1)/(x2-x1); t2 = (xmax-x1)/(x2-x1);
+t3 = (ymin-y1)/(y2-y1); t4 = (ymax-y1)/(y2-y1);
+xy11 = [xmin;y1+(y2-y1)*t1];
+xy22 = [xmax;y1+(y2-y1)*t2];
+xy33 = [x1+(x2-x1)*t3;ymin];
+xy44 = [x1+(x2-x1)*t4;ymax];
+xy1234 = [xy11,xy22,xy33,xy44];
+% limit to those that are inside the square
+elim1 = find(xy1234(1,:)>1); elim2 = find(xy1234(2,:)>1);
+elim3 = find(xy1234(1,:)<0); elim4 = find(xy1234(2,:)<0);
+total = setdiff( [1,2,3,4] , union(union(elim1,elim2),union(elim3,elim4)) );
+xyt = xy1234(:,total); % Normally, this one should be of size 2
+xy1 = xyt(:,1); xy2 = xyt(:,2); xy1r = xy1; xy2r = xy2;
+theta1ref = atan2( xy1(2)-yb , xy1(1)-xb );
+theta2ref = atan2( xy2(2)-yb , xy2(1)-xb );
 
 theta1ref = mod(theta1ref,2*pi);
 theta2ref = mod(theta2ref,2*pi);
@@ -629,7 +600,13 @@ if recompute == 1
    
    disp([ 'Right hand side generated ', num2str(toc) ]);
 else
-   Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat22.mat');
+   if teskase == 3
+      Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat23.mat');
+   elseif teskase == 4
+      Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat24.mat');
+   elseif teskase == 2
+      Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat22.mat');
+   end
    Rf  = Anb.Rf; Ru  = Anb.Ru;
 %   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
 %   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
@@ -696,21 +673,32 @@ theta2b   = theta2;
 nbnotwork = 0; % Records the number of failures
 previous = []; % Stores the index of the previous solutions
 tic
+if anglestep == 0 % Initialize the step
+   anglestep1 = pi/kauto;
+   anglestep2 = pi/kauto;
+else
+   anglestep1 = anglestep;
+   anglestep2 = anglestep;
+end
+
 for iter = 1:nbstep % Newton loop
 
    pbmax = 2;
 %   if iter == nbstep
 %      pbmax == 0;
 %   end
+   if anglestep == 0 && iter > 1
+      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
+   end
 
    for pb = 0:pbmax % Construct all the problems
 
       if pb == 0
          theta1c = theta1; theta2c = theta2;
       elseif pb == 1
-         theta1c = theta1+anglestep; theta2c = theta2;
+         theta1c = theta1+anglestep1; theta2c = theta2;
       else
-         theta1c = theta1; theta2c = theta2+anglestep;
+         theta1c = theta1; theta2c = theta2+anglestep2;
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -877,14 +865,15 @@ for iter = 1:nbstep % Newton loop
       end
    
       %% Pure RG : Solve the linear system and recover the unknowns
-      if froreg == 1 && min(size(LhsB))>0
-         kB = sqrt(norm(LhsA,'fro')^2+norm(Ruc,'fro')^2)/norm(LhsB,'fro'); % In order to regularize the stuff
-      %   kB = norm(LhsA,'fro')/norm(LhsB,'fro');
-      else
-         kB = 1;
-      end
-
-      Lhs = [LhsA,kB*LhsB,Ruc];   
+%      if iter == 1 && pb == 0 % kB must be defined only once
+         if froreg == 1 && min(size(LhsB))>0
+            kB = sqrt(norm(LhsA,'fro')^2+norm(Ruc,'fro')^2)/norm(LhsB,'fro'); % In order to regularize the stuff
+         %   kB = norm(LhsA,'fro')/norm(LhsB,'fro');
+         else
+            kB = 1;
+         end
+%      end
+      Lhs = [LhsA,kB*LhsB,Ruc];
 
       Rhs = Rhs1;
       A = Lhs'*Lhs; b = Lhs'*Rhs; sA = size(A,1);
@@ -951,7 +940,7 @@ for iter = 1:nbstep % Newton loop
          [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep));
          kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
       else
-         [Ll, Uu, Pp] = lu (MAT);  % P * M = L * U
+         [Ll, Uu, Pp] = lu (MAT);  % Pp*MAT = Ll*Uu
          kuzawa1 = .999*min(eig(MAT));
       end
 
@@ -999,7 +988,7 @@ for iter = 1:nbstep % Newton loop
          xt  = [ Solu1 ; Solu2 ; Solu3 ; Solu4 ];
          sLx = [ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ];
          L1x = [ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ];
-         Lh0 = Lhs;
+         Lh0 = Lhs; sL0 = sL; L1210 = L121; L1220 = L122; L1230 = L123; L1240 = L124;
 
          Solu10 = Solu1; Solu20 = Solu2; Solu30 = Solu3; Solu40 = Solu4; % Store the values
 
@@ -1008,22 +997,30 @@ for iter = 1:nbstep % Newton loop
          end
 
       elseif pb == 1
-         D1    = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
-         Dx1   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
-         DL1   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep;
-         DL121 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep;
-         Lh1   = (Lhs-Lh0)/anglestep;
+         D1    = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep1;
+         Dx1   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep1;
+         DL1   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep1;
+         DL121 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep1;
+         Lh1   = (Lhs-Lh0)/anglestep1;
+
+%         D1    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; D1 = D1(:);
+%         DL1   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; DL1 = DL1(:);
+%         DL121 = [ Solu10'*(L121-L1210) , Solu20'*(L122-L1220) , Solu30'*(L123-L1230) , Solu40'*(L124-L1240) ]/anglestep1; DL121 = DL121(:);
       elseif pb == 2
-         D2    = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep;
-         Dx2   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep;
-         DL2   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep;
-         DL122 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep;
-         Lh2   = (Lhs-Lh0)/anglestep;
+         D2    = ([ Lhs*Solu1 ; Lhs*Solu2; Lhs*Solu3; Lhs*Solu4 ] - Ax)/anglestep2;
+         Dx2   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep2;
+         DL2   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep2;
+         DL122 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep2;
+         Lh2   = (Lhs-Lh0)/anglestep2;
+
+%         D2    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; D2 = D2(:);
+%         DL2   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; DL2 = DL2(:);
+%         DL122 = [ Solu10'*(L121-L1210) , Solu20'*(L122-L1220) , Solu30'*(L123-L1230) , Solu40'*(L124-L1240) ]/anglestep2; DL122 = DL122(:);
       end
    end
-   D = [D1,D2]; Dx = [Dx1,Dx2]; DL = [DL1,DL2]; DL12 = [DL121,DL122];
-   Dd = [ Lh1*Solu10 , Lh2*Solu10 ; Lh1*Solu20 , Lh2*Solu20 ;...
-          Lh1*Solu30 , Lh2*Solu30 ; Lh1*Solu40 , Lh2*Solu40 ];
+   D = [D1,D2]; DL = [DL1,DL2]; DL12 = [DL121,DL122];% Dx = [Dx1,Dx2];
+%   Dd = [ Lh1*Solu10 , Lh2*Solu10 ; Lh1*Solu20 , Lh2*Solu20 ;...
+%          Lh1*Solu30 , Lh2*Solu30 ; Lh1*Solu40 , Lh2*Solu40 ];
 
 %   ZL = zeros(size(L));
 %   Aile = [ L, ZL, ZL, ZL ; ...
@@ -1036,8 +1033,8 @@ for iter = 1:nbstep % Newton loop
    %dtheta = - ( D'*D ) \ ( D'*res );
    %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
 
-   theta1 = theta1 + dtheta(1);
-   theta2 = theta2 + dtheta(2);
+   theta1 = theta1 + dtheta(1); theta1 = mod(theta1,2*pi);
+   theta2 = theta2 + dtheta(2); theta2 = mod(theta2,2*pi);
 
    theta1rec(iter+1) = theta1;
    theta2rec(iter+1) = theta2;
@@ -1137,14 +1134,14 @@ n = [-step(2);step(1)]; n = n/norm(n); % Normal
 nodes3r = [ xy1r(1):step(1):xy2r(1) ; xy1r(2):step(2):xy2r(2) ];
 nodes3r = nodes3r'; nnodes3r = size(nodes3r,1);
 % Check if need to reverse the nodes (for visu purposes)
-if norm(nodes3r(2,:)-nodes3b(1,:)) < norm(nodes3r(1,:)-nodes3b(1,:))
+if norm(nodes3r(end,:)-nodes3b(1,:)) < norm(nodes3r(1,:)-nodes3b(1,:))
    nodes3r = nodes3r(end:-1:1,:);
 end
 nodes3s = nodes3r + 1e-3*ones(size(nodes3r,1),1)*n';
 nodes3i = nodes3r - 1e-3*ones(size(nodes3r,1),1)*n';
 urs = passMesh2D( nodes, elements, nodes3s, [], [u1,u2,u3,u4] );
 uri = passMesh2D( nodes, elements, nodes3i, [], [u1,u2,u3,u4] );
-urg = uri-urs;  % Vectorial gap
+urg = -(uri-urs)*(extnorm3(1,:)*n);  % Vectorial gap
 urg([1,2,end-1,end],:) = 0; % Overwrite the strange stuff that comes from the fact that we get out of the domain
 curvr = sqrt( (nodes3r(:,1)-nodes3r(1,1)).^2 + (nodes3r(:,2)-nodes3r(1,2)).^2 );
 
@@ -1219,30 +1216,42 @@ curv = sqrt( (nodes3b(:,1)-nodes3b(1,1)).^2 + (nodes3b(:,2)-nodes3b(1,2)).^2 );
 %toplotr3 = sqrt( urg(1:2:end-1,3).^2 + urg(2:2:end,3).^2 );
 %toplotr4 = sqrt( urg(1:2:end-1,4).^2 + urg(2:2:end,4).^2 );
 
-toplot1  = ucrsol1(1:2:end-1);
-toplot2  = ucrsol2(1:2:end-1);
-toplot3  = ucrsol3(1:2:end-1);
-toplot4  = ucrsol4(1:2:end-1);
-toplotr1 = urg(1:2:end-1,1);
-toplotr2 = urg(1:2:end-1,2);
-toplotr3 = urg(1:2:end-1,3);
-toplotr4 = urg(1:2:end-1,4);
+n = extnorm3(1,:)';
+toplot1  = ucrsol1(1:2:end-1)*n(1) + ucrsol1(2:2:end)*n(2);
+toplot2  = ucrsol2(1:2:end-1)*n(1) + ucrsol2(2:2:end)*n(2);
+toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
+toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
+%toplot4  = ucrsol4(1:2:end-1);
+toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
+toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
+toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
+toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
+%toplotr4 = urg(1:2:end-1,4);
+
+
+%try
+%figure;
+%hold on;
+%set(gca, 'fontsize', 20);
+%plot( curv, toplot1,'Color','green' );
+%plot( curv, toplot2,'Color','black' );
+%plot( curv, toplot3,'Color','blue' );
+%plot( curv, toplot4,'Color','red' );
+%plot( curvr, toplotr1,'Color','green' );
+%plot( curvr, toplotr2,'Color','black' );
+%plot( curvr, toplotr3,'Color','blue' );
+%plot( curvr, toplotr4,'Color','red' );
+%legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
+%       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
+%end
 
 try
 figure;
 hold on;
 set(gca, 'fontsize', 20);
-%plot( curv, toplot1,'Color','green' );
-%plot( curv, toplot2,'Color','black' );
-%plot( curv, toplot3,'Color','blue' );
 plot( curv, toplot4,'Color','red','LineWidth',3 );
-%plot( curvr, toplotr1,'Color','green' );
-%plot( curvr, toplotr2,'Color','black' );
-%plot( curvr, toplotr3,'Color','blue' );
 plot( curvr, toplotr4,'Color','blue','LineWidth',3 );
 legend('[[u]] identified (4)', '[[u]] reference (4)');
-%legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
-%       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
 end
 
 try

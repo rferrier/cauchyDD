@@ -22,7 +22,7 @@ ntrunc   = 0;      % In case the algo finishes at niter
 inhomog  = 0;      % inhomogeneous medium
 
 % methods : 1-> SPP, 2-> SPD, 3-> SPD Block
-methods = [1];
+methods = [3];
 
 %if inhomog == 2  % load previously stored matrix
 %   mat = [2, E, nu, .1, 1];
