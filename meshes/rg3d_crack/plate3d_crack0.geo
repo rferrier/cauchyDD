@@ -15,18 +15,18 @@ E     = 1; //E     = 7;
 
 // Discretization parameters
 lc1 = .05; // element size at the border
-lc2 = .05; // element size at the crack tip
+lc2 = .025; // element size at the crack tip
 lc3 = .05; // refining size
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc1};
 Point(2) = {L,0.0,0.0,lc1};
-Point(3) = {L,E,0.0,lc2};
-Point(4) = {0.0,E,0.0,lc2};
+Point(3) = {L,E,0.0,lc1};
+Point(4) = {0.0,E,0.0,lc1};
 Point(5) = {0.0,0.0,H,lc1};
 Point(6) = {L,0.0,H,lc1};
-Point(7) = {L,E,H,lc2};
-Point(8) = {0.0,E,H,lc2};
+Point(7) = {L,E,H,lc1};
+Point(8) = {0.0,E,H,lc1};
 
 // Aretes
 Line(1) = {1,2};
@@ -59,11 +59,11 @@ Line Loop(106) = {4,9,8,-12};
 Plane Surface(6) = {106};
 
 // Crack construction
-Point(9) = {a,b,H/2,lc1};
-Point(10) = {a,b+b1*Cos(db),H/2+b1*Sin(db),lc1};
-Point(11) = {a-a1*Cos(da),b,-a1*Sin(da)+H/2,lc1};
-Point(12) = {a,b-b1*Cos(db),H/2-b1*Sin(db),lc1};
-Point(13) = {a+a1*Cos(da),b,a1*Sin(da)+H/2,lc1};
+Point(9) = {a,b,H/2,lc2};
+Point(10) = {a,b+b1*Cos(db),H/2+b1*Sin(db),lc2};
+Point(11) = {a-a1*Cos(da),b,-a1*Sin(da)+H/2,lc2};
+Point(12) = {a,b-b1*Cos(db),H/2-b1*Sin(db),lc2};
+Point(13) = {a+a1*Cos(da),b,a1*Sin(da)+H/2,lc2};
 
 Ellipse(13) = {10,9,11,11};  //{start,center,major,end}
 Ellipse(14) = {11,9,11,12};

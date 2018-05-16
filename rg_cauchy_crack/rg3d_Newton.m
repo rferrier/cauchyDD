@@ -13,15 +13,15 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-mur        = 1e2;%5e7;      % Regularization parameter
+mur        = 1e2;%1e2;%5e7;      % Regularization parameter
 regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 1;      % Nb of iterations in the Newton algorithm
-init       = [0;0;0;0];%[0;0;-1;.5];%%  initialization for the plane parameters. If its norm is 0 : use the reference plane
+niter      = 20;      % Nb of iterations in the Newton algorithm
+init       = [0;0;-1;.5];%[0;0;0;0];%%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
-step       = 1e-2;     % Step for the finite differences
+step       = 0;%1e-2;   % Step for the finite differences 0 means auto-aaptation
 nuzawa     = 100;    % Nb of Uzawa iterations
 
 % Boundary conditions
@@ -72,22 +72,44 @@ neumann{13} = [ 2,1,-fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
                 4,1,fscalar ; 4,2,-fscalar ; 4,3,-fscalar ];
 
 % BCs for the stuff
-dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-               6,1,0 ; 6,2,0 ; 6,3,0 ];
-neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+               
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               2,1,0 ; 2,2,0 ; 2,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
@@ -95,21 +117,23 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
             
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
-%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-%               6,1,0 ; 6,2,0 ; 6,3,0 ];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
-%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+               6,1,0 ; 6,2,0 ; 6,3,0 ];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 % Import the mesh
 [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
+%[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_noplane.msh' );
+%[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_smile.msh' );
 nnodes = size(nodes,1);
 [K,C,nbloq] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
 Kinter = K(1:3*nnodes, 1:3*nnodes);
@@ -615,6 +639,12 @@ theta = init; thetap = theta; thetarec = theta;
 phi   = zeros(niter,1);
 nori  = zeros(niter,13);
 
+if step == 0
+   stepstep = .1;
+else
+   stepstep = step;
+end
+
 %% Newton algorithm
 for iter = 1:niter
 
@@ -632,16 +662,20 @@ for iter = 1:niter
    
    pbmax = 3; % 3 directions
    
+   if step == 0 && iter > 1 % Adapt the step
+      stepstep = norm(dtheta)/10;
+   end
+   
    for pb = 0:pbmax
 
       if pb == 0
          thetac = theta;
       elseif pb == 1
-         thetac = theta + step*theta1;
+         thetac = theta + stepstep*theta1;
       elseif pb == 2
-         thetac = theta + step*theta2;
+         thetac = theta + stepstep*theta2;
       else
-         thetac = theta + step*theta3;
+         thetac = theta + stepstep*theta3;
       end
    
       %% Build the intersection of the plane with the domain
@@ -984,12 +1018,13 @@ for iter = 1:niter
          Z23 = zeros( size(Dfu,1), size(D3u,1) );
          Dtot = [ Duu ,Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3u ];
          L = Dtot;
-         sL = Dtot^(1/2);
+         sL = real(Dtot^(1/2)); % As usual, Dtot is supposed to be SymPos, but is not numerically
          Zuf = zeros( size(Du,1), size(Df,2)); Zfu = zeros( size(Df,1), size(Du,2));
          Zu3 = zeros( size(Du,1), size(D3,2)); Z3u = zeros( size(D3,1), size(Du,2));
          Zf3 = zeros( size(Df,1), size(D3,2)); Z3f = zeros( size(D3,1), size(Df,2)); 
          
-         sL = [ Du ,Zuf, Zu3 ; Zfu, Df, Zf3 ; Z3u, Z3f, D3 ];
+         %sL = [ Du ,Zuf, Zu3 ; Zfu, Df, Zf3 ; Z3u, Z3f, D3 ];
+
    %
    %      L12 = [ Du(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
    %      L2 = Du(knownD,knownD);
@@ -1008,8 +1043,8 @@ for iter = 1:niter
    
       %% Impose the inequation U3.n > 0
       C = zeros(nnodes3, 3*nnodes3);
-      C(1,2*1-1) = extnorm3(1,1); C(1,2*1) = extnorm3(1,2);
-      C(nnodes3,2*nnodes3-1) = extnorm3(end,1); C(nnodes3,2*nnodes3) = extnorm3(end,2);
+%      C(1,2*1-1) = extnorm3(1,1); C(1,2*1) = extnorm3(1,2);
+%      C(nnodes3,2*nnodes3-1) = extnorm3(end,1); C(nnodes3,2*nnodes3) = extnorm3(end,2);
       for i=1:nboun3 %ux*nx + uy*ny + uz*nz > 0
          no1 = boundary3(i,2); no2 = boundary3(i,3); no3 = boundary3(i,4);
          C(no1,3*no1-2) = C(no1,3*no1-2) + extnorm3(i,1);%ux*nx for i=1,2,3
@@ -1060,9 +1095,8 @@ for iter = 1:niter
       
       % Compute the Gradient and the Hessian
       if pb == 0
-         Ax  = Lhs*Solu1;
-         sLx = sL*Solu1;
-         res = Ax(:) - Rhs1(:);
+         Ax  = Lhs*Solu1; sLx = sL*Solu1;
+         res = Ax(:) - Rhs1(:); rel = sLx(:);
          for i=1:13
             nori(iter,i) = Solu1(:,i)'*Lhs'*Lhs*Solu1(:,i) - 2*Solu1(:,i)'*Lhs'*Rhs1(:,i) +...
                            Rhs1(:,i)'*Rhs1(:,i) + mur*Solu1(:,i)'*L*Solu1(:,i);
@@ -1074,27 +1108,35 @@ for iter = 1:niter
             nodes3p = nodes3; Solu1p = Solu1;
             extnorm3p = extnorm3; boundary3p = boundary3;
          end
+         nodes3_ref = nodes3; boundary3_ref = boundary3; % Store the Nodes (to passMesh)
+         norm_ref   = theta(1:3)/norm(theta(1:3)); theta_ref = theta;
       elseif pb == 1
          Ax1  = Lhs*Solu1;
-         sLx1 = sL*Solu1;
-         Dd1  = (Ax1(:)-Ax(:))/step;
-         %DL1 = (sLx1(:)-sLx(:))/step;
+         sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
+         topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
+         sLx1 = [ sLx1 ; topass ];
+         Dd1  = (Ax1(:)-Ax(:))/stepstep;
+         DL1  = (sLx1(:)-sLx(:))/stepstep;
       elseif pb == 2
          Ax2  = Lhs*Solu1;
-         sLx2 = sL*Solu1;
-         Dd2  = (Ax2(:)-Ax(:))/step;
-         %DL2 = (sLx2(:)-sLx(:))/step;
+         sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
+         topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
+         sLx2 = [ sLx2 ; topass ];
+         Dd2  = (Ax2(:)-Ax(:))/stepstep;
+         DL2  = (sLx2(:)-sLx(:))/stepstep;
       else
          Ax3  = Lhs*Solu1;
-         sLx3 = sL*Solu1;
-         Dd3  = (Ax3(:)-Ax(:))/step;
-         %DL3 = (sLx3(:)-sLx(:))/step;
+         sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
+         topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
+         sLx3 = [ sLx3 ; topass ];
+         Dd3  = (Ax3(:)-Ax(:))/stepstep;
+         DL3  = (sLx3(:)-sLx(:))/stepstep;
       end
       
    end
-   D = [Dd1,Dd2,Dd3]; %DL = [DL1,DL2,DL3];
-   %dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*sLx ); % Todo : add the non-diagonal terms if needed
-   dtheta = - ( D'*D ) \ ( D'*res );
+   D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3];
+   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel ); % TODO : add the non-diagonal terms if needed
+   %dtheta = - ( D'*D ) \ ( D'*res );
    
    % Actualize and normalize
    theta = theta + Q*dtheta;
@@ -1103,7 +1145,7 @@ for iter = 1:niter
    thetarec = [thetarec,theta];
 end
 
-disp([ 'Markov algorithm terminated ', num2str(toc) ]);
+disp([ 'Newton algorithm terminated ', num2str(toc) ]);
 
 Solu1 = Solu1p;
 
@@ -1257,7 +1299,7 @@ end
 %ucx = ucrsol1(1:3:3*nnodes3p-2,:); ucy = ucrsol1(2:3:3*nnodes3p-1,:);
 %ucz = ucrsol1(3:3:3*nnodes3p,:);   uca = zeros(nnodes3p,13); % passMesh2D accepts 2 dofs fields
 %upass = [ reshape([ucx,ucy]',[13,2*nnodes3])' , reshape([ucz,uca]',[13,2*nnodes3])'];
-%U_com = passMesh2D( nodes3p(:,1:2), boundary3p, [Xx',Yy'], [], upass );
+%U_com = passMesh2D( nodes3p(:,1:2), boundary3p(2:4), [Xx',Yy'], [], upass );
 %U_com = [ U_com(1:2:2*19-1,1:13), U_com(2:2:2*19,1:13), U_com(1:2:2*19-1,14:end) ];
 %U_com = reshape(U_com',[13,3*19])';
 %U_com = [zeros(3,13);U_com;zeros(3,13)]; eno = extnorm3p(1,:);
