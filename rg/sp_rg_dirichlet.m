@@ -1,5 +1,5 @@
-% 14/05/2018
-% Détection de fissure 1D plane par Cauchy puis écart à la réciprocité domaine carré
+% 22/05/2018
+% Détection de fissure 1D plane par Cauchy puis écart à la réciprocité domaine carré, condition de Dirichlet
 
 close all;
 clear all;
@@ -15,14 +15,19 @@ br          = .0;      % Noise level
 nnodesg = size(nodesg,1);
 
 %% Direct problem
-dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
-%dirichlet  = [8,1,0 ; 8,2,0];
-neumann1   = [8,2,fscalar ; 1,2,-fscalar];
+dirichlet  = [8,1,0 ; 8,2,0];
+
+neumann1   = [1,2,-fscalar];
 neumann2   = [2,1,fscalar ; 7,1,fscalar ; 4,1,-fscalar; 9,1,-fscalar];
-neumann3   = [8,1,fscalar ; 8,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; 7,1,fscalar ; 7,2,fscalar ; ...
-              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar; 9,1,-fscalar ; 9,2,-fscalar];
-neumann4   = [8,1,-fscalar ; 8,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; 7,1,fscalar ; 7,2,-fscalar ; ...
-              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar ; 9,1,-fscalar ; 9,2,fscalar];
+neumann3   = [1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar; 9,1,-fscalar ; 9,2,-fscalar];
+neumann4   = [1,1,fscalar ; 1,2,-fscalar ; 2,1,fscalar ; 2,2,-fscalar ; 7,1,fscalar ; 7,2,-fscalar];
+
+%neumann1   = [8,2,fscalar ; 1,2,-fscalar];
+%neumann2   = [2,1,fscalar ; 7,1,fscalar ; 4,1,-fscalar; 9,1,-fscalar];
+%neumann3   = [8,1,fscalar ; 8,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; 7,1,fscalar ; 7,2,fscalar ; ...
+%              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar; 9,1,-fscalar ; 9,2,-fscalar];
+%neumann4   = [8,1,-fscalar ; 8,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; 7,1,fscalar ; 7,2,-fscalar ; ...
+%              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar ; 9,1,-fscalar ; 9,2,fscalar];
 
 [K,C,nbloq,node2c,c2node] = Krig2 (nodesg,elementsg,mat,order,boundaryg,dirichlet);
 Kinter = K( 1:2*nnodesg, 1:2*nnodesg );
@@ -209,29 +214,29 @@ error1f = norm(f1ref-f1id,'fro')/norm(f1ref,'fro');
 f1ref8 = f1u([2*b2node8-1, 2*b2node8]); f1id8 = fc1([2*b2node8-1, 2*b2node8]);
 error1f8 = norm(f1ref8-f1id8,'fro')/norm(f1ref8,'fro');
 
-%try
-%figure;
-%hold on;
-%plot(u1ref(:,1),'Color', 'red');
-%plot(u1id(:,1),'Color', 'blue');
-%legend('U : reference','U : solution');
-%end
+try
+figure;
+hold on;
+plot(u1ref(:,1),'Color', 'red');
+plot(u1id(:,1),'Color', 'blue');
+legend('U : reference','U : solution');
+end
 
-%try
-%figure;
-%hold on;
-%plot(f1ref(:,2),'Color', 'red');
-%plot(f1id(:,2),'Color', 'blue');
-%legend('F : reference','F : solution');
-%end
+try
+figure;
+hold on;
+plot(f1ref(:,2),'Color', 'red');
+plot(f1id(:,2),'Color', 'blue');
+legend('F : reference','F : solution');
+end
 
-%try
-%figure;
-%hold on;
-%plot(f1ref8(:,2),'Color', 'red');
-%plot(f1id8(:,2),'Color', 'blue');
-%legend('F : referenceon the top','F : solution on the top');
-%end
+try
+figure;
+hold on;
+plot(f1ref8(:,2),'Color', 'red');
+plot(f1id8(:,2),'Color', 'blue');
+legend('F : referenceon the top','F : solution on the top');
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Identify the crack on the large domain
@@ -286,7 +291,7 @@ end
 
 % Call the function
 tic
-[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1,u3], frr, 3, 1, 0 );
+[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1,u3], frr, 3, 1, 0, 2 );
 toc
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
 
@@ -427,7 +432,7 @@ end
 
 % Call the function
 tic
-[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1d,u3d], frr, 1, 1, 0 );
+[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1d,u3d], frr, 1, 1, 0, 1 );
 toc
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
 

@@ -30,6 +30,9 @@ function [usol,indm2] = spd_mrhs(ndofs, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 
    % Restriction operator
    Cru = sparse(Cu*Cu');
 
+   % Compute the multiplier
+   %mul = norm(K1d(1:ndofs,1:ndofs),'fro');
+
    % Find the indices of the unknown nodes
    indexC = sum(Cu'); indexa = find(indexC);
    clear Cu;
@@ -69,11 +72,11 @@ function [usol,indm2] = spd_mrhs(ndofs, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 
    %%%%
    %% Compute Rhs :
    % Solve 1
-   uin1 = K1d\fD;
+   uin1 = K1d\fD;%scale_solve(K1d,fD,ndofs,mul);%
    u1i = uin1(1:ndofs,:);
    u1 = Cru*u1i;
    % Solve 2
-   uin2 = K2d\fN;
+   uin2 = K2d\fN;%scale_solve(K2d,fN,ndofs,mul);%
    u2i = uin2(1:ndofs,:);
    u2 = Cru*u2i;
    %
@@ -109,11 +112,13 @@ function [usol,indm2] = spd_mrhs(ndofs, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 
        %% Optimal step
        % Solve 1
        f1 = [d(:,multindex); zeros(nbloq1d,ncase)];
-       uin1 = K1d\f1; u1i = uin1(1:ndofs,:);
+       uin1 = K1d\f1;%scale_solve(K1d,f1,ndofs,mul);%
+       u1i = uin1(1:ndofs,:);
        u1 = Cru*u1i; % Restrict on the unknown dofs
        % Solve 2
-       f2 = [d(:,multindex); zeros(nbloq2d,ncase)];
-       uin2 = K2d\f2; u2i = uin2(1:ndofs,:);
+       f2 = [d(:,multindex);zeros(nbloq2d,ncase)];
+       uin2 = K2d\f2;%scale_solve(K2d,f2,ndofs,mul);%
+       u2i = uin2(1:ndofs,:);
        u2 = Cru*u2i;
        %
        Ad(:,multindex) = u2-u1;
@@ -122,7 +127,7 @@ function [usol,indm2] = spd_mrhs(ndofs, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 
        den = d(indexa,multindex)'*Ad(indexa,multindex);
 
        if rank(den) ~= size(den,1)
-          error('Your test-cases are of lower dimension as their number');
+          warning('Your test-cases are of lower dimension as their number');
        end
 
        sqD = den^(1/2);

@@ -11,6 +11,7 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
 %         nbase    : nb of polynomial basis functions
 %         v        : should the algorithm talk ?
 %         varargin : if 1 : use Fourier instead of polynoms
+%                    1 or 2 : test-case for the constant
 
 % output : normal  : normal to the crack
 %          Cte1    : cte giving the line from test-case 1
@@ -29,6 +30,11 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
  fourier = 0;
  if numel(varargin)>0
     fourier = cell2mat(varargin(1));
+ end
+
+ cst = 2;
+ if numel(varargin)>1
+    cst = cell2mat(varargin(2));
  end
 
  nboun = size(boundary,1);
@@ -254,7 +260,14 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
  Cte1 = min( Rt/normT, -Rt/normT) - K;       % Select the negative one
  Cte2 = min( Rt2/normT2, -Rt2/normT2 ) - K;  %  /!\ The sign depends on the test case
 
- Cte = Cte1;
+ if cst == 1
+    Cte = Cte1;
+ elseif cst ==2
+    Cte = Cte2;
+ else
+   error('No of the test-case for the constant computation is not conform');
+ end
+
 
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  %% Last task : identify the displacement gap
