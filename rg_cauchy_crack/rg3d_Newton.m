@@ -18,11 +18,16 @@ regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : der
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 20;      % Nb of iterations in the Newton algorithm
-init       = [0;0;-1;.5];%[0;0;0;0];%%  initialization for the plane parameters. If its norm is 0 : use the reference plane
+niter      = 10;      % Nb of iterations in the Newton algorithm
+%init       = [0;0;0;0];
+init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
-step       = 0;%1e-2;   % Step for the finite differences 0 means auto-aaptation
+step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
 nuzawa     = 100;    % Nb of Uzawa iterations
+lc1        = .1;     % Size of the mesh of the plane
+
+%nbDirichlet = [];
+nbDirichlet = [ 1,8 ; 2,8 ; 3,8 ; 4,8 ; 5,8 ; 6,8 ];
 
 % Boundary conditions
 dirichlet  = [ 0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0 ];
@@ -160,7 +165,7 @@ boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the double elemen
 
 nnodes2 = size(nodes2,1);
 [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
-Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
+Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
 
 % Slight contraction of the second mesh for the passmesh
 mean2x = mean(nodes2(:,1)); mean2y = mean(nodes2(:,2)); mean2z = mean(nodes2(:,3));
@@ -170,6 +175,7 @@ nodes2c(:,2) = (1-1e-6)*(nodes2c(:,2)-mean2y) + mean2y;
 nodes2c(:,3) = (1-1e-6)*(nodes2c(:,3)-mean2z) + mean2z;
 
 ur = passMesh3D( nodes, elements, nodes2c, elements2, uref );
+fr = Kinter2*ur;
 
 toplot = { ur(:,1), 'U1' ; ur(:,2), 'U2' ; ur(:,3), 'U3' ;...
            ur(:,4), 'U4' ; ur(:,5), 'U5' ; ur(:,6), 'U6' ;...
@@ -177,6 +183,49 @@ toplot = { ur(:,1), 'U1' ; ur(:,2), 'U2' ; ur(:,3), 'U3' ;...
            ur(:,10), 'U10' ; ur(:,11), 'U11' ; ur(:,12), 'U12' ;...
            ur(:,13), 'U13' };
 plotGMSH3D(toplot, elements2, nodes2, 'output/bound');
+
+%% Discrete measure point stuff
+if min(size(nbDirichlet))>0
+   nmin = [];
+   for i=1:6
+      nbdiscrete = find(nbDirichlet(:,1)==i);
+      if min(size(nbdiscrete)) > 0
+         nbi = nbDirichlet(nbdiscrete,2);
+         if nbi>0
+            [~, b2node] = mapBound(i, boundary2, nnodes2);
+            xmin = min(nodes2(b2node,1)); xmax = max(nodes2(b2node,1)); Lx1 = xmax-xmin; sx = Lx1/(nbi-1);
+            ymin = min(nodes2(b2node,2)); ymax = max(nodes2(b2node,2)); Ly1 = ymax-ymin; sy = Ly1/(nbi-1);
+            zmin = min(nodes2(b2node,3)); zmax = max(nodes2(b2node,3)); Lz1 = zmax-zmin; sz = Lz1/(nbi-1);
+            if sx==0
+               y = ymin:sy:ymax; z = zmin:sz:zmax;
+               y1 = y'*ones(1,nbi); z1 = ones(nbi,1)*z;
+               xyz = [ xmin*ones(1,nbi^2) ; y1(:)' ; z1(:)' ];
+            elseif sy==0
+               x = xmin:sx:xmax; z = zmin:sz:zmax;
+               x1 = x'*ones(1,nbi); z1 = ones(nbi,1)*z;
+               xyz = [ x1(:)' ; ymin*ones(1,nbi^2) ; z1(:)' ];
+            elseif sz==0
+               x = xmin:sx:xmax; y = ymin:sy:ymax;
+               x1 = x'*ones(1,nbi); y1 = ones(nbi,1)*y;
+               xyz = [ x1(:)' ; y1(:)' ; zmin*ones(1,nbi^2) ];
+            else
+               warning('Discrete measurement unimplemented for non parallelepideic domains');
+            end
+            nm = zeros(nbi^2,1);
+            for j=1:nbi^2 % Find the closest nodes
+               xyj = xyz(:,j)';
+               nodiff = nodes2(b2node,:)-xyj;
+               normdiff = nodiff(:,1).^2+nodiff(:,2).^2+nodiff(:,3).^2;
+               [~,nm(j)] = min(normdiff);
+            end
+            nm = unique(nm); nmin = [nmin;b2node(nm)];
+         end
+      end
+   end
+   nmin = unique(nmin); % In the global volumic numerotation
+else
+   nmin = 1:nnodes2;
+end
 
 % Add the noise
 un = ur; am = zeros(1,13);
@@ -253,6 +302,11 @@ for i=1:nnodeboun
 end
 boun2loc = nodeglob2boun(boundary2(:,2:4));
 
+% Pass ponctual Dirichlet to boundary
+nmin1 = nodeglob2boun(nmin);
+nmin1 = nmin1(find(nmin1)); % Remove the zeros (in case interior nodes are in nmin)
+nmin1 = [3*nmin1-2;3*nmin1-1;3*nmin1];
+
 nodekD = [];
 for i=1:size(knownD,1)
    dof = mod(knownD(i)+2,3)+1; % No of the dof (1=X, 2=Y, 3=Z)
@@ -260,7 +314,8 @@ for i=1:size(knownD,1)
    N = boun2loc(B,:);
    nodekD = [ nodekD, 3*N-3+dof ];
 end
-nodekD  = unique(nodekD); knownD = nodekD; % Erase knownD for name reasons
+nodekD  = unique(nodekD); knownD = nodekD;  % Erase knownD for name reasons
+knownD  = intersect( nmin1', knownD );      % Apply the discrete stuff
 tofindD = setdiff( 1:3*nnodeboun, knownD );
 
 ndofN = size(tofindN,2); ndofD = size(tofindD,2); % Nbs of dofs to find
@@ -635,9 +690,11 @@ if norm(init)==0
 end
 init = init/norm(init);
 
-theta = init; thetap = theta; thetarec = theta;
-phi   = zeros(niter,1);
-nori  = zeros(niter,13);
+theta   = init; thetap = theta; thetarec = theta;
+phi     = zeros(niter,1);
+nori    = zeros(niter,13);
+norreg  = zeros(niter,13);
+norres  = zeros(niter,13);
 
 if step == 0
    stepstep = .1;
@@ -706,6 +763,10 @@ for iter = 1:niter
          end
       end
    
+      if min(size(dots)) == 0
+         error('identified plane has no intersection with the domain');
+      end
+   
       %% Find the convex hull (we're sure the intersection is convex)
       vpre = [thetac(1);thetac(2);thetac(3)];
    
@@ -745,7 +806,7 @@ for iter = 1:niter
       %% Generate the file for GMSH
       nnso = size(doso,2);
       fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
-      fprintf(fmid,'%s\n','lc1 = .1;');
+      fprintf(fmid,'%s%i%s\n','lc1 = ',lc1,';');
       for i=1:nnso
          fprintf(fmid,'%s%d%s%f%s%f%s%f%s\n','Point(',i,') = {',doso(1,i),',',doso(2,i),',',doso(3,i),',lc1};');
       end
@@ -1023,23 +1084,18 @@ for iter = 1:niter
          Zu3 = zeros( size(Du,1), size(D3,2)); Z3u = zeros( size(D3,1), size(Du,2));
          Zf3 = zeros( size(Df,1), size(D3,2)); Z3f = zeros( size(D3,1), size(Df,2)); 
          
-         %sL = [ Du ,Zuf, Zu3 ; Zfu, Df, Zf3 ; Z3u, Z3f, D3 ];
-
-   %
-   %      L12 = [ Du(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
-   %      L2 = Du(knownD,knownD);
-   %      L121 = L12*u_known1(knownD); L21 = u_known1(knownD)'*Du(knownD,knownD)*u_known1(knownD);
-   %      L122 = L12*u_known2(knownD); L22 = u_known2(knownD)'*Du(knownD,knownD)*u_known2(knownD);
-   %      L123 = L12*u_known3(knownD); L23 = u_known3(knownD)'*Du(knownD,knownD)*u_known3(knownD);
-   %      L124 = L12*u_known4(knownD); L24 = u_known4(knownD)'*Du(knownD,knownD)*u_known4(knownD);
-         
+         Duu0 = Du0'*Du0;
+         L12  = [ Duu0(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(3*nnodes3,size(Duk,2)) ];
+         L12i = L12*u_known(knownD,:);
+         L2i  = u_known(knownD,:)'*Duu0(knownD,knownD)*u_known(knownD,:); % Only its diagonal has meaning
       else
          L = Mtot; sL = Mtot^(1/2);
+         L12i = zeros(ndofs,13); L2i = zeros(13);
       end
 
       Solu1 = zeros(sA,13);
       MAT = Lhs'*Lhs + mur*L;
-      VEC = Lhs'*Rhs1;
+      VEC = Lhs'*Rhs1 - mur*L12i;
    
       %% Impose the inequation U3.n > 0
       C = zeros(nnodes3, 3*nnodes3);
@@ -1096,10 +1152,16 @@ for iter = 1:niter
       % Compute the Gradient and the Hessian
       if pb == 0
          Ax  = Lhs*Solu1; sLx = sL*Solu1;
+         L1x = diag(Solu1'*L12i);
          res = Ax(:) - Rhs1(:); rel = sLx(:);
          for i=1:13
+            norres(iter,i) = Solu1(:,i)'*Lhs'*Lhs*Solu1(:,i) - 2*Solu1(:,i)'*Lhs'*Rhs1(:,i) +...
+                             Rhs1(:,i)'*Rhs1(:,i);
+            norreg(iter,i) = mur*Solu1(:,i)'*L*Solu1(:,i) +...
+                             2*mur*Solu1(:,i)'*L12i(:,i) + mur*L2i(i,i);
             nori(iter,i) = Solu1(:,i)'*Lhs'*Lhs*Solu1(:,i) - 2*Solu1(:,i)'*Lhs'*Rhs1(:,i) +...
-                           Rhs1(:,i)'*Rhs1(:,i) + mur*Solu1(:,i)'*L*Solu1(:,i);
+                           Rhs1(:,i)'*Rhs1(:,i) + mur*Solu1(:,i)'*L*Solu1(:,i) +...
+                           2*mur*Solu1(:,i)'*L12i(:,i) + mur*L2i(i,i);
             phi(iter)    = phi(iter) + nori(iter,i);
          end
          
@@ -1111,32 +1173,34 @@ for iter = 1:niter
          nodes3_ref = nodes3; boundary3_ref = boundary3; % Store the Nodes (to passMesh)
          norm_ref   = theta(1:3)/norm(theta(1:3)); theta_ref = theta;
       elseif pb == 1
-         Ax1  = Lhs*Solu1;
+         Ax1  = Lhs*Solu1; L1x1 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
          topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
-         sLx1 = [ sLx1 ; topass ];
-         Dd1  = (Ax1(:)-Ax(:))/stepstep;
-         DL1  = (sLx1(:)-sLx(:))/stepstep;
+         sLx1   = [ sLx1 ; topass ];
+         Dd1    = (Ax1(:)-Ax(:))/stepstep;
+         DL1    = (sLx1(:)-sLx(:))/stepstep;
+         DL121  = (L1x1-L1x)/stepstep;
       elseif pb == 2
-         Ax2  = Lhs*Solu1;
+         Ax2  = Lhs*Solu1; L1x2 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
          topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
-         sLx2 = [ sLx2 ; topass ];
-         Dd2  = (Ax2(:)-Ax(:))/stepstep;
-         DL2  = (sLx2(:)-sLx(:))/stepstep;
-      else
-         Ax3  = Lhs*Solu1;
+         sLx2   = [ sLx2 ; topass ];
+         Dd2    = (Ax2(:)-Ax(:))/stepstep;
+         DL2    = (sLx2(:)-sLx(:))/stepstep;
+         DL122  = (L1x2-L1x)/stepstep;
+      else % pb == 3
+         Ax3  = Lhs*Solu1; L1x3 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
          topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
-         sLx3 = [ sLx3 ; topass ];
-         Dd3  = (Ax3(:)-Ax(:))/stepstep;
-         DL3  = (sLx3(:)-sLx(:))/stepstep;
+         sLx3   = [ sLx3 ; topass ];
+         Dd3    = (Ax3(:)-Ax(:))/stepstep;
+         DL3    = (sLx3(:)-sLx(:))/stepstep;
+         DL123  = (L1x3-L1x)/stepstep;
       end
       
    end
-   D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3];
-   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel ); % TODO : add the non-diagonal terms if needed
-   %dtheta = - ( D'*D ) \ ( D'*res );
+   D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3]; DL12 = [DL121,DL122,DL123];
+   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
    
    % Actualize and normalize
    theta = theta + Q*dtheta;
@@ -1249,7 +1313,7 @@ end
 %% Generate the file for GMSH
 nnso = size(doso,2);
 fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
-fprintf(fmid,'%s\n','lc1 = .1;');
+fprintf(fmid,'%s%i%s\n','lc1 = ',lc1,';');
 for i=1:nnso
    fprintf(fmid,'%s%d%s%f%s%f%s%f%s\n','Point(',i,') = {',doso(1,i),',',doso(2,i),',',doso(3,i),',lc1};');
 end
@@ -1324,6 +1388,38 @@ end
 %plot(Xx,UsN2r(:,11),'Color','black');
 %legend('computed gap','reference')
 %end
+%
+%% Extract the identified values on the boundary
+% TODO : Neumann is tricky
+if min(size(tofindD)) ~= 0 %11
+   usol0 = Solu1(1:ndofD,:); 
+   uref = zeros(3*nnodeboun,13);
+   uref([1:3:end-2,2:3:end-1,3:3:end],:) = ur([3*nodeboun2glob-2,3*nodeboun2glob-1,3*nodeboun2glob],:); % Pass to local
+   usol = uref; usol(tofindD,:) = usol0;% Replace by the identified field
+   us = zeros(3*nnodes2,13);
+   us([3*nodeboun2glob-2,3*nodeboun2glob-1,3*nodeboun2glob],:) = usol([1:3:end-2,2:3:end-1,3:3:end],:); % Re-pass to global
+   try
+   figure;
+   hold on;
+   patch('Faces',boundary2(:,2:4),'Vertices',nodes2,'FaceVertexCData',ur(1:3:end-2,1),'FaceColor','interp');
+   colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+   legend('reference');
+   end
+   try
+   figure;
+   hold on;
+   patch('Faces',boundary2(:,2:4),'Vertices',nodes2,'FaceVertexCData',us(1:3:end-2,1),'FaceColor','interp');
+   colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+   legend('identified');
+   end
+end
+
+% Plot phi
+try
+   figure;
+   plot(log10(phi));
+   legend('cost function');
+end
 
 % Compare both planes
 try
