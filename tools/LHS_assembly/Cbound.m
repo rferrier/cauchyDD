@@ -132,5 +132,5 @@ function [ C, node2c, c2node, ntot ] = Cbound ( nodes, bc, boundary )
          j=j+1;
      end
  end
-
+ C = sparse(C);
 end
