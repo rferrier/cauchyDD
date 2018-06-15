@@ -1157,6 +1157,7 @@ urg([1,2,end-1,end],:) = 0; % Overwrite the strange stuff that comes from the fa
 curvr = sqrt( (nodes3r(:,1)-nodes3r(1,1)).^2 + (nodes3r(:,2)-nodes3r(1,2)).^2 );
 
 % Vizualize the crack's line
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
 try
 figure; hold on;
 x1 = nodes3b(1,1);   y1 = nodes3b(1,2);
@@ -1168,6 +1169,7 @@ plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
 plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
 plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
 plot( [x1,x2], [y1,y2], 'Color', 'red', 'LineWidth', 3 );
 axis equal;
 end

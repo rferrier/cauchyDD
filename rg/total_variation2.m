@@ -7,10 +7,10 @@ close all;
 sideL      = 10; % Nb of points on the domain (for integral approximation)
 pm4        = 4; % Position of the 1d line
 %mu         = 1e-3;%1e-4;%5e-4;%1e-3;%.7e-2;%5e-4;%1e-4;%5e-5; % Regularization parameter
-mu         = 0;%1e-1;%1e-2;
+mu         = 1e-1;%1e-1;%1e-2;
 epsilon    = 1e-7; % Regularization parameter for TV
 ordp       = 9;
-normU      = 2;   % Use L1 or L2 minimization
+normU      = 1;   % Use L1 or L2 minimization
 jmax       = 20;  % Coefficient for Picard stuff (if normU == 3)
 upper_term = 0;
 id_crack   = 0;  % Should I identify the crack (binary stuff) ?
@@ -205,7 +205,7 @@ if normU == 1
       b = mu*transpose( (Isum.*Sx)'*Ax + (Isum.*Sy)'*Ay );
 
       Atan = Lhs + mu*( Ax'*(Isum.*Ux)*(Isum.*Ux)'*Ax +...
-                        Ay'*(Isum.*Uy)*(Isum.*Ux)'*Ay );
+                        Ay'*(Isum.*Uy)*(Isum.*Uy)'*Ay );
       
       dire = zeros(size(Rhs));
       dire(tokeep) = solp(tokeep) + Atan(tokeep,tokeep)\(b(tokeep)+Rhs(tokeep)); % preconditionned steepest descent direction
