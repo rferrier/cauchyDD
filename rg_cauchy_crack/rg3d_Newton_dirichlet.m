@@ -1,4 +1,4 @@
-% 17/04/2018
+% 30/05/2018
 % ID fissure 3D par Newton
 
 tic
@@ -18,78 +18,93 @@ regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : der
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 20;      % Nb of iterations in the Newton algorithm
-%init       = [0;0;0;0];
-init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
+niter      = 1;      % Nb of iterations in the Newton algorithm
+init       = [0;0;0;0];
+%init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
 nuzawa     = 100;    % Nb of Uzawa iterations
 lc1        = .1;     % Size of the mesh of the plane
 
 nbDirichlet = [];
-%nbDirichlet = [ 1,10 ; 2,10 ; 3,10 ; 4,10 ; 5,10 ; 6,10 ];
+%nbDirichlet = [ 1,20 ; 2,20 ; 3,20 ; 4,20 ; 5,20 ; 6,20 ];
 
 % Boundary conditions
-dirichlet  = [ 0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0 ];
+%dirichlet  = [ 0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0 ];
+dirichlet  = [ 2,1,0 ; 2,2,0 ; 2,3,0 ];
 
 neumann    = {};
 
 neumann{1} = [ 4,1,fscalar ; 6,1,-fscalar ];
 neumann{2} = [ 5,2,fscalar ; 3,2,-fscalar ];
-neumann{3} = [ 2,3,fscalar ; 1,3,-fscalar ];
+neumann{3} = [ 1,3,-fscalar ];
 
 neumann{4} = [ 4,1,fscalar ; 4,2,fscalar ; 5,1,fscalar ; 5,2,fscalar ; ...
                3,1,-fscalar ; 3,2,-fscalar ; 6,1,-fscalar ; 6,2,-fscalar ];
 neumann{5} = [ 4,1,fscalar ; 4,2,-fscalar ; 3,1,fscalar ; 3,2,-fscalar ; ...
                5,1,-fscalar ; 5,2,fscalar ; 6,1,-fscalar ; 6,2,fscalar ];
-neumann{6} = [ 4,1,fscalar ; 4,3,fscalar ; 2,1,fscalar ; 2,3,fscalar ; ...
-               1,1,-fscalar ; 1,3,-fscalar ; 6,1,-fscalar ; 6,3,-fscalar ];
-neumann{7} = [ 4,1,fscalar ; 4,3,-fscalar ; 1,1,fscalar ; 1,3,-fscalar ; ...
-               2,1,-fscalar ; 2,3,fscalar ; 6,1,-fscalar ; 6,3,fscalar ];
-neumann{8} = [ 2,3,fscalar ; 2,2,fscalar ; 5,3,fscalar ; 5,2,fscalar ; ...
-               3,3,-fscalar ; 3,2,-fscalar ; 1,3,-fscalar ; 1,2,-fscalar ];
-neumann{9} = [ 1,3,-fscalar ; 1,2,fscalar ; 5,3,-fscalar ; 5,2,fscalar ; ...
-               2,3,fscalar ; 2,2,-fscalar ; 3,3,fscalar ; 3,2,-fscalar ];
+neumann{6} = [ 1,1,-fscalar ; 1,3,-fscalar ; 6,1,-fscalar ; 6,3,-fscalar ];
+neumann{7} = [ 4,1,fscalar ; 4,3,-fscalar ; 1,1,fscalar ; 1,3,-fscalar ];
+neumann{8} = [ 3,3,-fscalar ; 3,2,-fscalar ; 1,3,-fscalar ; 1,2,-fscalar ];
+neumann{9} = [ 1,3,-fscalar ; 1,2,fscalar ; 5,3,-fscalar ; 5,2,fscalar ];
 
-neumann{10} = [ 2,1,fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
-                4,1,fscalar ; 4,2,fscalar ; 4,3,fscalar ;...
-                5,1,fscalar ; 5,2,fscalar ; 5,3,fscalar ;...
-                1,1,-fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
+neumann{10} = [ 1,1,-fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
                 3,1,-fscalar ; 3,2,-fscalar ; 3,3,-fscalar ;...
                 6,1,-fscalar ; 6,2,-fscalar ; 6,3,-fscalar ];
 neumann{11} = [ 1,1,fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
                 4,1,fscalar ; 4,2,fscalar ; 4,3,-fscalar ;...
-                5,1,fscalar ; 5,2,fscalar ; 5,3,-fscalar ;...
-                2,1,-fscalar ; 2,2,-fscalar ; 2,3,fscalar ;...
-                3,1,-fscalar ; 3,2,-fscalar ; 3,3,fscalar ;...
-                6,1,-fscalar ; 6,2,-fscalar ; 6,3,fscalar ];
-neumann{12} = [ 2,1,fscalar ; 2,2,-fscalar ; 2,3,fscalar ;...
-                4,1,fscalar ; 4,2,-fscalar ; 4,3,fscalar ;...
-                3,1,fscalar ; 3,2,-fscalar ; 3,3,fscalar ;...
-                1,1,-fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
+                5,1,fscalar ; 5,2,fscalar ; 5,3,-fscalar ];
+neumann{12} = [ 1,1,-fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
                 5,1,-fscalar ; 5,2,fscalar ; 5,3,-fscalar ;...
                 6,1,-fscalar ; 6,2,fscalar ; 6,3,-fscalar ];
-neumann{13} = [ 2,1,-fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
-                6,1,-fscalar ; 6,2,fscalar ; 6,3,fscalar ;...
-                5,1,-fscalar ; 5,2,fscalar ; 5,3,fscalar ;...
-                1,1,fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
+neumann{13} = [ 1,1,fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
                 3,1,fscalar ; 3,2,-fscalar ; 3,3,-fscalar ;...
                 4,1,fscalar ; 4,2,-fscalar ; 4,3,-fscalar ];
 
-% BCs for the stuff
-dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-               6,1,0 ; 6,2,0 ; 6,3,0 ];
-neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann{1} = [ 4,1,fscalar ; 6,1,-fscalar ];
+%neumann{2} = [ 5,2,fscalar ; 3,2,-fscalar ];
+%neumann{3} = [ 2,3,fscalar ; 1,3,-fscalar ];
+%
+%neumann{4} = [ 4,1,fscalar ; 4,2,fscalar ; 5,1,fscalar ; 5,2,fscalar ; ...
+%               3,1,-fscalar ; 3,2,-fscalar ; 6,1,-fscalar ; 6,2,-fscalar ];
+%neumann{5} = [ 4,1,fscalar ; 4,2,-fscalar ; 3,1,fscalar ; 3,2,-fscalar ; ...
+%               5,1,-fscalar ; 5,2,fscalar ; 6,1,-fscalar ; 6,2,fscalar ];
+%neumann{6} = [ 4,1,fscalar ; 4,3,fscalar ; 2,1,fscalar ; 2,3,fscalar ; ...
+%               1,1,-fscalar ; 1,3,-fscalar ; 6,1,-fscalar ; 6,3,-fscalar ];
+%neumann{7} = [ 4,1,fscalar ; 4,3,-fscalar ; 1,1,fscalar ; 1,3,-fscalar ; ...
+%               2,1,-fscalar ; 2,3,fscalar ; 6,1,-fscalar ; 6,3,fscalar ];
+%neumann{8} = [ 2,3,fscalar ; 2,2,fscalar ; 5,3,fscalar ; 5,2,fscalar ; ...
+%               3,3,-fscalar ; 3,2,-fscalar ; 1,3,-fscalar ; 1,2,-fscalar ];
+%neumann{9} = [ 1,3,-fscalar ; 1,2,fscalar ; 5,3,-fscalar ; 5,2,fscalar ; ...
+%               2,3,fscalar ; 2,2,-fscalar ; 3,3,fscalar ; 3,2,-fscalar ];
+%
+%neumann{10} = [ 2,1,fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
+%                4,1,fscalar ; 4,2,fscalar ; 4,3,fscalar ;...
+%                5,1,fscalar ; 5,2,fscalar ; 5,3,fscalar ;...
+%                1,1,-fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
+%                3,1,-fscalar ; 3,2,-fscalar ; 3,3,-fscalar ;...
+%                6,1,-fscalar ; 6,2,-fscalar ; 6,3,-fscalar ];
+%neumann{11} = [ 1,1,fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
+%                4,1,fscalar ; 4,2,fscalar ; 4,3,-fscalar ;...
+%                5,1,fscalar ; 5,2,fscalar ; 5,3,-fscalar ;...
+%                2,1,-fscalar ; 2,2,-fscalar ; 2,3,fscalar ;...
+%                3,1,-fscalar ; 3,2,-fscalar ; 3,3,fscalar ;...
+%                6,1,-fscalar ; 6,2,-fscalar ; 6,3,fscalar ];
+%neumann{12} = [ 2,1,fscalar ; 2,2,-fscalar ; 2,3,fscalar ;...
+%                4,1,fscalar ; 4,2,-fscalar ; 4,3,fscalar ;...
+%                3,1,fscalar ; 3,2,-fscalar ; 3,3,fscalar ;...
+%                1,1,-fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
+%                5,1,-fscalar ; 5,2,fscalar ; 5,3,-fscalar ;...
+%                6,1,-fscalar ; 6,2,fscalar ; 6,3,-fscalar ];
+%neumann{13} = [ 2,1,-fscalar ; 2,2,fscalar ; 2,3,fscalar ;...
+%                6,1,-fscalar ; 6,2,fscalar ; 6,3,fscalar ;...
+%                5,1,-fscalar ; 5,2,fscalar ; 5,3,fscalar ;...
+%                1,1,fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
+%                3,1,fscalar ; 3,2,-fscalar ; 3,3,-fscalar ;...
+%                4,1,fscalar ; 4,2,-fscalar ; 4,3,-fscalar ];
 
+% BCs for the stuff
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
@@ -99,6 +114,18 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+               6,1,0 ; 6,2,0 ; 6,3,0 ];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
@@ -112,15 +139,15 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
                
-%%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-%%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-%%               4,1,0 ; 4,2,0 ; 4,3,0 ];
-%%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
-%%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
-%%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
-%%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
-%%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
-%%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
             
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               2,1,0 ; 2,2,0 ; 2,3,0 ; 
@@ -136,10 +163,13 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 % Import the mesh
-[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
+%[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_ur4.msh' );
+[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack1_ter.msh' );
 %[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_noplane.msh' );
 %[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_smile.msh' );
 nnodes = size(nodes,1);
+
+% Lagrange
 [K,C,nbloq] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
 Kinter = K(1:3*nnodes, 1:3*nnodes);
 f = zeros(3*nnodes+nbloq,13);
@@ -148,6 +178,28 @@ for i = 1:13
 end
 
 uin = K\f; uref = uin(1:3*nnodes,:); fref = Kinter*uref;
+
+%%% Substiturion
+%Kinter = Krig3D (nodes,elements,mat,order,boundary,[]);
+%C = Cbound2 ( nodes, dirichlet, boundary ); index = find(diag(C*C'));
+%
+%indexdex = setdiff(1:3*nnodes,index);
+%
+%f = zeros(3*nnodes,13);
+%for i = 1:13
+%   f(:,i) = loading3D(0,nodes,boundary,neumann{i});
+%end
+%
+%uref = zeros(3*nnodes,13); relres = zeros(13,1);
+%%tic
+%for i=1:13
+%   [uref(indexdex,i),flag,relres(i),iter] = pcg( Kinter(indexdex,indexdex), f(indexdex,i), 1e-6, 1000 );
+%end
+%%toc
+%%relres
+%%uref(indexdex,:) = Kinter(indexdex,indexdex)\f(indexdex,:);
+%fref = Kinter*uref;
+%%
 
 clear K; clear Kinter;
 %sigma = stress3D(uref,mat,nodes,elements,order,1,ntoelem);
@@ -160,7 +212,8 @@ clear K; clear Kinter;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_u.msh' );
+[nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack2.msh' );
+%[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_u.msh' );
 
 boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the double elements in boundary 2, (ie boundary 7)
 
@@ -186,6 +239,27 @@ toplot = { ur(:,1), 'U1' ; ur(:,2), 'U2' ; ur(:,3), 'U3' ;...
            ur(:,10), 'U10' ; ur(:,11), 'U11' ; ur(:,12), 'U12' ;...
            ur(:,13), 'U13' };
 plotGMSH3D(toplot, elements2, nodes2, 'output/bound');
+
+% Recover the force on the top boundary (Dirichlet)
+%neumann{3} = [ 1,3,-fscalar ];
+for i = 1:13
+   fi(:,i) = loading3D(nbloq2,nodes2,boundary2,neumann{i});
+end
+fi = fr-fi(1:3*nnodes2,:); % Substract the other loads
+fe2 = elem_forces(fi,nodes2,boundary2,2,order); % And put it on the edges of bound 2
+
+%try % Debug plot
+%figure;
+%hold on;
+%patch('Faces',boundary2(:,2:4),'Vertices',nodes2,'FaceVertexCData',fi(3:3:end,3),'FaceColor','interp');
+%colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+%end
+%try
+%figure;
+%hold on;
+%patch('Faces',boundary2(:,2:4),'Vertices',nodes2,'FaceVertexCData',fe2(3:3:end,3),'FaceColor','flat');
+%colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+%end
 
 %% Discrete measure point stuff
 if min(size(nbDirichlet))>0
@@ -386,7 +460,7 @@ for i=1:nboun2
       end
    end
    ind0            = [ 3*i-2, 3*i-1, 3*i ];
-   f_known(ind0,:) = fer;
+   f_known(ind0,:) = fer + fe2(ind0,:); % And add on the boundary2
 end
 for i=1:nnodeboun
    ind0 = [ 3*i-2, 3*i-1, 3*i ];

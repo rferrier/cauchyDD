@@ -1040,7 +1040,7 @@ for iter = 1:nbstep % Newton loop
 %            ZL, ZL, ZL, L ];
 
    %dtheta = - ( D'*D + mur*Dx'*Aile*Dx ) \ ( D'*res - mur*Dx'*[L121;L122;L123;L124] );
-   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1)) );
+   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
    %dtheta = - ( D'*D ) \ ( D'*res );
    %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
 
