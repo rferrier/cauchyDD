@@ -1,4 +1,4 @@
-function [ C ] = Cbound2 ( nodes, bc, boundary )
+function [ C, ntot ] = Cbound2 ( nodes, bc, boundary )
 % This function computes the trace matrix C such that C'*u = u|bound
 % Does not work for rigid body motions
 

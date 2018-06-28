@@ -18,13 +18,14 @@ regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : der
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 1;      % Nb of iterations in the Newton algorithm
+niter      = 10;      % Nb of iterations in the Newton algorithm
 init       = [0;0;0;0];
-%init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
+init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
 nuzawa     = 100;    % Nb of Uzawa iterations
 lc1        = .1;     % Size of the mesh of the plane
+nelemax    = 5500;   % Max nb of elements in the matrix (for memory usage) 5500
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,20 ; 2,20 ; 3,20 ; 4,20 ; 5,20 ; 6,20 ];
@@ -164,44 +165,52 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 
 % Import the mesh
 %[ nodes,elements,ntoelem,boundary,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_ur4.msh' );
-[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack1_ter.msh' );
+%[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
+[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack1_bis.msh' );
 %[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_noplane.msh' );
 %[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_smile.msh' );
 nnodes = size(nodes,1);
 
-% Lagrange
-[K,C,nbloq] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
-Kinter = K(1:3*nnodes, 1:3*nnodes);
-f = zeros(3*nnodes+nbloq,13);
-for i = 1:13
-   f(:,i) = loading3D(nbloq,nodes,boundary,neumann{i});
-end
-
-uin = K\f; uref = uin(1:3*nnodes,:); fref = Kinter*uref;
-
-%%% Substiturion
-%Kinter = Krig3D (nodes,elements,mat,order,boundary,[]);
-%C = Cbound2 ( nodes, dirichlet, boundary ); index = find(diag(C*C'));
-%
-%indexdex = setdiff(1:3*nnodes,index);
-%
-%f = zeros(3*nnodes,13);
+%% Lagrange
+%[K,C,nbloq] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
+%Kinter = K(1:3*nnodes, 1:3*nnodes);
+%f = zeros(3*nnodes+nbloq,13);
 %for i = 1:13
-%   f(:,i) = loading3D(0,nodes,boundary,neumann{i});
+%   f(:,i) = loading3D(nbloq,nodes,boundary,neumann{i});
 %end
 %
-%uref = zeros(3*nnodes,13); relres = zeros(13,1);
-%%tic
-%for i=1:13
-%   [uref(indexdex,i),flag,relres(i),iter] = pcg( Kinter(indexdex,indexdex), f(indexdex,i), 1e-6, 1000 );
-%end
-%%toc
-%%relres
-%%uref(indexdex,:) = Kinter(indexdex,indexdex)\f(indexdex,:);
-%fref = Kinter*uref;
-%%
+%uin = K\f; uref = uin(1:3*nnodes,:); fref = Kinter*uref;
 
-clear K; clear Kinter;
+% % Substitution
+% Kinter = Krig3D (nodes,elements,mat,order,boundary,[]);
+% C = Cbound2 ( nodes, dirichlet, boundary ); index = find(diag(C*C'));
+% 
+% indexdex = setdiff(1:3*nnodes,index);
+% 
+% f = zeros(3*nnodes,13);
+% for i = 1:13
+% f(:,i) = loading3D(0,nodes,boundary,neumann{i});
+% end
+% 
+% uref = zeros(3*nnodes,13);% relres = zeros(13,1);
+%% %tic
+% PJag = diag(Kinter); 
+% PJac = sparse( 1:3*nnodes, 1:3*nnodes, PJag, 3*nnodes, 3*nnodes ); % Jacobi
+% for i=1:13
+%    [uref(indexdex,i),flag,relres(i),iter] = pcg( Kinter(indexdex,indexdex), f(indexdex,i), 1e-6, 1000, PJac(indexdex,indexdex) );
+% end
+% %toc
+% relres
+%%
+% Kinter = .5*(Kinter+Kinter');
+% uref(indexdex,:) = Kinter(indexdex,indexdex)\f(indexdex,:);
+%%
+ urefl = load('fields/rg3d_Newton_dirichlet.mat');
+ uref = urefl.uref;  fref = urefl.fref;
+%%
+% fref = Kinter*uref;
+%%
+%clear Kinter; %clear K; 
 %sigma = stress3D(uref,mat,nodes,elements,order,1,ntoelem);
 %toplot = { uref(:,1), 'U1' ; uref(:,2), 'U2' ; uref(:,3), 'U3' ;...
 %           uref(:,4), 'U4' ; uref(:,5), 'U5' ; uref(:,6), 'U6' ;...
@@ -212,26 +221,31 @@ clear K; clear Kinter;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-[nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack2.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack1-2.msh' );
+%[ nodes2,elements2,ntoelem2,boundary2,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
+%[nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack2.msh' );
 %[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_u.msh' );
 
-boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the double elements in boundary 2, (ie boundary 7)
+boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the crack (ie boundary 7)
 
 nnodes2 = size(nodes2,1);
-[K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
-Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
+[ ~, nbloq2 ] = Cbound2 ( nodes2, dirichlet, boundary2 );
+% [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
+% Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
+%
+% % Slight contraction of the second mesh for the passmesh
+% mean2x = mean(nodes2(:,1)); mean2y = mean(nodes2(:,2)); mean2z = mean(nodes2(:,3));
+% nodes2c = nodes2;
+% nodes2c(:,1) = (1-1e-6)*(nodes2c(:,1)-mean2x) + mean2x;
+% nodes2c(:,2) = (1-1e-6)*(nodes2c(:,2)-mean2y) + mean2y;
+% nodes2c(:,3) = (1-1e-6)*(nodes2c(:,3)-mean2z) + mean2z;
+% 
+% ur = passMesh3D( nodes, elements, nodes2c, elements2, uref, boundary2 );
+% fr = Kinter2*ur;
 
-% Slight contraction of the second mesh for the passmesh
-mean2x = mean(nodes2(:,1)); mean2y = mean(nodes2(:,2)); mean2z = mean(nodes2(:,3));
-nodes2c = nodes2;
-nodes2c(:,1) = (1-1e-6)*(nodes2c(:,1)-mean2x) + mean2x;
-nodes2c(:,2) = (1-1e-6)*(nodes2c(:,2)-mean2y) + mean2y;
-nodes2c(:,3) = (1-1e-6)*(nodes2c(:,3)-mean2z) + mean2z;
+ur = urefl.ur; fr = urefl.fr;
 
-ur = passMesh3D( nodes, elements, nodes2c, elements2, uref );
-fr = Kinter2*ur;
-
-clear K2; clear Kinter2
+% clear K2; clear Kinter2; clear C2;
 
 toplot = { ur(:,1), 'U1' ; ur(:,2), 'U2' ; ur(:,3), 'U3' ;...
            ur(:,4), 'U4' ; ur(:,5), 'U5' ; ur(:,6), 'U6' ;...
@@ -489,155 +503,175 @@ end
 Ng = Npg; nm3   = (nmax+1)^3;
 [ Xg, Wg ] = gaussPt( Ng ); Ndots = size(Wg,1);
 
-%% Build the list of Gauss points, and of construction-functions
-Xxg = zeros( nboun2*Ndots,1 ); Yyg = zeros( nboun2*Ndots,1 );
-Zzg = zeros( nboun2*Ndots,1 ); Wwg = zeros( nboun2*Ndots,1 );
-Phi = sparse( 3*nboun2*Ndots, 3*nnodeboun );
-Psi = sparse( 3*nboun2*Ndots, 3*nboun2 );
-exnor = zeros( nboun2*Ndots,3); % Normal
-
-for i=1:nboun2
-   bonod = boundary2(i,:); exno = extnorm(i,:)';
-   
-   no1 = bonod(2); no2 = bonod(3); no3 = bonod(4); boname = bonod(1);
-   x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
-   x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
-   x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
-      
-   nsurf = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
-             (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
-             (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
-   surfa = .5*norm(nsurf);
-     
-   % Dofs in the numerotation of the boundary nodes
-   N = boun2loc(i,:);
-   indDtot = [ 3*N(1)-2, 3*N(1)-1, 3*N(1),...
-               3*N(2)-2, 3*N(2)-1, 3*N(2),...
-               3*N(3)-2, 3*N(3)-1, 3*N(3) ];
-                  
-   % Dofs in the numerotation of the boundary elements
-   indNtot = [ 3*i-2, 3*i-1, 3*i ];
-                
-   for j=1:Ndots
-      xg = Xg(j,:); wg = Wg(j);
-      xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; % abscissae
-
-      X = xgr(1)/Lx; Y = xgr(2)/Lx; Z = xgr(3)/Lx; % Normalize
-      Swg   = surfa * wg;
-
-      indexg = Ndots*(i-1) + j;
-      Xxg( indexg ) = X; Yyg( indexg ) = Y; Zzg( indexg ) = Z; Wwg( indexg ) = Swg;
-      exnor( indexg, :) = exno';
-
-      umxgx = 1-xg(1)-xg(2);
-      Phi( 3*indexg-2, indDtot)  = [ umxgx, 0, 0, xg(1), 0, 0, xg(2), 0, 0 ];
-      Phi( 3*indexg-1, indDtot)  = [ 0, umxgx, 0, 0, xg(1), 0, 0, xg(2), 0 ];
-      Phi( 3*indexg  , indDtot)  = [ 0, 0, umxgx, 0, 0, xg(1), 0, 0, xg(2) ];
-
-      Psi( 3*indexg-2, indNtot) = [1,0,0];
-      Psi( 3*indexg-1, indNtot) = [0,1,0];
-      Psi( 3*indexg  , indNtot) = [0,0,1];
-   end
+nntt = nboun2;
+if nntt > nelemax
+   times = idivide(nntt,nelemax,'ceil');
+   nnt   = nelemax*ones(times,1);
+   nnt(end) = nntt - (times-1)*nelemax;
+else
+   nnt   = nntt;
+   times = 1;
 end
 
-%% Build the matrix of test-functions
-Vv = zeros( size(coef,1), 3*nboun2*Ndots );
-Sv = zeros( size(coef,1), 3*nboun2*Ndots );
-exnoX = exnor(:,1); exnoY = exnor(:,2); exnoZ = exnor(:,3);
+ncumul = 0; % This int cumulates and makes the link between the vectors
+Ru = zeros( nftest, 3*nnodeboun );
+Rf = zeros( nftest, 3*nboun2);
 
-for ii=0:nmax
-   nd1 = nmax-ii;
-   for jj=0:nd1
-      nd2 = nmax-ii-jj;
-      for kk=0:nd2
-                  
-         % Build the test field's basis
-         if ii>0
-            XYZi = ii*Xxg.^(ii-1).*Yyg.^jj.*Zzg.^kk;
-            sloc11a = (lambda+2*mu)*XYZi;
-            sloc22a = lambda*XYZi;
-            sloc33a = lambda*XYZi;
-            sloc12b = mu*XYZi;
-            sloc13c = mu*XYZi;
-         else
-            sloc11a = zeros(nboun2*Ndots,1);
-            sloc22a = zeros(nboun2*Ndots,1);
-            sloc33a = zeros(nboun2*Ndots,1);
-            sloc12b = zeros(nboun2*Ndots,1);
-            sloc13c = zeros(nboun2*Ndots,1);
-         end
-
-         if jj>0
-            XYZj = jj*Xxg.^ii.*Yyg.^(jj-1).*Zzg.^kk;
-            sloc12a = mu*XYZj; 
-            sloc11b = lambda*XYZj; 
-            sloc22b = (lambda+2*mu)*XYZj;
-            sloc33b = lambda*XYZj;
-            sloc23c = mu*XYZj;
-         else
-            sloc12a = zeros(nboun2*Ndots,1);
-            sloc11b = zeros(nboun2*Ndots,1);
-            sloc22b = zeros(nboun2*Ndots,1);
-            sloc33b = zeros(nboun2*Ndots,1);
-            sloc23c = zeros(nboun2*Ndots,1);
-         end
-
-         if kk>0
-            XYZk = kk*Xxg.^ii.*Yyg.^jj.*Zzg.^(kk-1);
-            sloc13a = mu*XYZk; 
-            sloc23b = mu*XYZk;
-            sloc11c = lambda*XYZk; 
-            sloc22c = lambda*XYZk;
-            sloc33c = (lambda+2*mu)*XYZk;
-         else
-            sloc13a = zeros(nboun2*Ndots,1);
-            sloc23b = zeros(nboun2*Ndots,1);
-            sloc11c = zeros(nboun2*Ndots,1);
-            sloc22c = zeros(nboun2*Ndots,1);
-            sloc33c = zeros(nboun2*Ndots,1);
-         end
-
-         fpaax = sloc11a.*exnoX + sloc12a.*exnoY + sloc13a.*exnoZ;
-         fpaay = sloc12a.*exnoX + sloc22a.*exnoY;% + sloc23a.*exnoZ;
-         fpaaz = sloc13a.*exnoX + sloc33a.*exnoZ;% + sloc23a.*exnoY 
-
-         fpabx = sloc11b.*exnoX + sloc12b.*exnoY;% + sloc13b.*exnoZ;
-         fpaby = sloc12b.*exnoX + sloc22b.*exnoY + sloc23b.*exnoZ;
-         fpabz = sloc23b.*exnoY + sloc33b.*exnoZ;% + sloc13b.*exnoX
-
-         fpacx = sloc11c.*exnoX + sloc13c.*exnoZ;% + sloc12c.*exnoY
-         fpacy = sloc22c.*exnoY + sloc23c.*exnoZ;% + sloc12c.*exnoX
-         fpacz = sloc13c.*exnoX + sloc23c.*exnoY + sloc33c.*exnoZ;
-
-         XYZ = Xxg.^ii.*Yyg.^jj.*Zzg.^kk;
-         vpaax = XYZ; vpaby = XYZ; vpacz = XYZ;
-
-         index = (nmax+1)^2*ii + (nmax+1)*jj + kk + 1;
-                  
-         Sv( index, 1:3:3*nboun2*Ndots-2 )         = Wwg' .* fpaax';
-         Sv( nm3 + index, 1:3:3*nboun2*Ndots-2 )   = Wwg' .* fpabx';
-         Sv( 2*nm3 + index, 1:3:3*nboun2*Ndots-2 ) = Wwg' .* fpacx';
-
-         Sv( index, 2:3:3*nboun2*Ndots-1 )         = Wwg' .* fpaay';
-         Sv( nm3 + index, 2:3:3*nboun2*Ndots-1 )   = Wwg' .* fpaby';
-         Sv( 2*nm3 + index, 2:3:3*nboun2*Ndots-1 ) = Wwg' .* fpacy';
-
-         Sv( index, 3:3:3*nboun2*Ndots )           = Wwg' .* fpaaz';
-         Sv( nm3 + index, 3:3:3*nboun2*Ndots )     = Wwg' .* fpabz';
-         Sv( 2*nm3 + index, 3:3:3*nboun2*Ndots )   = Wwg' .* fpacz';
-
-         Vv( index, 1:3:3*nboun2*Ndots-2 )         = Wwg' .* vpaax';
-         Vv( nm3 + index, 2:3:3*nboun2*Ndots-1 )   = Wwg' .* vpaby';
-         Vv( 2*nm3 + index, 3:3:3*nboun2*Ndots )   = Wwg' .* vpacz';
+for cut=1:times
+   nntc = nnt(cut);
+   %% Build the list of Gauss points, and of construction-functions
+   Xxg = zeros( nntc*Ndots,1 ); Yyg = zeros( nntc*Ndots,1 );
+   Zzg = zeros( nntc*Ndots,1 ); Wwg = zeros( nntc*Ndots,1 );
+   Phi = sparse( 3*nntc*Ndots, 3*nnodeboun );
+   Psi = sparse( 3*nntc*Ndots, 3*nboun2 ); % (And not nntc)
+   exnor = zeros( nntc*Ndots,3 ); % Normal
+   
+   for i=1:nntc
+      iHi = i+ncumul; % Recover the right index of the element
+      bonod = boundary2(iHi,:); exno = extnorm(iHi,:)';
+      
+      no1 = bonod(2); no2 = bonod(3); no3 = bonod(4); boname = bonod(1);
+      x1 = nodes2(no1,1); y1 = nodes2(no1,2); z1 = nodes2(no1,3);
+      x2 = nodes2(no2,1); y2 = nodes2(no2,2); z2 = nodes2(no2,3);
+      x3 = nodes2(no3,1); y3 = nodes2(no3,2); z3 = nodes2(no3,3);
+         
+      nsurf = [ (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2);... %
+                (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3);... % Vectorial product
+                (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2) ];  %
+      surfa = .5*norm(nsurf);
+        
+      % Dofs in the numerotation of the boundary nodes
+      N = boun2loc(iHi,:);
+      indDtot = [ 3*N(1)-2, 3*N(1)-1, 3*N(1),...
+                  3*N(2)-2, 3*N(2)-1, 3*N(2),...
+                  3*N(3)-2, 3*N(3)-1, 3*N(3) ];
+                     
+      % Dofs in the numerotation of the boundary elements
+      indNtot = [ 3*iHi-2, 3*iHi-1, 3*iHi ];
+                   
+      for j=1:Ndots
+         xg = Xg(j,:); wg = Wg(j);
+         xgr  = (1-xg(1)-xg(2))*[x1;y1;z1] + xg(1)*[x2;y2;z2] + xg(2)*[x3;y3;z3] ; % abscissae
+   
+         X = xgr(1)/Lx; Y = xgr(2)/Lx; Z = xgr(3)/Lx; % Normalize
+         Swg   = surfa * wg;
+   
+         indexg = Ndots*(i-1) + j; % And not iHi
+         Xxg( indexg ) = X; Yyg( indexg ) = Y; Zzg( indexg ) = Z; Wwg( indexg ) = Swg;
+         exnor( indexg, :) = exno';
+   
+         umxgx = 1-xg(1)-xg(2);
+         Phi( 3*indexg-2, indDtot)  = [ umxgx, 0, 0, xg(1), 0, 0, xg(2), 0, 0 ];
+         Phi( 3*indexg-1, indDtot)  = [ 0, umxgx, 0, 0, xg(1), 0, 0, xg(2), 0 ];
+         Phi( 3*indexg  , indDtot)  = [ 0, 0, umxgx, 0, 0, xg(1), 0, 0, xg(2) ];
+   
+         Psi( 3*indexg-2, indNtot) = [1,0,0];
+         Psi( 3*indexg-1, indNtot) = [0,1,0];
+         Psi( 3*indexg  , indNtot) = [0,0,1];
       end
    end
+   
+   %% Build the matrix of test-functions
+   Vv = zeros( size(coef,1), 3*nntc*Ndots );
+   Sv = zeros( size(coef,1), 3*nntc*Ndots );
+   exnoX = exnor(:,1); exnoY = exnor(:,2); exnoZ = exnor(:,3);
+   
+   for ii=0:nmax
+      nd1 = nmax-ii;
+      for jj=0:nd1
+         nd2 = nmax-ii-jj;
+         for kk=0:nd2
+                     
+            % Build the test field's basis
+            if ii>0
+               XYZi = ii*Xxg.^(ii-1).*Yyg.^jj.*Zzg.^kk;
+               sloc11a = (lambda+2*mu)*XYZi;
+               sloc22a = lambda*XYZi;
+               sloc33a = lambda*XYZi;
+               sloc12b = mu*XYZi;
+               sloc13c = mu*XYZi;
+            else
+               sloc11a = zeros(nntc*Ndots,1);
+               sloc22a = zeros(nntc*Ndots,1);
+               sloc33a = zeros(nntc*Ndots,1);
+               sloc12b = zeros(nntc*Ndots,1);
+               sloc13c = zeros(nntc*Ndots,1);
+            end
+   
+            if jj>0
+               XYZj = jj*Xxg.^ii.*Yyg.^(jj-1).*Zzg.^kk;
+               sloc12a = mu*XYZj; 
+               sloc11b = lambda*XYZj; 
+               sloc22b = (lambda+2*mu)*XYZj;
+               sloc33b = lambda*XYZj;
+               sloc23c = mu*XYZj;
+            else
+               sloc12a = zeros(nntc*Ndots,1);
+               sloc11b = zeros(nntc*Ndots,1);
+               sloc22b = zeros(nntc*Ndots,1);
+               sloc33b = zeros(nntc*Ndots,1);
+               sloc23c = zeros(nntc*Ndots,1);
+            end
+   
+            if kk>0
+               XYZk = kk*Xxg.^ii.*Yyg.^jj.*Zzg.^(kk-1);
+               sloc13a = mu*XYZk; 
+               sloc23b = mu*XYZk;
+               sloc11c = lambda*XYZk; 
+               sloc22c = lambda*XYZk;
+               sloc33c = (lambda+2*mu)*XYZk;
+            else
+               sloc13a = zeros(nntc*Ndots,1);
+               sloc23b = zeros(nntc*Ndots,1);
+               sloc11c = zeros(nntc*Ndots,1);
+               sloc22c = zeros(nntc*Ndots,1);
+               sloc33c = zeros(nntc*Ndots,1);
+            end
+   
+            fpaax = sloc11a.*exnoX + sloc12a.*exnoY + sloc13a.*exnoZ;
+            fpaay = sloc12a.*exnoX + sloc22a.*exnoY;% + sloc23a.*exnoZ;
+            fpaaz = sloc13a.*exnoX + sloc33a.*exnoZ;% + sloc23a.*exnoY 
+   
+            fpabx = sloc11b.*exnoX + sloc12b.*exnoY;% + sloc13b.*exnoZ;
+            fpaby = sloc12b.*exnoX + sloc22b.*exnoY + sloc23b.*exnoZ;
+            fpabz = sloc23b.*exnoY + sloc33b.*exnoZ;% + sloc13b.*exnoX
+   
+            fpacx = sloc11c.*exnoX + sloc13c.*exnoZ;% + sloc12c.*exnoY
+            fpacy = sloc22c.*exnoY + sloc23c.*exnoZ;% + sloc12c.*exnoX
+            fpacz = sloc13c.*exnoX + sloc23c.*exnoY + sloc33c.*exnoZ;
+   
+            XYZ = Xxg.^ii.*Yyg.^jj.*Zzg.^kk;
+            vpaax = XYZ; vpaby = XYZ; vpacz = XYZ;
+   
+            index = (nmax+1)^2*ii + (nmax+1)*jj + kk + 1;
+                     
+            Sv( index, 1:3:3*nntc*Ndots-2 )         = Wwg' .* fpaax';
+            Sv( nm3 + index, 1:3:3*nntc*Ndots-2 )   = Wwg' .* fpabx';
+            Sv( 2*nm3 + index, 1:3:3*nntc*Ndots-2 ) = Wwg' .* fpacx';
+   
+            Sv( index, 2:3:3*nntc*Ndots-1 )         = Wwg' .* fpaay';
+            Sv( nm3 + index, 2:3:3*nntc*Ndots-1 )   = Wwg' .* fpaby';
+            Sv( 2*nm3 + index, 2:3:3*nntc*Ndots-1 ) = Wwg' .* fpacy';
+   
+            Sv( index, 3:3:3*nntc*Ndots )           = Wwg' .* fpaaz';
+            Sv( nm3 + index, 3:3:3*nntc*Ndots )     = Wwg' .* fpabz';
+            Sv( 2*nm3 + index, 3:3:3*nntc*Ndots )   = Wwg' .* fpacz';
+   
+            Vv( index, 1:3:3*nntc*Ndots-2 )         = Wwg' .* vpaax';
+            Vv( nm3 + index, 2:3:3*nntc*Ndots-1 )   = Wwg' .* vpaby';
+            Vv( 2*nm3 + index, 3:3:3*nntc*Ndots )   = Wwg' .* vpacz';
+         end
+      end
+   end
+   
+   Ruij = Sv*Phi; clear Sv; clear Phi;
+   Rfij = Vv*Psi; clear Vv; clear Psi;
+   
+   Ru = Ru + coef'*Ruij; Rf = Rf + coef'*Rfij;
+   clear Ruij; clear Rfij; % We can't afford not to clear
+
+   ncumul = ncumul + nntc;
 end
-
-Ruij = Sv*Phi; clear Sv; clear Phi;
-Rfij = Vv*Psi; clear Vv; clear Psi;
-
-Ru = coef'*Ruij; Rf = coef'*Rfij;
-clear Ruij; clear Rfij; % We can't afford not to clear
 
 % Clear zeros lines
 toremove = [];
@@ -662,10 +696,10 @@ Rhs1 = Rur*u_known(knownD,:) - Rfr*f_known(knownN,:); % It's a multiple Rhs
 sRhs = size(Rhs1,1);
 
 % Build the matrix that passes f on dofs on the nodes from the bound
-Fbton = zeros( 3*nnodeboun, 3*nboun2 ); Fntob = zeros( 3*nboun2, 3*nnodeboun ); 
+Fbton = sparse( 3*nnodeboun, 3*nboun2 ); Fntob = sparse( 3*nboun2, 3*nnodeboun ); 
 % And the boundary mass matrix
-nodeMass = zeros(3*nnodeboun);  % For u
-elemMass = zeros(3*nboun2);     % For f
+nodeMass = sparse(3*nnodeboun,3*nnodeboun);  % For u
+elemMass = sparse(3*nboun2,3*nboun2);     % For f
 % msur = 10000;  % ~= Infinity
 for i=1:nboun2
    coefU = [ boun2loc(i,1), boun2loc(i,2), boun2loc(i,3) ];
@@ -698,12 +732,12 @@ for i=1:nboun2
 end
 
 % Extract interesting parts
-Mfm = elemMass(tofindN,tofindN); Mfr = elemMass(knownN,knownN);
-Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
+Mfm = elemMass(tofindN,tofindN);% Mfr = elemMass(knownN,knownN);
+Mum = nodeMass(tofindD,tofindD);% Mur = nodeMass(knownD,knownD);
 
 % Derivative operators
-Du  = zeros(6*nboun2,3*nnodeboun);
-Duf = zeros(6*121,3*nnodeboun);
+Du  = sparse(6*nboun2,3*nnodeboun);
+%Duf = zeros(6*121,3*nnodeboun);
 Df  = elemMass; % No derivative for f
 for i=1:nboun2    
    no1 = boundary2(i,2); no2 = boundary2(i,3); no3 = boundary2(i,4);
@@ -737,8 +771,8 @@ for i=1:nboun2
                
    % Product with Fourier functions
    ii = 0:10; jj = 0:10;
-   F  = real(exp(2*I*pi)*(ii'*xg+jj*yg)); F = F(:);
-   Bf = [ F*Be(1,:) ; F*Be(2,:) ; F*Be(3,:) ; F*Be(4,:) ; F*Be(5,:) ; F*Be(6,:) ];
+   %F  = real(exp(2*I*pi)*(ii'*xg+jj*yg)); F = F(:);
+   %Bf = [ F*Be(1,:) ; F*Be(2,:) ; F*Be(3,:) ; F*Be(4,:) ; F*Be(5,:) ; F*Be(6,:) ];
 
    indelem = [ 6*i-5, 6*i-4, 6*i-3, 6*i-2, 6*i-1, 6*i ];
 %   coefU   = [ 3*boundary2(i,2)-2, 3*boundary2(i,2)-1, 3*boundary2(i,2),...
@@ -750,12 +784,25 @@ for i=1:nboun2
                3*N(3)-2, 3*N(3)-1, 3*N(3) ];
                   
    Du( indelem, coefU ) = Du( indelem, coefU ) + Be*sqrt(S);
-   Duf( :, coefU )      = Duf( :, coefU )      + Bf*sqrt(S);
+   %Duf( :, coefU )      = Duf( :, coefU )      + Bf*sqrt(S);
 end
    
-Du0 = Du; Df0 = Df*norm(Du,'fro')/norm(Df,'fro'); Duf0 = Duf;
-Du  = Du0(:,tofindD); Df  = Df0(tofindN,tofindN); Duf  = Duf0(:,tofindD);
-Duk = Du0(:,knownD);  Dfk = Df0(knownN,knownN);   Dufk = Duf0(:,knownD);
+Du0 = Du; Df0 = Df*norm(Du,'fro')/norm(Df,'fro'); %Duf0 = Duf;
+Du  = Du0(:,tofindD); Df  = Df0(tofindN,tofindN); %Duf  = Duf0(:,tofindD);
+Duu = Du'*Du; Dfu = Df'*Df; Duu0 = Du0'*Du0;
+if max(size(Duu))>0
+   sDu = real(Duu^(1/2));
+else
+   sDu = Duu;
+end
+if max(size(Dfu))>0
+   sDf = real(Dfu^(1/2));
+else
+   sDf = Dfu;
+end
+
+%Duk = Du0(:,knownD);  Dfk = Df0(knownN,knownN);   Dufk = Duf0(:,knownD);
+clear Df0; 
 % End derivative operator
 
 % Recover the reference parameters of the plane
@@ -1103,13 +1150,9 @@ for iter = 1:niter
       
       Lhs = [LhsA,kB*LhsB,Ruc]; sA = size(Lhs,2);
       
-      Z12    = zeros(size(Mum,1),size(Mfm,2)); Z13 = zeros(size(Mum,1),size(nodeMass3,2));
-      Z23    = zeros(size(Mfm,1),size(nodeMass3,2));
-      Mtot   = [ Mum, Z12, Z13  ; Z12', Mfm, Z23 ; Z13', Z23', nodeMass3 ]; % Weighted mass
-      
       %% And the derivative operator
       D3  = zeros(6*nboun3,3*nnodes3);
-      D3f = zeros(6*121,3*nnodes3);
+      %D3f = zeros(6*121,3*nnodes3);
       for i=1:nboun3
          no1 = boundary3(i,2); no2 = boundary3(i,3); no3 = boundary3(i,4);
          x1 = nodes3(no1,1); y1 = nodes3(no1,2); z1 = nodes3(no1,3);
@@ -1142,8 +1185,8 @@ for iter = 1:niter
       
          % Product with Fourier functions
          ii = 0:10; jj = 0:10;
-         F  = real(exp(2*I*pi)*(ii'*xg+jj*yg)); F = F(:);
-         Bf = [ F*Be(1,:) ; F*Be(2,:) ; F*Be(3,:) ; F*Be(4,:) ; F*Be(5,:) ; F*Be(6,:) ];
+         %F  = real(exp(2*I*pi)*(ii'*xg+jj*yg)); F = F(:);
+         %Bf = [ F*Be(1,:) ; F*Be(2,:) ; F*Be(3,:) ; F*Be(4,:) ; F*Be(5,:) ; F*Be(6,:) ];
       
          indelem = [ 6*i-5, 6*i-4, 6*i-3, 6*i-2, 6*i-1, 6*i ];
          coefU   = [ 3*boundary3(i,2)-2, 3*boundary3(i,2)-1, 3*boundary3(i,2),...
@@ -1151,32 +1194,35 @@ for iter = 1:niter
                      3*boundary3(i,4)-2, 3*boundary3(i,4)-1, 3*boundary3(i,4) ];
                         
          D3( indelem, coefU ) = D3( indelem, coefU ) + Be*sqrt(S);
-         D3f( :, coefU )      = D3f( :, coefU )      + Bf*sqrt(S);
+         %D3f( :, coefU )      = D3f( :, coefU )      + Bf*sqrt(S);
       end
       
       if regular == 1
-         Duu = Du'*Du; Dfu = Df'*Df; D3u = D3'*D3;
+         D3u = D3'*D3; sD3 = real(D3u^(1/2));
          Z12 = zeros( size(Duu,1) , size(Dfu,1) ); Z13 = zeros( size(Duu,1), size(D3u,1) );
          Z23 = zeros( size(Dfu,1), size(D3u,1) );
          Dtot = [ Duu ,Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3u ];
          L = Dtot;
-         sL = real(Dtot^(1/2)); % As usual, Dtot is supposed to be SymPos, but is not numerically
+         sL = [ sDu ,Z12, Z13 ; Z12', sDf, Z23 ; Z13', Z23', sD3 ];
          Zuf = zeros( size(Du,1), size(Df,2)); Zfu = zeros( size(Df,1), size(Du,2));
          Zu3 = zeros( size(Du,1), size(D3,2)); Z3u = zeros( size(D3,1), size(Du,2));
          Zf3 = zeros( size(Df,1), size(D3,2)); Z3f = zeros( size(D3,1), size(Df,2)); 
          
-         Duu0 = Du0'*Du0;
-         L12  = [ Duu0(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(3*nnodes3,size(Duk,2)) ];
+         L12  = [ Duu0(tofindD,knownD) ; sparse(size(Dfu,2),size(knownD,2)) ; sparse(3*nnodes3,size(knownD,2)) ];
          L12i = L12*u_known(knownD,:);
          L2i  = u_known(knownD,:)'*Duu0(knownD,knownD)*u_known(knownD,:); % Only its diagonal has meaning
       else
+         Z12    = sparse(size(Mum,1),size(Mfm,2)); Z13 = sparse(size(Mum,1),size(nodeMass3,2));
+         Z23    = sparse(size(Mfm,1),size(nodeMass3,2));
+         Mtot   = [ Mum, Z12, Z13  ; Z12', Mfm, Z23 ; Z13', Z23', nodeMass3 ]; % Weighted mass
          L = Mtot; sL = Mtot^(1/2);
          L12i = zeros(ndofs,13); L2i = zeros(13);
       end
 
       Solu1 = zeros(sA,13);
-      MAT = Lhs'*Lhs + mur*L;
-      VEC = Lhs'*Rhs1 - mur*L12i;
+      AAA = Lhs'*Lhs; BBB = Lhs'*Rhs1;% CCC = Rhs1'*Rhs1;
+      MAT = AAA + mur*L;
+      VEC = BBB - mur*L12i;
    
       %% Impose the inequation U3.n > 0
       C = zeros(nnodes3, 3*nnodes3);
@@ -1200,24 +1246,34 @@ for iter = 1:niter
          C(i,:) = C(i,:)/norm(C(i,:));
       end
       
-      % Add the zero rows for the other dofs
-      C = [ zeros(nnodes3,sA-3*nnodes3), C ];
+      % Add the zero rows for the other dofs (and sparsify)
+      C = [ sparse(nnodes3,sA-3*nnodes3), C ];
       
       f = zeros(nnodes3,13); Ctf = C'*f;
       respos = zeros(nuzawa,1); df = zeros(nuzawa,1);
-      
+
       if zerobound == 1
          [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep));
-         kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
+         %Ll = chol (MAT(tokeep,tokeep),'lower'); % Not a real improvement...
+         %kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
+         kuzawa1 = mur*min(eig(L(tokeep,tokeep))); % Slightly quicker sharp lower bound
       else
          [Ll, Uu, Pp] = lu (MAT);  % P * M = L * U
          kuzawa1 = .999*min(eig(MAT));
       end
       
+      % Acually invert the matrix (is is in fact more effecient (at least for the semi-fat case I tried))
+      %Uu1 = inv(Uu); Ll1 = inv(Ll); MAT1 = Uu1*Ll1*Pp;
+      Uu1 = Uu\eye(size(Uu)); Ll1 = Ll\eye(size(Ll)); MAT1 = Uu1*Ll1*Pp;
+      
+      % Just an initialization
+      Solu1 = zeros(size(L,1),13);
+      
       for i=1:nuzawa % Uzawa for the contact problems
          if zerobound == 1
-            Solu1 = zeros(size(L,1),13);
-            Solu1(tokeep,:) = Uu \ ( Ll \ ( Pp * ( VEC(tokeep,:) + Ctf(tokeep,:) ) ) );
+            %Solu1(tokeep,:) = Uu \ ( Ll \ ( Pp * ( VEC(tokeep,:) + Ctf(tokeep,:) ) ) );
+            Solu1(tokeep,:) = MAT1 * ( VEC(tokeep,:) + Ctf(tokeep,:) );
+            %Solu1(tokeep,:) = (Ll') \ ( Ll \ ( VEC(tokeep,:) + Ctf(tokeep,:) ) );
          else
             Solu1 = Uu \ ( Ll \ ( Pp * ( VEC + Ctf ) ) );
          end
@@ -1226,7 +1282,7 @@ for iter = 1:niter
          
          f = f - kuzawa1*C*Solu1;
          f = .5*(f + abs(f)); Ctf = C'*f;
-         df(i) = norm(f-fp);
+         df(i) = norm(f-fp,'fro');
       end
       %% End Uzawa
       
@@ -1236,11 +1292,11 @@ for iter = 1:niter
          L1x = diag(Solu1'*L12i);
          res = Ax(:) - Rhs1(:); rel = sLx(:);
          for i=1:13
-            norres(iter,i) = Solu1(:,i)'*Lhs'*Lhs*Solu1(:,i) - 2*Solu1(:,i)'*Lhs'*Rhs1(:,i) +...
+            norres(iter,i) = Solu1(:,i)'*AAA*Solu1(:,i) - 2*Solu1(:,i)'*BBB(:,i) +...
                              Rhs1(:,i)'*Rhs1(:,i);
             norreg(iter,i) = mur*Solu1(:,i)'*L*Solu1(:,i) +...
                              2*mur*Solu1(:,i)'*L12i(:,i) + mur*L2i(i,i);
-            nori(iter,i) = Solu1(:,i)'*Lhs'*Lhs*Solu1(:,i) - 2*Solu1(:,i)'*Lhs'*Rhs1(:,i) +...
+            nori(iter,i) = Solu1(:,i)'*AAA*Solu1(:,i) - 2*Solu1(:,i)'*BBB(:,i) +...
                            Rhs1(:,i)'*Rhs1(:,i) + mur*Solu1(:,i)'*L*Solu1(:,i) +...
                            2*mur*Solu1(:,i)'*L12i(:,i) + mur*L2i(i,i);
             phi(iter)    = phi(iter) + nori(iter,i);
@@ -1507,7 +1563,7 @@ try
 figure;
 hold on;
 patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',ones(size(nodes3p,1),1),'FaceColor','interp');
-patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',zeros(size(nodes3p,1),1),'FaceColor','interp');
+patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',zeros(size(nodes3,1),1),'FaceColor','interp');
 colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
 end
 
