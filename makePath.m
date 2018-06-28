@@ -14,3 +14,5 @@ addpath( genpath('./bayesian') );
 addpath( genpath('./rg_cauchy_crack') );
 addpath( genpath('./dynamic') );
 addpath( genpath('./experimental') );
+addpath( genpath('./verif') );
+addpath( genpath('./fendage') );
