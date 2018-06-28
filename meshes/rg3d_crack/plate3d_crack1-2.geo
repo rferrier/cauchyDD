@@ -17,7 +17,7 @@ E     = 1; //E     = 7;
 lc1 = .02; // fine element
 lc2 = .1; // element size at the crack tip
 lc3 = .03; //  coarse size
-lc4 = .1; //coarser size
+lc4 = .03; //coarser size
 lc5 = .03; //other coarser size
 
 // Domain construction
