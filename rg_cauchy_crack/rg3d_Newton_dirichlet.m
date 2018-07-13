@@ -13,13 +13,13 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-mur        = 1e2;%1e2;%5e7;      % Regularization parameter
+mur        = 1e2;%5e1;%5e7;      % Regularization parameter
 regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 10;      % Nb of iterations in the Newton algorithm
-init       = [0;0;0;0];
+niter      = 15;      % Nb of iterations in the Newton algorithm
+%init       = [0;0;0;0];
 init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
@@ -320,9 +320,9 @@ end
 
 % Add the noise
 un = ur; am = zeros(1,13);
-br1 = randn(3*nnodes2,13);
-%noise = load('noises/cauchyRG.mat');
-%br1 = noise.br1;
+%br1 = randn(3*nnodes2,13);
+noise = load('noises/cauchyRG3d.mat');
+br1 = noise.br1;
 for i=1:13
    am(i)   = sqrt(mean(ur(:,i).^2));
    ur(:,i) = ur(:,i) + br*am(i)*br1(:,i);
@@ -1372,9 +1372,16 @@ eno = extnorm3p(1,:); % All the normals are the same
 UsN = ucrsol1(1:3:end-2,:)*eno(1) + ucrsol1(2:3:end-1,:)*eno(2) + ucrsol1(3:3:end,:)*eno(3);
 try
 figure;
+colormap(jet(64));
+set(gca, 'fontsize', 20);
 patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',UsN(:,11),'FaceColor','interp');
-colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+caxis( [-1.32e-6, 9.75e-6] );
+axis([0,1,0,1,0,1],'square'); set(colorbar, 'fontsize', 20); colorbar('SouthOutside');
 end
+
+%% (Re-)Export it to gmsh
+mesh2GMSH( nodes3p, boundary3p(:,2:4), [], 'output/mesh_usn' );
+plotGMSH3D( {UsN(:,11),'UsN'}, boundary3p(:,2:4), nodes3p, 'output/field_usn' );
 
 %%%% And recover the reference
 %% Build the intersection of the plane with the domain
@@ -1489,9 +1496,16 @@ U_diff = U_up-U_do;
 UrNr = U_diff(1:3:end-2,:)*normal3(1) + U_diff(2:3:end-1,:)*normal3(2) + U_diff(3:3:end,:)*normal3(3);
 try
 figure;
+colormap(jet(64));
+set(gca, 'fontsize', 20);
 patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrNr(:,11),'FaceColor','interp');
-colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+caxis( [-1.32e-6, 9.75e-6] );
+axis([0,1,0,1,0,1],'square'); set(colorbar, 'fontsize', 20); colorbar('SouthOutside');
 end
+
+%% (Re-)Export it to gmsh
+mesh2GMSH( nodes3, boundary3(:,2:4), [], 'output/mesh_urnr' );
+plotGMSH3D( {UrNr(:,11),'UsN'}, boundary3(:,2:4), nodes3, 'output/field_urnr' );
 
 %%% Plot on a line
 %% First : computed stuff : use the projection on the xy plane of nodes3
@@ -1562,8 +1576,11 @@ end
 try
 figure;
 hold on;
+set(gca, 'fontsize', 20);
 patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',ones(size(nodes3p,1),1),'FaceColor','interp');
 patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',zeros(size(nodes3,1),1),'FaceColor','interp');
+%patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',UsN(:,11),'FaceColor','interp');
+%patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrNr(:,11),'FaceColor','interp');
 colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
 end
 
