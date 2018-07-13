@@ -12,6 +12,7 @@ mat         = [0, E, nu];
 br          = .0;      % Noise level
 
 [ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_c_squared3_noref.msh' );
+%[ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_nc.msh' );
 nnodesg = size(nodesg,1);
 
 %% Direct problem
@@ -296,51 +297,127 @@ toc
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
 
 %%%%
-%% Outputs plots
-% Plot the normal
-try
-figure
-hold on;
-%ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
-x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
-Xmin = min(nodes(:,1)); Xmax = max(nodes(:,1));
-Ymin = min(nodes(:,2)); Ymax = max(nodes(:,2));
 
-xc = .5*(x6+x5);
-yc = .5*(y6+y5);
-
-% Rectangle
-plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
-plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
-plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
-plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
-
-x2 = xc + .5*normal(1); y2 = yc + .5*normal(2);
-plot( [xc,x2], [yc,y2] ,'Color', 'red', 'LineWidth',3);
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
-axis('equal');
-end
-
-% Plot the line
-try
-figure
-hold on;
-
+%% Compute the computed position of the crack
 Vp1 = [2;-Cte1]; Vp2 = [-2;-Cte1];
 Vm1 = [2;-Cte2]; Vm2 = [-2;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
 
-% Rectangle
-plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
-plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
-plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
-plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
+xmin = min(nodesg(:,1)); xmax = max(nodesg(:,1));
+ymin = min(nodesg(:,2)); ymax = max(nodesg(:,2));
 
-plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',3);
-plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',3);
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',4);
-axis('equal');
+%% First one
+x1 = vp1(1); y1 = vp1(2);
+x2 = vp2(1); y2 = vp2(2);
+% 4 intersections of the line with the boundaries
+t1 = (xmin-x1)/(x2-x1); t2 = (xmax-x1)/(x2-x1);
+t3 = (ymin-y1)/(y2-y1); t4 = (ymax-y1)/(y2-y1);
+xy11 = [xmin;y1+(y2-y1)*t1];
+xy22 = [xmax;y1+(y2-y1)*t2];
+xy33 = [x1+(x2-x1)*t3;ymin];
+xy44 = [x1+(x2-x1)*t4;ymax];
+xy1234 = [xy11,xy22,xy33,xy44];
+% limit to those that are inside the square
+elim1 = find(xy1234(1,:)>1); elim2 = find(xy1234(2,:)>1);
+elim3 = find(xy1234(1,:)<0); elim4 = find(xy1234(2,:)<0);
+total = setdiff( [1,2,3,4] , union(union(elim1,elim2),union(elim3,elim4)) );
+xyt = xy1234(:,total); % Normally, this one should be of size 2
+if max(size(total)) < 2
+   warning('crack is outside the domain');
+   xyp1 = [0;0]; xyp2 = [0;0];
+else
+   xyp1 = xyt(:,1); xyp2 = xyt(:,2);
 end
+
+%% Second one
+x1 = vm1(1); y1 = vm1(2);
+x2 = vm2(1); y2 = vm2(2);
+% 4 intersections of the line with the boundaries
+t1 = (xmin-x1)/(x2-x1); t2 = (xmax-x1)/(x2-x1);
+t3 = (ymin-y1)/(y2-y1); t4 = (ymax-y1)/(y2-y1);
+xy11 = [xmin;y1+(y2-y1)*t1];
+xy22 = [xmax;y1+(y2-y1)*t2];
+xy33 = [x1+(x2-x1)*t3;ymin];
+xy44 = [x1+(x2-x1)*t4;ymax];
+xy1234 = [xy11,xy22,xy33,xy44];
+% limit to those that are inside the square
+elim1 = find(xy1234(1,:)>1); elim2 = find(xy1234(2,:)>1);
+elim3 = find(xy1234(1,:)<0); elim4 = find(xy1234(2,:)<0);
+total = setdiff( [1,2,3,4] , union(union(elim1,elim2),union(elim3,elim4)) );
+xyt = xy1234(:,total); % Normally, this one should be of size 2
+if max(size(total)) < 2
+   warning('crack is outside the domain');
+   xym1 = [0;0]; xym2 = [0;0];
+else
+   xym1 = xyt(:,1); xym2 = xyt(:,2);
+end
+
+% Vizualize the crack's line
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+try
+figure; hold on;
+x1m = xym1(1); y1m = xym1(2);
+x2m = xym2(1); y2m = xym2(2);
+x1p = xyp1(1); y1p = xyp1(2);
+x2p = xyp2(1); y2p = xyp2(2);
+x1r = xy1r(1); y1r = xy1r(2);
+x2r = xy2r(1); y2r = xy2r(2);
+plot( [xmin,xmax], [ymin,ymin], 'Color', 'black');
+plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
+plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
+plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
+plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
+plot( [x1m,x2m], [y1m,y2m], 'Color', 'green', 'LineWidth', 3 );
+plot( [x1p,x2p], [y1p,y2p], 'Color', 'red', 'LineWidth', 3 );
+axis equal;
+end
+
+%% Outputs plots
+%% Plot the normal
+%try
+%figure
+%hold on;
+%%ret = patch('Faces',elements2(:,1:3),'Vertices',nodes2,'FaceAlpha',0);
+%x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+%Xmin = min(nodes(:,1)); Xmax = max(nodes(:,1));
+%Ymin = min(nodes(:,2)); Ymax = max(nodes(:,2));
+
+%xc = .5*(x6+x5);
+%yc = .5*(y6+y5);
+
+%% Rectangle
+%plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
+%plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
+%plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
+%plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
+
+%x2 = xc + .5*normal(1); y2 = yc + .5*normal(2);
+%plot( [xc,x2], [yc,y2] ,'Color', 'red', 'LineWidth',3);
+%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
+%axis('equal');
+%end
+
+%% Plot the line
+%try
+%figure
+%hold on;
+
+%Vp1 = [2;-Cte1]; Vp2 = [-2;-Cte1];
+%Vm1 = [2;-Cte2]; Vm2 = [-2;-Cte2];
+%vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
+
+%% Rectangle
+%plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
+%plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
+%plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
+%plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
+
+%plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',3);
+%plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',3);
+%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',4);
+%axis('equal');
+%end
 
 % Plot the gap
 try
@@ -350,7 +427,6 @@ plot(curvr,rn1,'Color','red');
 plot(x-x(1),ug*sign(normal'*n),'Color','blue');
 legend('Reference','Solution');
 end
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Identify the crack on the small domain
 % Use the lower mesh
@@ -437,43 +513,117 @@ toc
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
 
 %%%%
-%% Outputs plots
-% Plot the normal
-try
-figure
-hold on;
-
-plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
-plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
-plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
-plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
-
-x2 = xc + .5*normal(1); y2 = yc + .5*normal(2);
-plot( [xc,x2], [yc,y2] ,'Color', 'red', 'LineWidth',3);
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
-axis('equal');
-end
-
-% Plot the line
-try
-figure
-hold on;
-
+%% Compute the computed position of the crack
 Vp1 = [2;-Cte1]; Vp2 = [-2;-Cte1];
 Vm1 = [2;-Cte2]; Vm2 = [-2;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
 
-% Rectangle
-plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
-plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
-plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
-plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
+xmin = min(nodesg(:,1)); xmax = max(nodesg(:,1));
+ymin = min(nodesg(:,2)); ymax = max(nodesg(:,2));
 
-plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',3);
-plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',3);
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',4);
-axis('equal');
+%% First one
+x1 = vp1(1); y1 = vp1(2);
+x2 = vp2(1); y2 = vp2(2);
+% 4 intersections of the line with the boundaries
+t1 = (xmin-x1)/(x2-x1); t2 = (xmax-x1)/(x2-x1);
+t3 = (ymin-y1)/(y2-y1); t4 = (ymax-y1)/(y2-y1);
+xy11 = [xmin;y1+(y2-y1)*t1];
+xy22 = [xmax;y1+(y2-y1)*t2];
+xy33 = [x1+(x2-x1)*t3;ymin];
+xy44 = [x1+(x2-x1)*t4;ymax];
+xy1234 = [xy11,xy22,xy33,xy44];
+% limit to those that are inside the square
+elim1 = find(xy1234(1,:)>1); elim2 = find(xy1234(2,:)>1);
+elim3 = find(xy1234(1,:)<0); elim4 = find(xy1234(2,:)<0);
+total = setdiff( [1,2,3,4] , union(union(elim1,elim2),union(elim3,elim4)) );
+xyt = xy1234(:,total); % Normally, this one should be of size 2
+if max(size(total)) < 2
+   warning('crack is outside the domain');
+   xyp1 = [0;0]; xyp2 = [0;0];
+else
+   xyp1 = xyt(:,1); xyp2 = xyt(:,2);
 end
+
+%% Second one
+x1 = vm1(1); y1 = vm1(2);
+x2 = vm2(1); y2 = vm2(2);
+% 4 intersections of the line with the boundaries
+t1 = (xmin-x1)/(x2-x1); t2 = (xmax-x1)/(x2-x1);
+t3 = (ymin-y1)/(y2-y1); t4 = (ymax-y1)/(y2-y1);
+xy11 = [xmin;y1+(y2-y1)*t1];
+xy22 = [xmax;y1+(y2-y1)*t2];
+xy33 = [x1+(x2-x1)*t3;ymin];
+xy44 = [x1+(x2-x1)*t4;ymax];
+xy1234 = [xy11,xy22,xy33,xy44];
+% limit to those that are inside the square
+elim1 = find(xy1234(1,:)>1); elim2 = find(xy1234(2,:)>1);
+elim3 = find(xy1234(1,:)<0); elim4 = find(xy1234(2,:)<0);
+total = setdiff( [1,2,3,4] , union(union(elim1,elim2),union(elim3,elim4)) );
+xyt = xy1234(:,total); % Normally, this one should be of size 2
+if max(size(total)) < 2
+   warning('crack is outside the domain');
+   xym1 = [0;0]; xym2 = [0;0];
+else
+   xym1 = xyt(:,1); xym2 = xyt(:,2);
+end
+
+% Vizualize the crack's line
+try
+figure; hold on;
+x1m = xym1(1); y1m = xym1(2);
+x2m = xym2(1); y2m = xym2(2);
+x1p = xyp1(1); y1p = xyp1(2);
+x2p = xyp2(1); y2p = xyp2(2);
+x1r = xy1r(1); y1r = xy1r(2);
+x2r = xy2r(1); y2r = xy2r(2);
+plot( [xmin,xmax], [ymin,ymin], 'Color', 'black');
+plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
+plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
+plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
+plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
+plot( [x1m,x2m], [y1m,y2m], 'Color', 'green', 'LineWidth', 3 );
+plot( [x1p,x2p], [y1p,y2p], 'Color', 'red', 'LineWidth', 3 );
+axis equal;
+end
+
+%% Outputs plots
+%% Plot the normal
+%try
+%figure
+%hold on;
+
+%plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
+%plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
+%plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
+%plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
+
+%x2 = xc + .5*normal(1); y2 = yc + .5*normal(2);
+%plot( [xc,x2], [yc,y2] ,'Color', 'red', 'LineWidth',3);
+%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',3);
+%axis('equal');
+%end
+
+%% Plot the line
+%try
+%figure
+%hold on;
+
+%Vp1 = [2;-Cte1]; Vp2 = [-2;-Cte1];
+%Vm1 = [2;-Cte2]; Vm2 = [-2;-Cte2];
+%vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
+
+%% Rectangle
+%plot( [Xmin,Xmax], [Ymin,Ymin], 'Color', 'black' );
+%plot( [Xmax,Xmax], [Ymin,Ymax], 'Color', 'black' );
+%plot( [Xmax,Xmin], [Ymax,Ymax], 'Color', 'black' );
+%plot( [Xmin,Xmin], [Ymax,Ymin], 'Color', 'black' );
+
+%plot( [vp1(1), vp2(1)], [vp1(2), vp2(2)] ,'Color', 'red', 'LineWidth',3);
+%plot( [vm1(1), vm2(1)], [vm1(2), vm2(2)] ,'Color', 'green', 'LineWidth',3);
+%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',4);
+%axis('equal');
+%end
 
 % Plot the gap
 try

@@ -16,7 +16,6 @@ br          = .0;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-recompute   = 0;      % Recompute the operators
 theta1      = pi;     %3.7296;%pi;%pi/2; 
 theta2      = 0;      %0.58800;%0%3*pi/2;  % Initial angles of the crack
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
@@ -33,7 +32,7 @@ teskase     = 4;       % Choice of the test case
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
 %nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ NEVER go above the nb of dofs)
-%nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
+nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
 %nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
@@ -60,12 +59,15 @@ neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%neumann0   = [ 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 4,1,0 ; 4,2,0];
+
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
@@ -80,6 +82,8 @@ elseif teskase == 4
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared4.msh' );
 elseif teskase == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
+elseif teskase == 5
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared5.msh' );
 end
 nnodes = size(nodes,1);
 
@@ -211,10 +215,10 @@ ur4 = UR(:,4); fr4 = UR(:,8)*25;
 u1n = ur1; u2n = ur2; u3n = ur3; u4n = ur4;
 am1 = sqrt(mean(ur1.^2)); am2 = sqrt(mean(ur2.^2));
 am3 = sqrt(mean(ur3.^2)); am4 = sqrt(mean(ur4.^2));
-br1 = randn(2*nnodes2,1); br2 = randn(2*nnodes2,1);
-br3 = randn(2*nnodes2,1); br4 = randn(2*nnodes2,1);
-%noise = load('noises/cauchyRG.mat');
-%br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
+%br1 = randn(2*nnodes2,1); br2 = randn(2*nnodes2,1);
+%br3 = randn(2*nnodes2,1); br4 = randn(2*nnodes2,1);
+noise = load('noises/cauchyRG_dirichlet.mat');
+br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
 %ur1 = ( 1 + br*br1 ) .* ur1; ur2 = ( 1 + br*br2 ) .* ur2;
 %ur3 = ( 1 + br*br3 ) .* ur3; ur4 = ( 1 + br*br4 ) .* ur4;
 ur1 = ur1 + am1*br*br1; ur2 = ur2 + am1*br*br2;
@@ -966,7 +970,7 @@ for iter = 1:nbstep % Newton loop
          else
             SoluRG = Uu \ ( Ll \ ( Pp * ( [VE1,VE2,VE3,VE4] + Ctf ) ) );
          end
-         respos(i) = norm(C*SoluRG - abs(C*SoluRG));
+         respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
          fp = f;
          if kuzawa == 0
             f = f - kuzawa1*C*SoluRG;
@@ -984,7 +988,7 @@ for iter = 1:nbstep % Newton loop
          nor2 = Solu2'*Lhs'*Lhs*Solu2 - 2*Solu2'*Lhs'*Rhs2 + Rhs2'*Rhs2 + mur*Solu2'*L*Solu2 + 2*mur*Solu2'*L122 + mur*L22;
          nor3 = Solu3'*Lhs'*Lhs*Solu3 - 2*Solu3'*Lhs'*Rhs3 + Rhs3'*Rhs3 + mur*Solu3'*L*Solu3 + 2*mur*Solu3'*L123 + mur*L23;
          nor4 = Solu4'*Lhs'*Lhs*Solu4 - 2*Solu4'*Lhs'*Rhs4 + Rhs4'*Rhs4 + mur*Solu4'*L*Solu4 + 2*mur*Solu4'*L124 + mur*L24;
-         phi( iter )  = nor1 + nor2 + nor3 + nor4;
+         phi( iter )  = nor1 + nor2;% + nor3 + nor4;
 
          res1 = Lhs*Solu1 - Rhs1; % Residuals
          res2 = Lhs*Solu2 - Rhs2; %
@@ -999,6 +1003,12 @@ for iter = 1:nbstep % Newton loop
          xt  = [ Solu1 ; Solu2 ; Solu3 ; Solu4 ];
          sLx = [ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ];
          L1x = [ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ];
+%         res = [ res1 ; res2 ];
+%         rel = [ rel1 ; rel2 ];
+%         Ax  = [ Lhs*Solu1 ; Lhs*Solu2 ];
+%         xt  = [ Solu1 ; Solu2 ];
+%         sLx = [ sL*Solu1 ; sL*Solu2 ];
+%         L1x = [ Solu1'*L121 ; Solu2'*L122 ];
          Lh0 = Lhs; sL0 = sL; L1210 = L121; L1220 = L122; L1230 = L123; L1240 = L124;
 
          Solu10 = Solu1; Solu20 = Solu2; Solu30 = Solu3; Solu40 = Solu4; % Store the values
@@ -1012,6 +1022,10 @@ for iter = 1:nbstep % Newton loop
          Dx1   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep1;
          DL1   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep1;
          DL121 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep1;
+%         D1    = ([ Lhs*Solu1 ; Lhs*Solu2 ] - Ax)/anglestep1;
+%         Dx1   = ([ Solu1 ; Solu2 ] - xt)/anglestep1;
+%         DL1   = ([ sL*Solu1 ; sL*Solu2 ] - sLx)/anglestep1;
+%         DL121 = ([ Solu1'*L121 ; Solu2'*L122 ] - L1x)/anglestep1;
          Lh1   = (Lhs-Lh0)/anglestep1;
 
 %         D1    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; D1 = D1(:);
@@ -1022,6 +1036,10 @@ for iter = 1:nbstep % Newton loop
          Dx2   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep2;
          DL2   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep2;
          DL122 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep2;
+%         D2    = ([ Lhs*Solu1 ; Lhs*Solu2 ] - Ax)/anglestep2;
+%         Dx2   = ([ Solu1 ; Solu2 ] - xt)/anglestep2;
+%         DL2   = ([ sL*Solu1 ; sL*Solu2 ] - sLx)/anglestep2;
+%         DL122 = ([ Solu1'*L121 ; Solu2'*L122 ] - L1x)/anglestep2;
          Lh2   = (Lhs-Lh0)/anglestep2;
 
 %         D2    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; D2 = D2(:);
@@ -1157,6 +1175,7 @@ urg([1,2,end-1,end],:) = 0; % Overwrite the strange stuff that comes from the fa
 curvr = sqrt( (nodes3r(:,1)-nodes3r(1,1)).^2 + (nodes3r(:,2)-nodes3r(1,2)).^2 );
 
 % Vizualize the crack's line
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
 try
 figure; hold on;
 x1 = nodes3b(1,1);   y1 = nodes3b(1,2);
@@ -1168,7 +1187,12 @@ plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
 plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
 plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
 plot( [x1,x2], [y1,y2], 'Color', 'red', 'LineWidth', 3 );
+if teskase==5 % Second crack
+   x13 = nodes(11,1); y13 = nodes(11,2); x14 = nodes(12,1); y14 = nodes(12,2);
+   plot( [x13,x14], [y13,y14] ,'Color', 'magenta', 'LineWidth',5);
+end
 axis equal;
 end
 

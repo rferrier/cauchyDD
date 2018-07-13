@@ -16,7 +16,7 @@ br          = .0;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-recompute   = 0;      % Recompute the operators
+recompute   = 1;      % Recompute the operators
 theta1      = pi;     %3.7296;%pi;%pi/2; 3.7083;%
 theta2      = 0;      %0.58800;%0%3*pi/2; 5.5975;% % Initial angles of the crack
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
@@ -29,6 +29,7 @@ nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 ndofcrack   = 20;      % Nb of elements on the crack
 teskase     = 4;       % Choice of the test case
+dp          = 0;       % Plane strain
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
@@ -84,7 +85,7 @@ nnodes = size(nodes,1);
 [ node2b6, b2node6 ]   = mapBound( 6, boundary, nnodes );
                
 % Then, build the stiffness matrix :
-[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet,dp);
 Kinter = K( 1:2*nnodes, 1:2*nnodes );
 
 Xmax = max(nodes(:,1)); Xmin = min(nodes(:,1)); Xmoy = (Xmax+Xmin)/2;
@@ -108,7 +109,7 @@ u1ref = u1; u2ref = u2; u3ref = u3; u4ref = u4;
 f1ref = f1; f2ref = f2; f3ref = f3; f4ref = f4;
 
 % Compute stress :
-sigma = stress(u4,E,nu,nodes,elements,order,1,ntoelem);
+sigma = stress(u4,E,nu,nodes,elements,order,1,ntoelem,dp);
 
 % Output :
 plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
@@ -145,7 +146,7 @@ theta2ref = mod(theta2ref,2*pi);
 
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
 nnodes2 = size(nodes2,1);
-[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet);
+[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet,dp);
 Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
 
 %% Mapbounds
@@ -388,8 +389,14 @@ if ordertest == 10
    M = spconvert(conditions10_2d); clear('conditions10_2d');
    nmax = 10;
 elseif ordertest == 20
-   load('conditions20_2d.mat','-ascii');
-   M = spconvert(conditions20_2d); clear('conditions20_2d');
+   if dp == 1 % Plane strain
+      load('conditions20_2dc.mat','-ascii');
+      M = spconvert(conditions20_2dc); clear('conditions20_2dc');
+   else
+      load('conditions20_2d.mat','-ascii');
+      M = spconvert(conditions20_2d); clear('conditions20_2d');
+   end
+
    nmax = 20;
 end
 ncoef =2*(nmax+1)^2; neq = ncoef;
@@ -1033,7 +1040,7 @@ for iter = 1:nbstep % Newton loop
 %            ZL, ZL, ZL, L ];
 
    %dtheta = - ( D'*D + mur*Dx'*Aile*Dx ) \ ( D'*res - mur*Dx'*[L121;L122;L123;L124] );
-   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1)) );
+   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
    %dtheta = - ( D'*D ) \ ( D'*res );
    %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
 

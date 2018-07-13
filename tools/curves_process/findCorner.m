@@ -1,5 +1,6 @@
 function [index] = findCorner (x, y, varargin)
  % This function finds the corner of an L-curve
+ % /!\ This function works if the curve orientation is non-direct: a sign has to be changed for Tychonov
  if size(x,1) <= 2
     error(['Not enough points on L-curve : it has no corner', ...
       ' Rem : if you actually have lots of points, try to transpose the vectors'])
@@ -19,6 +20,10 @@ function [index] = findCorner (x, y, varargin)
  if dolog == 1
     x = log10(x); y = log10(y);
  end
+
+% % Normalize Should be done, but I'm afread it could break some dependancies
+% x = (x-min(x))/(max(x)-min(x));
+% y = (y-min(y))/(max(y)-min(y));
 
  sx = size(x,1);     % size of x (hopefully too the size of y)
  n  = floor(sx/d)+1; %max(sx-2,floor(sx/2)+1);   % degree of polynoms
@@ -77,7 +82,7 @@ function [index] = findCorner (x, y, varargin)
     denom = (xx1(i)^2 + yy1(i)^2)^(3/2);
     
     if denom ~= 0
-       Ga(i) =  (yy2(i)*xx1(i) - xx2(i)*yy1(i)) / denom;
+       Ga(i) = (yy2(i)*xx1(i) - xx2(i)*yy1(i)) / denom;
     else
        Ga(i) = R+1.;  % eliminate this candidate
     end
