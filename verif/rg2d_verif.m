@@ -103,34 +103,34 @@ error2 = sqrt(sum(e2o) - sum(e2));
 error3 = sqrt(sum(e3o) - sum(e3));
 error4 = sqrt(sum(e4o) - sum(e4));
 
-%% Local error with a passmesh (doesn't work for the order 2 mesh)
-up = passMesh2D(nodes, elements, nodeso, elementso, [u1,u2,u3,u4], 0);
-up1 = up(:,1); up2 = up(:,2); up3 = up(:,3); up4 = up(:,4);
+%%% Local error with a passmesh (doesn't work for the order 2 mesh)
+%up = passMesh2D(nodes, elements, nodeso, elementso, [u1,u2,u3,u4], 0);
+%up1 = up(:,1); up2 = up(:,2); up3 = up(:,3); up4 = up(:,4);
 
-e1d = energy( u1o-up1,nodeso,elementso,mat,ordero );
-e2d = energy( u2o-up2,nodeso,elementso,mat,ordero );
-e3d = energy( u3o-up3,nodeso,elementso,mat,ordero );
-e4d = energy( u4o-up4,nodeso,elementso,mat,ordero );
+%e1d = energy( u1o-up1,nodeso,elementso,mat,ordero );
+%e2d = energy( u2o-up2,nodeso,elementso,mat,ordero );
+%e3d = energy( u3o-up3,nodeso,elementso,mat,ordero );
+%e4d = energy( u4o-up4,nodeso,elementso,mat,ordero );
 
-% And display the error
-try
-figure;
-patch('Faces',elementso,'Vertices',nodeso,'FaceVertexCData',e1d,'FaceColor','flat');
-colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
-legend('Overkill error');
-end
+%% And display the error
+%try
+%figure;
+%patch('Faces',elementso,'Vertices',nodeso,'FaceVertexCData',e1d,'FaceColor','flat');
+%colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+%legend('Overkill error');
+%end
 
-error1d = sqrt(sum(e1d));
-error2d = sqrt(sum(e2d));
-error3d = sqrt(sum(e3d));
-error4d = sqrt(sum(e4d));
+%error1d = sqrt(sum(e1d));
+%error2d = sqrt(sum(e2d));
+%error3d = sqrt(sum(e3d));
+%error4d = sqrt(sum(e4d));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/verif/plate_c_squared.msh' );
 nnodes2 = size(nodes2,1);
-[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet,dp);
-Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
+%[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet,dp);
+%Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
 
 %% Pass meshes
 UF = [u1,u2,u3,u4,f1,f2,f3,f4];
@@ -149,7 +149,7 @@ nmin = 1:nnodes2;
 %b2nodesD = cell(4,2); % nb of boundaries * nb of dimensions
 %b2nodesN = cell(4,2);
 b2nodesD = []; b2nodesN = []; b2nodesTOT = [];
-for i=1:4
+for i=1:6
    [~, b2node] = mapBound(i, boundary2, nnodes2);
    dofD = dirichlet0(find(dirichlet0(:,1)==i),2); % dof of the given dirichlet
    dofN = neumann0(find(neumann0(:,1)==i),2); % dof of the given neumann
@@ -178,8 +178,8 @@ boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
 for i=1:nboun2
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1),nelem2 ); % find gives line + column*size
-   cand2 = rem( find(elements2==no2),nelem2 );
+   cand1 = rem( find(elements2==no1)-1,nelem2 )+1; % find gives line + column*size
+   cand2 = rem( find(elements2==no2)-1,nelem2 )+1;
    boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -202,8 +202,8 @@ urr3  = zeros( nboun1, 2+2*order ); urr4 = zeros( nboun1, 2+2*order );
 for i=1:nboun1 % TODO : rationalize the stuff (don't do 2 times the same work)
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1),nelem1 ); % find gives line + column*size
-   cand2 = rem( find(elements2==no2),nelem1 );
+   cand1 = rem( find(elements2==no1)-1,nelem1 )+1; % find gives line + column*size
+   cand2 = rem( find(elements2==no2)-1,nelem1 )+1;
    boun2vol1(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -367,11 +367,13 @@ for ii=0:nmax
 end
 
 P = coef'*P0*coef; % Pass in the test-functions basis
+P = .5*(P+P');
 
-[Q,Theta] = eig(P); % Diagonalize P
+[Q,Theta] = eig(P); %Q = real(Q); Theta = real(Theta);% Diagonalize P
 [theta,ind] = sort(diag(Theta),'descend'); Q = Q(:,ind);
 inc = min(find(theta<1e-12*theta(1))); % Truncate the inner product
-Q1 = Q(:,1:inc)./sqrt(theta(1:inc)'); % And normalize
+sT = diag(sqrt(theta)); Q1 = Q*sT; Q2 = Q*inv(sT); % Normalize
+Q1 = Q1(:,1:inc-1); Q2 = Q2(:,1:inc-1); % And truncate
 % Q1 passes from the old basis to the new one that is orthogonalized (but smaller because of condition number)
 
 %% Build the (Petrov-Galerkin) Left Hand Side
@@ -449,6 +451,26 @@ for i=1:nboun2
 end
 
 disp([ 'Direct problem solved and data management ', num2str(toc) ]);
+
+%% The operator that passes from the polynomial stuff to the spacial one
+Xx  = nodes2(:,1); Yy = nodes2(:,2);
+XYp = zeros(2*nnodes2,2*(nmax+1)^2);
+for ii=0:nmax
+   nd1 = nmax-ii;
+   for jj=0:nd1
+      indexij = (nmax+1)*ii + jj + 1;
+      XYp(1:2:2*nnodes2-1,indexij)              = Xx.^ii.*Yy.^jj;
+      XYp(2:2:2*nnodes2  ,(nmax+1)^2 + indexij) = Xx.^ii.*Yy.^jj;
+   end
+end
+Apas = XYp*coef;
+
+%% Debug : get u in the polynomial basis
+AAA = Apas'*Apas+1e-10*eye(nftest);
+upol1 = AAA\(Apas'*u1);
+upol2 = AAA\(Apas'*u2);
+upol3 = AAA\(Apas'*u3);
+upol4 = AAA\(Apas'*u4);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the operators
 tic
@@ -552,18 +574,28 @@ u_known1(tofindD) = 0; u_known2(tofindD) = 0;
 u_known3(tofindD) = 0; u_known4(tofindD) = 0;
 
 %% Restrict the operators
-Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
-Rum = Ru(:,tofindD); Rur = Ru(:,knownD);
+Rfr = Rf(:,knownN); Rur = Ru(:,knownD);
 
-LhsA = -Rum;
-LhsB = Rfm;
 Rhs1 = Rur*u_known1(knownD) - Rfr*f_known1(knownN);
 Rhs2 = Rur*u_known2(knownD) - Rfr*f_known2(knownN);
 Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
 Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
 
 %% Pass into the orthogonalized basis
-R1 = Q1'*Rhs1; R2 = Q1'*Rhs2; R3 = Q1'*Rhs3; R4 = Q1'*Rhs4;
+%R1 = (Q1'*Q1)\(Q1'*Rhs1); R2 = (Q1'*Q1)\(Q1'*Rhs2);
+%R3 = (Q1'*Q1)\(Q1'*Rhs3); R4 = (Q1'*Q1)\(Q1'*Rhs4);
+R1 = Q2'*Rhs1; R2 = Q2'*Rhs2;
+R3 = Q2'*Rhs3; R4 = Q2'*Rhs4;
+
+try
+figure;
+hold on;
+plot(abs(R1),'Color','red');
+plot(abs(R2),'Color','blue');
+plot(abs(R3),'Color','black');
+plot(abs(R4),'Color','green');
+legend('R1','R2','R3','R4');
+end
 
 eest1 = norm(R1); % Error estimators
 eest2 = norm(R2);
@@ -576,96 +608,94 @@ Xxg = zeros( nelemu,1 ); Yyg = zeros( nelemu,1 );
 Ssg = zeros( nelemu,1); % Surface
 
 % The test-field the energy of which is being computed
-v01 = coef*Q1*R1; v02 = coef*Q1*R2;
-v03 = coef*Q1*R3; v04 = coef*Q1*R4;
+v01 = coef*Q2*R1; v02 = coef*Q2*R2;
+v03 = coef*Q2*R3; v04 = coef*Q2*R4;
+%v01 = coef*Rhs1; v02 = coef*Rhs2;
+%v03 = coef*Rhs3; v04 = coef*Rhs4;
 
 Evloc1 = zeros(nelemu,1);
 Evloc2 = zeros(nelemu,1);
 Evloc3 = zeros(nelemu,1);
 Evloc4 = zeros(nelemu,1);
 
-for i=1:nelemu
-   no1 = elementsu(i,1); no2 = elementsu(i,2); no3 = elementsu(i,3);
-   x1 = nodesu(no1,1); x2 = nodesu(no2,1); x3 = nodesu(no3,1);
-   y1 = nodesu(no1,2); y2 = nodesu(no2,2); y3 = nodesu(no3,2);
+%for i=1:nelemu
+%   no1 = elementsu(i,1); no2 = elementsu(i,2); no3 = elementsu(i,3);
+%   x1 = nodesu(no1,1); x2 = nodesu(no2,1); x3 = nodesu(no3,1);
+%   y1 = nodesu(no1,2); y2 = nodesu(no2,2); y3 = nodesu(no3,2);
 
-   Sg = .5*abs( (y2-y1)*(x3-x1) - (y3-y1)*(x2-x1) );
-   Xg = (x1+x2+x3)/3;
-   Yg = (y1+y2+y3)/3;
+%   Sg = .5*abs( (y2-y1)*(x3-x1) - (y3-y1)*(x2-x1) );
+%   Xg = (x1+x2+x3)/3;
+%   Yg = (y1+y2+y3)/3;
 
-   %Ssg(i,1) = Sg; Xxg(i,1) = Xg; Yyg(i,1) = Yg;
+%   %Ssg(i,1) = Sg; Xxg(i,1) = Xg; Yyg(i,1) = Yg;
 
-   Eloc = zeros(2*(nmax+1)^2);
-   for ii=0:nmax
-      nd1 = nmax-ii;
-      for jj=0:nd1
-         for kk=0:nmax
-            nd2 = nmax-kk;
-            for ll=0:nd2
-               indexij = (nmax+1)*ii + jj + 1;
-               indexkl = (nmax+1)*kk + ll + 1;
+%   Eloc = zeros(2*(nmax+1)^2);
+%   for ii=0:nmax
+%      nd1 = nmax-ii;
+%      for jj=0:nd1
+%         for kk=0:nmax
+%            nd2 = nmax-kk;
+%            for ll=0:nd2
+%               indexij = (nmax+1)*ii + jj + 1;
+%               indexkl = (nmax+1)*kk + ll + 1;
 
-               e1111 = 0; e1112 = 0; e1211 = 0; e1212 = 0;
-               e2212 = 0; e2222 = 0; e2111 = 0; e2112 = 0;
+%               e1111 = 0; e1112 = 0; e1211 = 0; e1212 = 0;
+%               e2212 = 0; e2222 = 0; e2111 = 0; e2112 = 0;
 
-               if ii+kk>1
-                  e1111 = Sg*E/(1-nu^2)*(ii*kk)*Xg^(ii+kk-2)*Yg^(jj+ll);
-                  e2212 = E/(4*(1+nu))*(ii*kk)*Xg^(ii+kk-2)*Yg^(jj+ll);
-               end
-               if jj+ll>1
-                  e1112 = E/(4*(1+nu))*(jj*ll)*Xg^(ii+kk)*Yg^(jj+ll-2);
-                  e2222 = E/(1-nu^2)*(jj*ll)*Xg^(ii+kk)*Yg^(jj+ll-2);
-               end
-               if ii+kk>0 && jj+ll>0
-                  e1211 = nu*E/(1-nu^2)*(ii*ll)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-                  e1212 = E/(4*(1+nu))*(jj*kk)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-                  e2111 = nu*E/(1-nu^2)*(jj*kk)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-                  e2112 = E/(4*(1+nu))*(ii*ll)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-               end
+%               if ii+kk>1
+%                  e1111 = Sg*E/(1-nu^2)*(ii*kk)*Xg^(ii+kk-2)*Yg^(jj+ll);
+%                  e2212 = E/(4*(1+nu))*(ii*kk)*Xg^(ii+kk-2)*Yg^(jj+ll);
+%               end
+%               if jj+ll>1
+%                  e1112 = E/(4*(1+nu))*(jj*ll)*Xg^(ii+kk)*Yg^(jj+ll-2);
+%                  e2222 = E/(1-nu^2)*(jj*ll)*Xg^(ii+kk)*Yg^(jj+ll-2);
+%               end
+%               if ii+kk>0 && jj+ll>0
+%                  e1211 = nu*E/(1-nu^2)*(ii*ll)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
+%                  e1212 = E/(4*(1+nu))*(jj*kk)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
+%                  e2111 = nu*E/(1-nu^2)*(jj*kk)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
+%                  e2112 = E/(4*(1+nu))*(ii*ll)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
+%               end
 
-               Eloc( indexij, indexkl ) = e1111 + 2*e1112;
-               Eloc( (nmax+1)^2 + indexij, indexkl ) = e2111 + 2*e2112;
-               Eloc( indexij, (nmax+1)^2 + indexkl ) = e1211 + 2*e1212;
-               Eloc( (nmax+1)^2 + indexij, (nmax+1)^2 + indexkl ) = e2222 + 2*e2212;
-            end
-         end
-      end
-   end
-
-   Evloc1(i) = v01'*Eloc*v01;
-   Evloc2(i) = v02'*Eloc*v02;
-   Evloc3(i) = v03'*Eloc*v03;
-   Evloc4(i) = v04'*Eloc*v04;
-end
-
-%% Then, the energy itself (it's the energy per element)
-%Eloc = zeros(nelemu, 2*(nmax+1)^2);
-%for ii=0:nmax
-%   nd1 = nmax-ii;
-%   for jj=0:nd1
-%      indexij = (nmax+1)*ii + jj + 1;
-
-%      e1111 = zeros(nelemu,1); e2212 = zeros(nelemu,1);
-%      e1112 = zeros(nelemu,1); e2222 = zeros(nelemu,1);
-
-%      if ii>0
-%         e1111 = Ssg.*E/(1-nu^2)*ii^2.*Xxg.^(2*ii-2).*Yyg.^(2*jj);
-%         e2212 = Ssg.*E/(4*(1+nu))*ii^2.*Xxg.^(2*ii-2).*Yyg.^(2*jj);
+%               Eloc( indexij, indexkl ) = e1111 + 2*e1112;
+%               Eloc( (nmax+1)^2 + indexij, indexkl ) = e2111 + 2*e2112;
+%               Eloc( indexij, (nmax+1)^2 + indexkl ) = e1211 + 2*e1212;
+%               Eloc( (nmax+1)^2 + indexij, (nmax+1)^2 + indexkl ) = e2222 + 2*e2212;
+%            end
+%         end
 %      end
-%      if jj>0
-%         e1112 = Ssg.*E/(4*(1+nu))*jj^2.*Xxg.^(2*ii).*Yyg.^(2*jj-2);
-%         e2222 = Ssg.*E/(1-nu^2)*jj^2.*Xxg.^(2*ii).*Yyg.^(2*jj-2);
-%      end
-
-%      Eloc( :, indexij ) = e1111 + 2*e1112;
-%      Eloc( :, (nmax+1)^2 + indexij ) = e2222 + 2*e2212;
 %   end
+
+%   Evloc1(i) = v01'*Eloc*v01;
+%   Evloc2(i) = v02'*Eloc*v02;
+%   Evloc3(i) = v03'*Eloc*v03;
+%   Evloc4(i) = v04'*Eloc*v04;
 %end
 
-% Display locally the error
+%% Display locally the error
+%try
+%figure;
+%patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',Evloc1 ,'FaceColor','flat');
+%colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+%end
+
+%% Display the argmax of the residual
+varg01 = XYp*v01; varg02 = XYp*v02; varg03 = XYp*v03; varg04 = XYp*v04;
+
+e01 = energy( varg01,nodes2,elements2,mat,order );
+e02 = energy( varg02,nodes2,elements2,mat,order );
+e03 = energy( varg03,nodes2,elements2,mat,order );
+e04 = energy( varg04,nodes2,elements2,mat,order );
+
 try
 figure;
-patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',Evloc1 ,'FaceColor','flat');
+patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',varg01(2:2:2*nnodes2) ,'FaceColor','interp');
+colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+end
+
+try
+figure;
+patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',e01 ,'FaceColor','flat');
 colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
 end
 

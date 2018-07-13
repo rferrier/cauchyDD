@@ -1,11 +1,11 @@
-% 27/06/2018
-% Essai de fendage, 1 seule donnée, code simplifié
+% 28/06/2018
+% Essai de fendage, 1 seule donnée, code simplifié, régularisation temporelle
 
 tic
 close all;
 clear all;
 
-addpath(genpath('./tools'));
+addpath(genpath('./tools'))
 
 % Parameters
 E           = 17000; % MPa : Young modulus
@@ -22,9 +22,9 @@ kauto       = 10;     % Coefficient for the auto-adaptation
 nbstep      = 1;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 %ordertest   = 20;     % Order of test fonctions (by default 20)
-nuzawa      = 1;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means)
+nuzawa      = 100;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
-ndofcrack   = 50;      % Nb of elements on the crack
+ndofcrack   = 20;      % Nb of elements on the crack
 ratio       = 0.062;   % mm/pix ratio
 order       = 1;       % Order of the mesh
 th          = 72.5;   % Thickness (unused as it is only for the loadings)
@@ -51,11 +51,9 @@ Ume      = Mesh.U; nt = size(Ume,2);
 
 % Gap
 gap = load('fendage/delta_U_distance.mat');
-gap = ratio * gap.delta_U; lmax = size(gap,1);
-ixe = 1:nt;
-ygrec = 0:lmax-1; ygrec = ygrec*62/(lmax-1);
+gap = ratio * gap.delta_U;
 figure;
-surf(ixe,ygrec,gap);
+surf(gap);
 shading interp;
 colorbar();
 legend('Gap in function of the time')
@@ -73,19 +71,6 @@ Umes = Umes - M*((M'*M)\M')*Umes;
 
 % Get the right size
 Umes = ratio*Umes; nodes = ratio*nodes;
-
-% Get the crack's size
-crlen = load('fendage/crack_tip_2methods.mat');
-lenFEMU = ratio*crlen.crack_FEMU;
-lenIDIC = ratio*crlen.crack_IDIC;
-
-try
-figure;
-hold on;
-plot(lenFEMU,'Color','red');
-plot(lenIDIC,'Color','blue');
-legend('Crack length FEMU', 'Crack length IDIC');
-end
 
 %% Manually create the boundaries
 n101 = [6,51:-1:35];         b101 = [n101(1:end-1)',n101(2:end)'];
@@ -132,7 +117,7 @@ elemadd = [ 14,115,136 ; 14,115,11 ;...
             219,209,220 ; 219,209,208 ;...
             220,4,3 ; 220,4,209 ];
 
-elementsp = [ elements ; elemadd ];
+elements = [ elements ; elemadd ];
 
 % Assemble it into 2 boundaries : bo1 : all data, bo2 : no Neumann
 bo1 = [b101;b102;b2;b3;b52;b6;b7;b82;b10;b11];
@@ -147,9 +132,6 @@ boundary = [ [ones(size(bo1,1),1),bo1] ; [2*ones(size(bo2,1),1),bo2] ];
 %Fmes = Kinter*Umes;
 Fmes = zeros(size(Umes));
 %plotGMSH({Umes,'U_mes';Fmes,'F_mes'}, elements, nodes, 'output/mesure');
-%save('fields/F.mat','Fmes');
-
-%% TODO : try to remove the out of plane movements
 
 if t0 == 0
    u1 = Umes; f1 = Fmes;
@@ -596,14 +578,17 @@ else
    anglestep2 = anglestep;
 end
 
-for iter = 1:nbstep % Newton loop
+% Initialize
+SoluRG = zeros(ndofs,nt);
+
+for iter = 1:nt % loop of time steps
    pbmax = 2;
 %   if iter == nbstep
 %      pbmax == 0;
 %   end
-   if anglestep == 0 && iter > 1
-      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
-   end
+%   if anglestep == 0 && iter > 1
+%      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
+%   end
 
    for pb = 0:0%pbmax % Construct all the problems
 
@@ -791,8 +776,17 @@ for iter = 1:nbstep % Newton loop
 
       sL = real(L^(1/2));   % Square root of L (as usual, real should not be)
 
+      if iter > 1
+         Vprec = SoluRG(:,iter-1);
+         duknown = u_known1(knownD,iter) - u_known1(knownD,iter-1);
+      else
+         Vprec = zeros(size(L,1),1);
+         duknown = u_known1(knownD,iter);
+      end
+
       MAT = Lhs'*Lhs + mur*L;
-      VE1 = Lhs'*Rhs1-mur*L121;
+      VE1 = Lhs'*Rhs1 - mur*L12*duknown + mur*L*Vprec;
+      %VE1 = Lhs'*Rhs1 - mur*L12*u_known1(knownD,iter);
 
       % Build the contact inequation condition
       C = zeros(nnodes3, 2*nnodes3);
@@ -803,7 +797,7 @@ for iter = 1:nbstep % Newton loop
          C(i,2*i)   = .5*(extnorm3(i-1,2) + extnorm3(i,2));
       end
       C = [ zeros(nnodes3,ndofs-2*nnodes3), C ];
-      f = zeros(nnodes3,nt); Ctf = C'*f;
+      f = zeros(nnodes3,1); Ctf = C'*f;
       respos = zeros(nuzawa,1); df = zeros(nuzawa);
 
 %      if zerobound == 1
@@ -817,17 +811,17 @@ for iter = 1:nbstep % Newton loop
 %         kuzawa1 = .999*min(eig(MAT));
 %      end
 
-      SoluRG = zeros(size(L,1),nt);
+      SoluRG(:,iter) = zeros(size(L,1),1);
 
       for i=1:nuzawa % Uzawa for the contact problems
-         SoluRG(tokeep,:) = Uu \ ( Ll \ ( Pp * ( VE1(tokeep,:) + Ctf(tokeep,:) ) ) );
+         SoluRG(tokeep,iter) = Uu \ ( Ll \ ( Pp * ( VE1(tokeep,iter) + Ctf(tokeep) ) ) );
          %SoluRG = Uu \ ( Ll \ ( Pp * ( VE1 + Ctf ) ) );
          respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
          fp = f;
          if kuzawa == 0
-            f = f - kuzawa1*C*SoluRG;
+            f = f - kuzawa1*C*SoluRG(:,iter);
          else
-            f = f - kuzawa*C*SoluRG;
+            f = f - kuzawa*C*SoluRG(:,iter);
          end
          f = .5*(f + abs(f)); Ctf = C'*f;
          df(i) = norm(f-fp);
@@ -837,7 +831,7 @@ for iter = 1:nbstep % Newton loop
 
       if pb == 0
          nor1 = diag( Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1);
-         nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21  );
+         nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21  ); % TODO : add the previous one
          phi( iter )  = norm(nor1+nor2);
 
 %         res1 = Lhs*Solu1 - Rhs1; % Residuals
@@ -1060,91 +1054,11 @@ else
    figure;
    hold on;
    set(gca, 'fontsize', 20);
-   surf( 1:nt, curv, toplot1 );
+   surf( toplot1 );
    shading interp;
    colorbar();
    end
 end
-
-%% Compute the derivatives and such of toplot1
-i=1:ndofcrack+1; im1 = 1:ndofcrack; ip1 = 2:ndofcrack+1;
-M1 = sparse(im1,im1,-1,ndofcrack,ndofcrack+1);
-M2 = sparse(im1,ip1,1,ndofcrack,ndofcrack+1);
-Md1 = M1+M2; % Derivative matrix
-
-toplod = Md1*toplot1;
-
-i=1:ndofcrack; im1 = 1:ndofcrack-1; ip1 = 2:ndofcrack;
-M1 = sparse(im1,im1,-1,ndofcrack-1,ndofcrack);
-M2 = sparse(im1,ip1,1,ndofcrack-1,ndofcrack);
-Md2 = M1+M2; % Derivative matrix
-
-toplodd = Md2*toplod;
-
-%if nt==1
-%   try
-%   figure;
-%   hold on;
-%   set(gca, 'fontsize', 20);
-%   plot( curv(1:end-1), toplod,'Color','red','LineWidth',3 );
-%   %plot( curvr, toplotr1,'Color','blue','LineWidth',3 );
-%   legend('Derivative of [[u]] identified (1)');
-%   end
-%else
-%   try
-%   figure;
-%   hold on;
-%   set(gca, 'fontsize', 20);
-%   surf( 1:nt, curv(1:end-1), toplod ); % /!\ curv(1:end-1) is not very clean
-%   shading interp;
-%   colorbar();
-%   end
-%end
-
-%if nt==1
-%   try
-%   figure;
-%   hold on;
-%   set(gca, 'fontsize', 20);
-%   plot( curv(2:end-1), toplodd,'Color','red','LineWidth',3 );
-%   legend('Derivative of [[u]] identified (1)');
-%   end
-%else
-%   try
-%   figure;
-%   hold on;
-%   set(gca, 'fontsize', 20);
-%   surf( 1:nt, curv(2:end-1), toplodd ); % /!\ curv(2:end-1) is not very clean
-%   shading interp;
-%   colorbar();
-%   end
-%end
-
-% Find the last negative second derivative point
-lcrack = zeros(nt,1);
-curvdd = curv(2:end-1); % /!\ curv(1:end-1) is not very clean
-for i=1:nt
-%   indexmax = max(find(toplodd(:,i)<0));
-   epscrit = max(toplot1(:))/3;
-   %epscrit = max(toplot1(:,i))/100;
-   indexmax = min( find( toplot1(:,i) < epscrit ) );
-   if min(size(indexmax))==0
-      lcrack(i) = 0;
-   else
-%   lcrack(i) = curvdd(indexmax);
-      lcrack(i) = curv(indexmax);
-   end
-end
-
-try
-figure;
-hold on;
-plot(lenFEMU,'Color','red');
-plot(lenIDIC,'Color','blue');
-plot(lcrack,'Color','black');
-legend('Crack length FEMU', 'Crack length IDIC', 'Crack length RG');
-end
-
 
 %erroru = norm(usolu1(b2nodesnoD)-ur1(b2nodesnoD))   / norm(ur1(b2nodesnoD));
 %errorf = norm(fsolu1no(b2nodesnoN)-fr1(b2nodesnoN)) / norm(fr1(b2nodesnoN));

@@ -1,5 +1,5 @@
-% 22/25/2018
-% ID fissure par RG Petrov-Galerkin et Newton, Dirichlet special case
+% 22/03/2018
+% ID fissure par RG Petrov-Galerkin et Newton. Contraintes Planes
 
 tic
 close all;
@@ -16,8 +16,9 @@ br          = .0;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-theta1      = pi;     %3.7296;%pi;%pi/2; 
-theta2      = 0;      %0.58800;%0%3*pi/2;  % Initial angles of the crack
+recompute   = 1;      % Recompute the operators
+theta1      = pi;     %3.7296;%pi;%pi/2; 3.7083;%
+theta2      = 0;      %0.58800;%0%3*pi/2; 5.5975;% % Initial angles of the crack
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
 kauto       = 10;     % Coefficient for the auto-adaptation
 nbstep      = 20;     % Nb of Newton Iterations
@@ -28,46 +29,40 @@ nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 ndofcrack   = 20;      % Nb of elements on the crack
 teskase     = 4;       % Choice of the test case
+dp          = 1;       % Plane strain
+
+% Material properties
+lambda = nu*E/((1+nu)*(1-2*nu));
+mu     = E/(2*(1+nu));
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
 %nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ NEVER go above the nb of dofs)
-nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
+%nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
 %nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
-dirichlet  = [3,1,0 ; 3,2,0];
-
-%neumann1   = [1,2,-fscalar];
-%neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-%neumann3   = [1,2,-fscalar;2,1,fscalar;4,1,-fscalar];
-%neumann4   = [2,2,-fscalar ; 4,2,-fscalar];
-
-neumann1   = [1,2,-fscalar];
+dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
+neumann1   = [3,2,fscalar ; 1,2,-fscalar];
+neumann1p  = [3,1,-5*fscalar,10*fscalar,0];
 neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-neumann3   = [1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
-
-%neumann1   = [3,2,fscalar ; 1,2,-fscalar];
-%neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-%neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
-%              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-%neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
-%              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
+neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
+              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
+neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
+              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
+%neumann4   = [3,1,-fscalar ; 2,2,-fscalar ; ...
+%              1,1,fscalar ; 4,2,fscalar];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 4,1,0 ; 4,2,0];
-
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
@@ -82,8 +77,6 @@ elseif teskase == 4
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared4.msh' );
 elseif teskase == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
-elseif teskase == 5
-   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared5.msh' );
 end
 nnodes = size(nodes,1);
 
@@ -96,7 +89,7 @@ nnodes = size(nodes,1);
 [ node2b6, b2node6 ]   = mapBound( 6, boundary, nnodes );
                
 % Then, build the stiffness matrix :
-[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet);
+[K,C,nbloq,node2c,c2node] = Krig2 (nodes,elements,mat,order,boundary,dirichlet,dp);
 Kinter = K( 1:2*nnodes, 1:2*nnodes );
 
 Xmax = max(nodes(:,1)); Xmin = min(nodes(:,1)); Xmoy = (Xmax+Xmin)/2;
@@ -104,6 +97,7 @@ Ymax = max(nodes(:,2)); Ymin = min(nodes(:,2)); Ymoy = (Ymax+Ymin)/2;
 Lx = Xmax-Xmin; Ly = Ymax-Ymin;
 
 f1  = loading(nbloq,nodes,boundary,neumann1);
+f1p = loading(nbloq,nodes,boundary,neumann1p);
 f2  = loading(nbloq,nodes,boundary,neumann2);
 f3  = loading(nbloq,nodes,boundary,neumann3);
 f4  = loading(nbloq,nodes,boundary,neumann4);
@@ -111,12 +105,6 @@ f4  = loading(nbloq,nodes,boundary,neumann4);
 uin = K\[f1,f2,f3,f4];
 u1 = uin(1:2*nnodes,1); u2 = uin(1:2*nnodes,2);
 u3 = uin(1:2*nnodes,3); u4 = uin(1:2*nnodes,4);
-
-%% Remove rigid modes (useless)
-%R  = rigidModes(nodes);
-%UU = [u1,u2,u3,u4] - R*((R'*R)\(R'*[u1,u2,u3,u4]));
-%u1 = UU(:,1); u2 = UU(:,2); u3 = UU(:,3); u4 = UU(:,4);
-
 f1 = Kinter*u1; f2 = Kinter*u2; f3 = Kinter*u3; f4 = Kinter*u4;
 
 ui = reshape(u1,2,[])';  ux = ui(:,1);  uy = ui(:,2);
@@ -125,7 +113,7 @@ u1ref = u1; u2ref = u2; u3ref = u3; u4ref = u4;
 f1ref = f1; f2ref = f2; f3ref = f3; f4ref = f4;
 
 % Compute stress :
-sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
+sigma = stress(u4,E,nu,nodes,elements,order,1,ntoelem,dp);
 
 % Output :
 plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
@@ -160,9 +148,9 @@ theta2ref = mod(theta2ref,2*pi);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu_r3.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
 nnodes2 = size(nodes2,1);
-[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet);
+[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet,dp);
 Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
 
 %% Mapbounds
@@ -206,19 +194,19 @@ Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
 UF = [u1,u2,u3,u4,f1,f2,f3,f4];
 UR = passMesh2D(nodes, elements, nodes2, elements2, UF, 0);
 
-ur1 = UR(:,1); fr1 = UR(:,5)*25; % 25 is the ratio between mesh sizes (hackissimo)
-ur2 = UR(:,2); fr2 = UR(:,6)*25;
-ur3 = UR(:,3); fr3 = UR(:,7)*25;
-ur4 = UR(:,4); fr4 = UR(:,8)*25;
+ur1 = UR(:,1); fr1 = UR(:,5)*50; % 50 is the ratio between mesh sizes (hack)
+ur2 = UR(:,2); fr2 = UR(:,6)*50;
+ur3 = UR(:,3); fr3 = UR(:,7)*50;
+ur4 = UR(:,4); fr4 = UR(:,8)*50;
 
 % Add the noise
 u1n = ur1; u2n = ur2; u3n = ur3; u4n = ur4;
 am1 = sqrt(mean(ur1.^2)); am2 = sqrt(mean(ur2.^2));
 am3 = sqrt(mean(ur3.^2)); am4 = sqrt(mean(ur4.^2));
-%br1 = randn(2*nnodes2,1); br2 = randn(2*nnodes2,1);
-%br3 = randn(2*nnodes2,1); br4 = randn(2*nnodes2,1);
-noise = load('noises/cauchyRG_dirichlet.mat');
-br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
+br1 = randn(2*nnodes2,1); br2 = randn(2*nnodes2,1);
+br3 = randn(2*nnodes2,1); br4 = randn(2*nnodes2,1);
+%noise = load('noises/cauchyRG.mat');
+%br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
 %ur1 = ( 1 + br*br1 ) .* ur1; ur2 = ( 1 + br*br2 ) .* ur2;
 %ur3 = ( 1 + br*br3 ) .* ur3; ur4 = ( 1 + br*br4 ) .* ur4;
 ur1 = ur1 + am1*br*br1; ur2 = ur2 + am1*br*br2;
@@ -291,8 +279,8 @@ boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
 for i=1:nboun2
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1)-1,nelem2 )+1; % find gives line + column*size
-   cand2 = rem( find(elements2==no2)-1,nelem2 )+1;
+   cand1 = rem( find(elements2==no1),nelem2 ); % find gives line + column*size
+   cand2 = rem( find(elements2==no2),nelem2 );
    boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -315,8 +303,8 @@ urr3  = zeros( nboun1, 2+2*order ); urr4 = zeros( nboun1, 2+2*order );
 for i=1:nboun1 % TODO : rationalize the stuff (don't do 2 times the same work)
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1)-1,nelem2 )+1; % find gives line + column*size
-   cand2 = rem( find(elements2==no2)-1,nelem2 )+1;
+   cand1 = rem( find(elements2==no1),nelem1 ); % find gives line + column*size
+   cand2 = rem( find(elements2==no2),nelem1 );
    boun2vol1(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -405,8 +393,14 @@ if ordertest == 10
    M = spconvert(conditions10_2d); clear('conditions10_2d');
    nmax = 10;
 elseif ordertest == 20
-   load('conditions20_2d.mat','-ascii');
-   M = spconvert(conditions20_2d); clear('conditions20_2d');
+   if dp == 1 % Plane strain
+      load('conditions20_2dc.mat','-ascii');
+      M = spconvert(conditions20_2dc); clear('conditions20_2dc');
+   else
+      load('conditions20_2d.mat','-ascii');
+      M = spconvert(conditions20_2d); clear('conditions20_2d');
+   end
+
    nmax = 20;
 end
 ncoef =2*(nmax+1)^2; neq = ncoef;
@@ -477,47 +471,19 @@ f_known4 = zeros(2*nboun2,1); u_known4 = zeros(2*nnbound2,1);
 for i=1:nboun2
    bonod = boundary2(i,:); exno = extnorm2(i,:)';
    % Reference force from the BC's
-%   if exno(1) == 1 % Bound 2
-%      fer1 = [0;0]; fer2 = [fscalar;0];
-%      fer3 = [fscalar;0]; fer4 = [0;-fscalar];
-%   elseif exno(1) == -1 % Bound 4
-%      fer1 = [0;0]; fer2 = -[fscalar;0];
-%      fer3 = [-fscalar;0]; fer4 = [0;-fscalar];
-%   elseif exno(2) == 1 % Bound 3
-%      fer1 = [0;0]; fer2 = [0;0];
-%      fer3 = [0;0]; fer4 = [0;0];
-%   elseif exno(2) == -1 % Bound 1
-%      fer1 = -[0;fscalar]; fer2 = [0;0];
-%      fer3 = -[0;fscalar]; fer4 = [0;0];
-%   end
-
    if exno(1) == 1 % Bound 2
       fer1 = [0;0]; fer2 = [fscalar;0];
-      fer3 = [0;0]; fer4 = [fscalar;-fscalar];
+      fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];%fer4 = [0;-fscalar];
    elseif exno(1) == -1 % Bound 4
       fer1 = [0;0]; fer2 = -[fscalar;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [0;0];
+      fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];%fer4 = [0;fscalar];%
    elseif exno(2) == 1 % Bound 3
-      fer1 = [0;0]; fer2 = [0;0];
-      fer3 = [0;0]; fer4 = [0;0];
+      fer1 = [0;fscalar]; fer2 = [0;0];
+      fer3 = [fscalar;fscalar]; fer4 = [-fscalar;fscalar];%fer4 = [-fscalar;0];%
    elseif exno(2) == -1 % Bound 1
       fer1 = -[0;fscalar]; fer2 = [0;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];%fer4 = [fscalar;0];%
    end
-
-%   if exno(1) == 1 % Bound 2
-%      fer1 = [0;0]; fer2 = [fscalar;0];
-%      fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
-%   elseif exno(1) == -1 % Bound 4
-%      fer1 = [0;0]; fer2 = -[fscalar;0];
-%      fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
-%   elseif exno(2) == 1 % Bound 3
-%      fer1 = [0;0]; fer2 = [0;0];
-%      fer3 = [0;0]; fer4 = [0;0];
-%   elseif exno(2) == -1 % Bound 1
-%      fer1 = -[0;fscalar]; fer2 = [0;0];
-%      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
-%   end
      
    indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
    indicesGlo = [2*boundary2(i,[2,3])-1,2*boundary2(i,[2,3])]; % Global Displacement dofs
@@ -534,102 +500,139 @@ for i=1:nboun2
 end
 
 disp([ 'Direct problem solved and data management ', num2str(toc) ]);
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Compute the operators
-tic
-Ng = Npg;
-[ Xg, Wg ] = gaussPt1d( Ng );
-Ndots = size(Wg,1); % (= Ng by the way)
-
-%% Build the list of Gauss points, and of construction-functions
-Xxg = zeros( nboun2*Ndots,1 ); Yyg = zeros( nboun2*Ndots,1 );
-Wwg = zeros( nboun2*Ndots,1 );
-Phi = sparse( 2*nboun2*Ndots, 2*nnbound2 );
-Psi = sparse( 2*nboun2*Ndots, 2*nboun2 );
-exnor = zeros( nboun2*Ndots,2); % Normal
-
-for i=1:nboun2
-   bonod = boundary2(i,:); exno = extnorm2(i,:)';
+if recompute == 1
+   tic
    
-   no1 = bonod(2); no2 = bonod(3); boname = bonod(1);
-   x1 = nodes2(no1,1); y1 = nodes2(no1,2);
-   x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+   %% Compute the RG and the Lhs
+   LhsA  = zeros(nftest,szD); LhsB  = zeros(nftest,0);
+   
+   Ru = zeros(nftest,2*nnbound2); Rf = zeros(nftest,2*nboun2);
+   
+   for k=1:nftest
+      coefa = coef(1:(nmax+1)^2,k);
+      coefb = coef((nmax+1)^2+1:2*(nmax+1)^2,k);
       
-   len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
-
-   indDtot = [2*boun2doftot(i,1)-1,2*boun2doftot(i,1),...
-              2*boun2doftot(i,2)-1,2*boun2doftot(i,2)]; % U dofs the element is associated to
-   indNtot = [2*i-1,2*i]; % F dofs the element is associated to
-                
-   for j=1:Ndots
-      xg = Xg(j,:); wg = Wg(j);
-      xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae
-
-      X = xgr(1)/Lx; Y = xgr(2)/Lx; % Normalize
-      Swg   = len * wg;
-
-      indexg = Ndots*(i-1) + j;
-      Xxg( indexg ) = X; Yyg( indexg ) = Y; Wwg( indexg ) = Swg;
-      exnor( indexg, :) = exno';
-
-      Phi( 2*indexg-1, indDtot)  = [ 1-xg, 0, xg, 0 ];
-      Phi( 2*indexg  , indDtot)  = [ 0, 1-xg, 0, xg ];
-      Psi( 2*indexg-1, indNtot)  = [1,0];
-      Psi( 2*indexg  , indNtot)  = [0,1];
-   end
-end
-
-%% Build the matrix of test-functions
-Vv = zeros( size(coef,1), 2*nboun2*Ndots );
-Sv = zeros( size(coef,1), 2*nboun2*Ndots );
-exnoX = exnor(:,1); exnoY = exnor(:,2);
-
-for ii=0:nmax
-   nd1 = nmax-ii;
-   for jj=0:nd1
-                  
-         sloc11a = zeros(nboun2*Ndots,1); sloc12a = zeros(nboun2*Ndots,1);
-         sloc22a = zeros(nboun2*Ndots,1); sloc11b = zeros(nboun2*Ndots,1);
-         sloc12b = zeros(nboun2*Ndots,1); sloc22b = zeros(nboun2*Ndots,1);
-         if ii>0
-            XY = ii.*Xxg.^(ii-1).*Yyg.^jj;
-            sloc11a = E/(1-nu^2)*XY;
-            sloc22a = nu*E/(1-nu^2)*XY;
-            sloc12b = E/(2*(1+nu))*XY;
+      for i=1:nboun2
+         bonod = boundary2(i,:); exno = extnorm2(i,:)';
+      
+         no1 = bonod(2); no2 = bonod(3); boname = bonod(1);
+         x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+         x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+         len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
+         
+         indDtot = [2*boun2doftot(i,1)-1,2*boun2doftot(i,1),...
+                    2*boun2doftot(i,2)-1,2*boun2doftot(i,2)]; % U dofs the element is associated to
+         indNtot = [2*i-1,2*i]; % F dofs the element is associated to
+         
+         if order==1
+            Ng = Npg;
+         elseif order==2
+            Ng  = Npg; no3 = bonod(4);
+            x3  = nodes2(no3,1); y3 = nodes2(no3,2);
          end
-         if jj>0
-            XY = jj.*Xxg.^ii.*Yyg.^(jj-1);
-            sloc11b = nu*E/(1-nu^2)*XY;
-            sloc22b = E/(1-nu^2)*XY;
-            sloc12a = E/(2*(1+nu))*XY;
+         [ Xg, Wg ] = gaussPt1d( Ng );
+                   
+         for j=1:Ng
+            xg = Xg(j); wg = Wg(j);
+            
+            % Interpolations
+            if order == 1
+               xgr  = ( (1-xg)*[x1;y1] + xg*[x2;y2] ); % abscissae of the Gauss point in the physical space
+            elseif order == 2
+               xgr  = ( [x1;y1] + xg*(4*[x3;y3]-3*[x1;y1]-[x2;y2]) + ...
+                      xg^2*(2*[x2;y2]+2*[x1;y1]-4*[x3;y3]) );
+            end
+            
+            X = xgr(1)/Lx; Y = xgr(2)/Lx; % Use the standard basis
+            
+            % Build the test field
+            vloc1 = 0; vloc2 = 0;
+            sloc11 = 0; sloc12 = 0; sloc22 = 0;
+   
+            % It is vital to separate the cases ii=0 and jj=0 to avoid 1/0
+            ii = 0; jj = 0;
+            aij = coefa( (nmax+1)*ii + jj+1 );
+            bij = coefb( (nmax+1)*ii + jj+1 );
+            vloc1 = vloc1 + aij*X^ii*Y^jj;
+            vloc2 = vloc2 + bij*X^ii*Y^jj;
+         
+            ii = 0;
+            for jj=1:nmax
+               aij = coefa( (nmax+1)*ii + jj+1 );
+               bij = coefb( (nmax+1)*ii + jj+1 );
+               vloc1 = vloc1 + aij*X^ii*Y^jj;
+               vloc2 = vloc2 + bij*X^ii*Y^jj;
+%               sloc11 = sloc11 + nu*E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
+%               sloc22 = sloc22 + E/(1-nu^2)*jj*X^ii*Y^(jj-1)*bij;
+%               sloc12 = sloc12 + E/(2*(1+nu)) * jj*X^ii*Y^(jj-1)*aij;
+               sloc11 = sloc11 + lambda*jj*X^ii*Y^(jj-1)*bij;
+               sloc22 = sloc22 + (lambda+2*mu)*jj*X^ii*Y^(jj-1)*bij;
+               sloc12 = sloc12 + mu * jj*X^ii*Y^(jj-1)*aij;
+            end
+            
+            jj = 0;
+            for ii=1:nmax
+               aij = coefa( (nmax+1)*ii + jj+1 );
+               bij = coefb( (nmax+1)*ii + jj+1 );
+               vloc1 = vloc1 + aij*X^ii*Y^jj;
+               vloc2 = vloc2 + bij*X^ii*Y^jj;
+%               sloc11 = sloc11 + E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
+%               sloc22 = sloc22 + nu*E/(1-nu^2)*ii*X^(ii-1)*Y^jj*aij;
+%               sloc12 = sloc12 + E/(2*(1+nu)) * ii*X^(ii-1)*Y^jj*bij;
+               sloc11 = sloc11 + (lambda+2*mu)*ii*X^(ii-1)*Y^jj*aij;
+               sloc22 = sloc22 + lambda*ii*X^(ii-1)*Y^jj*aij;
+               sloc12 = sloc12 + mu * ii*X^(ii-1)*Y^jj*bij;
+            end
+            
+            for ii=1:nmax
+               for jj=1:nmax
+                  if ii+jj > nmax continue; end % No need to add an other 0
+                  aij = coefa( (nmax+1)*ii + jj+1 );
+                  bij = coefb( (nmax+1)*ii + jj+1 );
+                  vloc1 = vloc1 + aij*X^ii*Y^jj;
+                  vloc2 = vloc2 + bij*X^ii*Y^jj;
+                  sloc11 = sloc11 + (lambda+2*mu)*ii*X^(ii-1)*Y^jj*aij ...
+                                  + lambda*jj*X^ii*Y^(jj-1)*bij;
+                  sloc22 = sloc22 + lambda*ii*X^(ii-1)*Y^jj*aij ...
+                                  + (lambda+2*mu)*jj*X^ii*Y^(jj-1)*bij;
+                  sloc12 = sloc12 + mu * ...
+                                    ( jj*X^ii*Y^(jj-1)*aij + ii*X^(ii-1)*Y^jj*bij );
+               end
+            end
+            
+            vloc = [ vloc1 ; vloc2 ];
+            vpa = vloc;
+   
+            sloc = 1/Lx*[sloc11,sloc12;sloc12,sloc22];
+            spa = sloc;
+            fpa = spa*exno;
+            
+            fpaTimesPhitest0 = [fpa(1)*(1-xg);fpa(2)*(1-xg);fpa(1)*xg;fpa(2)*xg]; 
+            
+            Ru(k,indDtot) = Ru(k,indDtot) + len * wg * fpaTimesPhitest0';
+            Rf(k,indNtot) = Rf(k,indNtot) + len * wg * vpa';
          end
-
-         fpaax = sloc11a.*exnoX + sloc12a.*exnoY;
-         fpaay = sloc12a.*exnoX + sloc22a.*exnoY;
-
-         fpabx = sloc11b.*exnoX + sloc12b.*exnoY;
-         fpaby = sloc12b.*exnoX + sloc22b.*exnoY;
-
-         XY = Xxg.^ii.*Yyg.^jj;
-         vpaax = XY; vpaby = XY;
-
-         index = (nmax+1)*ii + jj + 1;
-
-         Sv( index, 1:2:2*nboun2*Ndots-1 )              = Wwg' .* fpaax';
-         Sv( (nmax+1)^2 + index, 1:2:2*nboun2*Ndots-1 ) = Wwg' .* fpabx';
-
-         Sv( index, 2:2:2*nboun2*Ndots )                = Wwg' .* fpaay';
-         Sv( (nmax+1)^2 + index, 2:2:2*nboun2*Ndots )   = Wwg' .* fpaby';
-
-         Vv( index, 1:2:2*nboun2*Ndots-1 )              = Wwg' .* vpaax';
-         Vv( (nmax+1)^2 + index, 2:2:2*nboun2*Ndots )   = Wwg' .* vpaby';
+      end
    end
-end
 
-Rupij = Sv*Phi; clear Sv; clear Phi;
-Rfpij = Vv*Psi; clear Vv; clear Psi;
-Ru = coef'*Rupij; Rf = coef'*Rfpij;
+   % Cut LhsA
+   LhsA = LhsA( :, find(sum(LhsA.^2)) );
+   
+   disp([ 'Right hand side generated ', num2str(toc) ]);
+else
+   if teskase == 3
+      Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat23.mat');
+   elseif teskase == 4
+      Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat24.mat');
+   elseif teskase == 2
+      Anb  = load('fields/rg_cauchy_crack/reciprocity_crack_hat22.mat');
+   end
+   Rf  = Anb.Rf; Ru  = Anb.Ru;
+%   u_known1 = Anb.u_known1; u_known2 = Anb.u_known2; u_known3 = Anb.u_known3; u_known4 = Anb.u_known4;
+%   f_known1 = Anb.f_known1; f_known2 = Anb.f_known2; f_known3 = Anb.f_known3; f_known4 = Anb.f_known4;
+end
+tic
 
 %% Restrict the data on the given part (not necessary, but cleaner)
 f_known1(tofindN) = 0; f_known2(tofindN) = 0;
@@ -840,15 +843,21 @@ for iter = 1:nbstep % Newton loop
                sloc12b = zeros(nboun3*Ndots,1); sloc22b = zeros(nboun3*Ndots,1);
                if ii>0
                   XY = ii.*Xxg.^(ii-1).*Yyg.^jj;
-                  sloc11a = E/(1-nu^2)*XY;
-                  sloc22a = nu*E/(1-nu^2)*XY;
-                  sloc12b = E/(2*(1+nu))*XY;
+%                  sloc11a = E/(1-nu^2)*XY;
+%                  sloc22a = nu*E/(1-nu^2)*XY;
+%                  sloc12b = E/(2*(1+nu))*XY;
+                  sloc11a = (lambda+2*mu)*XY;
+                  sloc22a = lambda*XY;
+                  sloc12b = mu*XY;
                end
                if jj>0
                   XY = jj.*Xxg.^ii.*Yyg.^(jj-1);
-                  sloc11b = nu*E/(1-nu^2)*XY;
-                  sloc22b = E/(1-nu^2)*XY;
-                  sloc12a = E/(2*(1+nu))*XY;
+%                  sloc11b = nu*E/(1-nu^2)*XY;
+%                  sloc22b = E/(1-nu^2)*XY;
+%                  sloc12a = E/(2*(1+nu))*XY;
+                  sloc11b = lambda*XY;
+                  sloc22b = (lambda+2*mu)*XY;
+                  sloc12a = mu*XY;
                end
 
                fpaax = sloc11a.*exnoX + sloc12a.*exnoY;
@@ -965,12 +974,15 @@ for iter = 1:nbstep % Newton loop
       for i=1:nuzawa % Uzawa for the contact problems
          if zerobound == 1
             SoluRG = zeros(size(L,1),4);
+%            SoluRG(tokeep,:) = MAT(tokeep,tokeep) \ ( [VE1(tokeep),VE2(tokeep),...
+%                                                      VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) );
             SoluRG(tokeep,:) = Uu \ ( Ll \ ( Pp * ( [VE1(tokeep),VE2(tokeep),...
                                                     VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) ) ) );
          else
+%            SoluRG = MAT \ [VE1+f,VE2+f,VE3+f,VE4+f];
             SoluRG = Uu \ ( Ll \ ( Pp * ( [VE1,VE2,VE3,VE4] + Ctf ) ) );
          end
-         respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
+         respos(i) = norm(C*SoluRG - abs(C*SoluRG));
          fp = f;
          if kuzawa == 0
             f = f - kuzawa1*C*SoluRG;
@@ -988,7 +1000,7 @@ for iter = 1:nbstep % Newton loop
          nor2 = Solu2'*Lhs'*Lhs*Solu2 - 2*Solu2'*Lhs'*Rhs2 + Rhs2'*Rhs2 + mur*Solu2'*L*Solu2 + 2*mur*Solu2'*L122 + mur*L22;
          nor3 = Solu3'*Lhs'*Lhs*Solu3 - 2*Solu3'*Lhs'*Rhs3 + Rhs3'*Rhs3 + mur*Solu3'*L*Solu3 + 2*mur*Solu3'*L123 + mur*L23;
          nor4 = Solu4'*Lhs'*Lhs*Solu4 - 2*Solu4'*Lhs'*Rhs4 + Rhs4'*Rhs4 + mur*Solu4'*L*Solu4 + 2*mur*Solu4'*L124 + mur*L24;
-         phi( iter )  = nor1 + nor2;% + nor3 + nor4;
+         phi( iter )  = nor1 + nor2 + nor3 + nor4;
 
          res1 = Lhs*Solu1 - Rhs1; % Residuals
          res2 = Lhs*Solu2 - Rhs2; %
@@ -1003,12 +1015,6 @@ for iter = 1:nbstep % Newton loop
          xt  = [ Solu1 ; Solu2 ; Solu3 ; Solu4 ];
          sLx = [ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ];
          L1x = [ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ];
-%         res = [ res1 ; res2 ];
-%         rel = [ rel1 ; rel2 ];
-%         Ax  = [ Lhs*Solu1 ; Lhs*Solu2 ];
-%         xt  = [ Solu1 ; Solu2 ];
-%         sLx = [ sL*Solu1 ; sL*Solu2 ];
-%         L1x = [ Solu1'*L121 ; Solu2'*L122 ];
          Lh0 = Lhs; sL0 = sL; L1210 = L121; L1220 = L122; L1230 = L123; L1240 = L124;
 
          Solu10 = Solu1; Solu20 = Solu2; Solu30 = Solu3; Solu40 = Solu4; % Store the values
@@ -1022,10 +1028,6 @@ for iter = 1:nbstep % Newton loop
          Dx1   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep1;
          DL1   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep1;
          DL121 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep1;
-%         D1    = ([ Lhs*Solu1 ; Lhs*Solu2 ] - Ax)/anglestep1;
-%         Dx1   = ([ Solu1 ; Solu2 ] - xt)/anglestep1;
-%         DL1   = ([ sL*Solu1 ; sL*Solu2 ] - sLx)/anglestep1;
-%         DL121 = ([ Solu1'*L121 ; Solu2'*L122 ] - L1x)/anglestep1;
          Lh1   = (Lhs-Lh0)/anglestep1;
 
 %         D1    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; D1 = D1(:);
@@ -1036,10 +1038,6 @@ for iter = 1:nbstep % Newton loop
          Dx2   = ([ Solu1 ; Solu2 ; Solu3 ; Solu4 ] - xt)/anglestep2;
          DL2   = ([ sL*Solu1 ; sL*Solu2 ; sL*Solu3 ; sL*Solu4 ] - sLx)/anglestep2;
          DL122 = ([ Solu1'*L121 ; Solu2'*L122 ; Solu3'*L123 ; Solu4'*L124 ] - L1x)/anglestep2;
-%         D2    = ([ Lhs*Solu1 ; Lhs*Solu2 ] - Ax)/anglestep2;
-%         Dx2   = ([ Solu1 ; Solu2 ] - xt)/anglestep2;
-%         DL2   = ([ sL*Solu1 ; sL*Solu2 ] - sLx)/anglestep2;
-%         DL122 = ([ Solu1'*L121 ; Solu2'*L122 ] - L1x)/anglestep2;
          Lh2   = (Lhs-Lh0)/anglestep2;
 
 %         D2    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; D2 = D2(:);
@@ -1175,7 +1173,6 @@ urg([1,2,end-1,end],:) = 0; % Overwrite the strange stuff that comes from the fa
 curvr = sqrt( (nodes3r(:,1)-nodes3r(1,1)).^2 + (nodes3r(:,2)-nodes3r(1,2)).^2 );
 
 % Vizualize the crack's line
-x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
 try
 figure; hold on;
 x1 = nodes3b(1,1);   y1 = nodes3b(1,2);
@@ -1187,12 +1184,7 @@ plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
 plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
 plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
 plot( [x1,x2], [y1,y2], 'Color', 'red', 'LineWidth', 3 );
-if teskase==5 % Second crack
-   x13 = nodes(11,1); y13 = nodes(11,2); x14 = nodes(12,1); y14 = nodes(12,2);
-   plot( [x13,x14], [y13,y14] ,'Color', 'magenta', 'LineWidth',5);
-end
 axis equal;
 end
 
@@ -1256,13 +1248,11 @@ toplot1  = ucrsol1(1:2:end-1)*n(1) + ucrsol1(2:2:end)*n(2);
 toplot2  = ucrsol2(1:2:end-1)*n(1) + ucrsol2(2:2:end)*n(2);
 toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
 toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
-%toplot4  = ucrsol4(1:2:end-1)*n(2) - ucrsol4(2:2:end)*n(1);
 %toplot4  = ucrsol4(1:2:end-1);
 toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
 toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
 toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
 toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
-%toplotr4 = urg(1:2:end-1,4)*n(2) - urg(2:2:end,4)*n(1);
 %toplotr4 = urg(1:2:end-1,4);
 
 

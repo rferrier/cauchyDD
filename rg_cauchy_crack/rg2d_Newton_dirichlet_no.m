@@ -1,5 +1,5 @@
-% 22/25/2018
-% ID fissure par RG Petrov-Galerkin et Newton, Dirichlet special case
+% 05/07/2018
+% ID fissure par RG Petrov-Galerkin et Newton, Dirichlet special case, fissure non ouvrante
 
 tic
 close all;
@@ -16,23 +16,25 @@ br          = .0;      % Noise level
 mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-theta1      = pi;     %3.7296;%pi;%pi/2; 
-theta2      = 0;      %0.58800;%0%3*pi/2;  % Initial angles of the crack
+theta1      = 3.8234;%pi;%pi/2; 
+theta2      = 5.7364;%0%3*pi/2;  % Initial angles of the crack
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
 kauto       = 10;     % Coefficient for the auto-adaptation
-nbstep      = 20;     % Nb of Newton Iterations
+nbstep      = 1;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
 nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
+nuzawad     = 1000;      % nb of Uzawa of the direct problem
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
+kuzawad     = 1e4;     % Idem for the direct problem
 ndofcrack   = 20;      % Nb of elements on the crack
-teskase     = 4;       % Choice of the test case
+teskase     = 6;       % Choice of the test case
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
 %nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ NEVER go above the nb of dofs)
-nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
+%nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
 %nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
@@ -43,10 +45,10 @@ dirichlet  = [3,1,0 ; 3,2,0];
 %neumann3   = [1,2,-fscalar;2,1,fscalar;4,1,-fscalar];
 %neumann4   = [2,2,-fscalar ; 4,2,-fscalar];
 
-neumann1   = [1,2,-fscalar];
-neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-neumann3   = [1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
+neumann1   = [1,1,-fscalar];
+neumann2   = [1,2,fscalar];
+neumann3   = [1,1,-fscalar ; 1,2,fscalar];
+neumann4   = [1,1,-fscalar ; 1,2,2*fscalar];
 
 %neumann1   = [3,2,fscalar ; 1,2,-fscalar];
 %neumann2   = [2,1,fscalar ; 4,1,-fscalar];
@@ -84,6 +86,8 @@ elseif teskase == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
 elseif teskase == 5
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared5.msh' );
+elseif teskase == 6
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared6.msh' );
 end
 nnodes = size(nodes,1);
 
@@ -108,7 +112,48 @@ f2  = loading(nbloq,nodes,boundary,neumann2);
 f3  = loading(nbloq,nodes,boundary,neumann3);
 f4  = loading(nbloq,nodes,boundary,neumann4);
 
-uin = K\[f1,f2,f3,f4];
+%% Find the contact condition
+bou5 = boundary(find(boundary(:,1)==5),:); nbc = size(bou5,1);
+bou6 = boundary(find(boundary(:,1)==6),:);
+nod5 = bou5(:,[2,3]); nod5 = unique(nod5(:));
+nod6 = bou6(:,[2,3]); nod6 = unique(nod6(:));
+n5n6 = intersect(nod5,nod6); % Tips of the cracks, they have no condition
+nod5 = setdiff(nod5,n5n6); nod6 = setdiff(nod6,n5n6); nnc = max(size(nod5));
+
+C = sparse(nnc,2*nnodes+nbloq);
+for i=1:nnc
+   no = nod5(i); x = nodes(no,1); y = nodes(no,2);
+   x6 = nodes(nod6,1); y6 = nodes(nod6,2);
+   len = sqrt((x-x6).^2+(y-y6).^2);
+   [d,bff] = min(len); % Find the other node (his bff)
+   n = [x-x6(bff);y-y6(bff)]; n = n/norm(n);
+
+   C(i,2*no-1) = n(1)/2;
+   C(i,2*nod6(bff)-1) = -n(1)/2;
+   C(i,2*no) = n(2)/2;
+   C(i,2*nod6(bff)) = -n(2)/2;
+end
+
+f = zeros(nnc,4); Ctf = C'*f;
+respos = zeros(nuzawad,1); df = zeros(nuzawad,1);
+
+[Ll, Uu, Pp, Qq] = lu (K);  % Pp*MAT*Qq = Ll*Uu
+
+for i=1:nuzawad % Uzawa for the contact problem
+   uin = Qq * ( Uu \ ( Ll \ ( Pp * ( [f1,f2,f3,f4] + Ctf ) ) ) );
+
+   respos(i) = norm(C*uin - abs(C*uin),'fro');
+   fp = f;
+   f = f - kuzawad*C*uin;
+   f = .5*(f + abs(f)); Ctf = C'*f;
+   df(i) = norm(f-fp);
+end
+
+if respos(end)>respos(1) % Pb
+   warning('Direct problem: Uzawa algorithm failed. Try reducing kuzawad');
+end
+
+%uin = K\[f1,f2,f3,f4];
 u1 = uin(1:2*nnodes,1); u2 = uin(1:2*nnodes,2);
 u3 = uin(1:2*nnodes,3); u4 = uin(1:2*nnodes,4);
 
@@ -970,7 +1015,7 @@ for iter = 1:nbstep % Newton loop
          else
             SoluRG = Uu \ ( Ll \ ( Pp * ( [VE1,VE2,VE3,VE4] + Ctf ) ) );
          end
-         respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
+         respos(i) = norm(C*SoluRG - abs(C*SoluRG));
          fp = f;
          if kuzawa == 0
             f = f - kuzawa1*C*SoluRG;
@@ -1252,44 +1297,51 @@ curv = sqrt( (nodes3b(:,1)-nodes3b(1,1)).^2 + (nodes3b(:,2)-nodes3b(1,2)).^2 );
 %toplotr4 = sqrt( urg(1:2:end-1,4).^2 + urg(2:2:end,4).^2 );
 
 n = extnorm3(1,:)';
-toplot1  = ucrsol1(1:2:end-1)*n(1) + ucrsol1(2:2:end)*n(2);
-toplot2  = ucrsol2(1:2:end-1)*n(1) + ucrsol2(2:2:end)*n(2);
-toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
-toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
-%toplot4  = ucrsol4(1:2:end-1)*n(2) - ucrsol4(2:2:end)*n(1);
-%toplot4  = ucrsol4(1:2:end-1);
-toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
-toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
-toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
-toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
-%toplotr4 = urg(1:2:end-1,4)*n(2) - urg(2:2:end,4)*n(1);
-%toplotr4 = urg(1:2:end-1,4);
+%toplot1  = ucrsol1(1:2:end-1)*n(1) + ucrsol1(2:2:end)*n(2);
+%toplot2  = ucrsol2(1:2:end-1)*n(1) + ucrsol2(2:2:end)*n(2);
+%toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
+%toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
+
+%toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
+%toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
+%toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
+%toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
 
 
-%try
-%figure;
-%hold on;
-%set(gca, 'fontsize', 20);
-%plot( curv, toplot1,'Color','green' );
-%plot( curv, toplot2,'Color','black' );
-%plot( curv, toplot3,'Color','blue' );
-%plot( curv, toplot4,'Color','red' );
-%plot( curvr, toplotr1,'Color','green' );
-%plot( curvr, toplotr2,'Color','black' );
-%plot( curvr, toplotr3,'Color','blue' );
-%plot( curvr, toplotr4,'Color','red' );
-%legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
-%       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
-%end
+toplot1  = -ucrsol1(1:2:end-1)*n(2) + ucrsol1(2:2:end)*n(1);
+toplot2  = -ucrsol2(1:2:end-1)*n(2) + ucrsol2(2:2:end)*n(2);
+toplot3  = -ucrsol3(1:2:end-1)*n(2) + ucrsol3(2:2:end)*n(2);
+toplot4  = -ucrsol4(1:2:end-1)*n(2) + ucrsol4(2:2:end)*n(2);
+
+toplotr1 = -urg(1:2:end-1,1)*n(2) + urg(2:2:end,1)*n(1);
+toplotr2 = -urg(1:2:end-1,2)*n(2) + urg(2:2:end,2)*n(1);
+toplotr3 = -urg(1:2:end-1,3)*n(2) + urg(2:2:end,3)*n(1);
+toplotr4 = -urg(1:2:end-1,4)*n(2) + urg(2:2:end,4)*n(1);
 
 try
 figure;
 hold on;
 set(gca, 'fontsize', 20);
-plot( curv, toplot4,'Color','red','LineWidth',3 );
-plot( curvr, toplotr4,'Color','blue','LineWidth',3 );
-legend('[[u]] identified (4)', '[[u]] reference (4)');
+plot( curv, toplot1,'Color','green' );
+plot( curv, toplot2,'Color','black' );
+plot( curv, toplot3,'Color','blue' );
+plot( curv, toplot4,'Color','red' );
+plot( curvr, toplotr1,'Color','green' );
+plot( curvr, toplotr2,'Color','black' );
+plot( curvr, toplotr3,'Color','blue' );
+plot( curvr, toplotr4,'Color','red' );
+legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
+       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
 end
+
+%try
+%figure;
+%hold on;
+%set(gca, 'fontsize', 20);
+%plot( curv, toplot1,'Color','red','LineWidth',3 );
+%plot( curvr, toplotr1,'Color','blue','LineWidth',3 );
+%legend('[[u]] identified (1)', '[[u]] reference (1)');
+%end
 
 try
 figure;

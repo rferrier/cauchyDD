@@ -12,6 +12,7 @@ mat         = [0, E, nu];
 br          = .0;      % Noise level
 
 [ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_c_squared3_noref.msh' );
+%[ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_nc.msh' );
 nnodesg = size(nodesg,1);
 
 %% Direct problem
