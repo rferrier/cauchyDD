@@ -13,7 +13,7 @@ nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
 br         = .0;      % Noise level
-mur        = 1e2;%5e1;%5e7;      % Regularization parameter
+mur        = 5e1;      % Regularization parameter
 regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
@@ -1309,6 +1309,7 @@ for iter = 1:niter
          end
          nodes3_ref = nodes3; boundary3_ref = boundary3; % Store the Nodes (to passMesh)
          norm_ref   = theta(1:3)/norm(theta(1:3)); theta_ref = theta;
+         disp([ 'iteration ', num2str(iter),' pb 0' ]);
       elseif pb == 1
          Ax1  = Lhs*Solu1; L1x1 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
@@ -1317,6 +1318,7 @@ for iter = 1:niter
          Dd1    = (Ax1(:)-Ax(:))/stepstep;
          DL1    = (sLx1(:)-sLx(:))/stepstep;
          DL121  = (L1x1-L1x)/stepstep;
+         disp([ 'iteration ', num2str(iter),' pb 1' ]);
       elseif pb == 2
          Ax2  = Lhs*Solu1; L1x2 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
@@ -1325,6 +1327,7 @@ for iter = 1:niter
          Dd2    = (Ax2(:)-Ax(:))/stepstep;
          DL2    = (sLx2(:)-sLx(:))/stepstep;
          DL122  = (L1x2-L1x)/stepstep;
+         disp([ 'iteration ', num2str(iter),' pb 2' ]);
       else % pb == 3
          Ax3  = Lhs*Solu1; L1x3 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
@@ -1333,6 +1336,7 @@ for iter = 1:niter
          Dd3    = (Ax3(:)-Ax(:))/stepstep;
          DL3    = (sLx3(:)-sLx(:))/stepstep;
          DL123  = (L1x3-L1x)/stepstep;
+         disp([ 'iteration ', num2str(iter),' pb 3' ]);
       end
       
    end

@@ -32,10 +32,19 @@ function u2 = passMesh2D3d (nodes1, elements1, nodes2, elements2, u1, varargin)
  x2 = nodes1(elements1(1,2),1); y2 = nodes1(elements1(1,2),2); z2 = nodes1(elements1(1,2),3);
  x3 = nodes1(elements1(1,3),1); y3 = nodes1(elements1(1,3),2); z3 = nodes1(elements1(1,3),3);
 
- abcd = [ x1,y1,z1,1 ; ...
+ mat = [ x1,y1,z1,1 ; ...
           x2,y2,z2,1 ;
           x3,y3,z3,1 ;
-          1,1,1,1 ] \ [0;0;0;1];
+          1,1,1,1 ];
+
+ if cond(mat) > 1e4 % In case of bad conditionning (close to x-y+z-1=0) change the extra condition
+    mat = [ x1,y1,z1,1 ; ...
+             x2,y2,z2,1 ;
+             x3,y3,z3,1 ;
+             1,-1,1,-1 ];
+ end
+
+ abcd = mat \ [0;0;0;1];
 
  % Parfor is only for ornament on Octave
  for i = list % Find the triangle for this node
