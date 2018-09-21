@@ -1,5 +1,5 @@
-% 25/06/2018
-% Estimateur d'erreur basé sur RG
+% 11/09/2018
+% Erreur locale avec RG et fissure
 
 tic
 close all;
@@ -12,9 +12,30 @@ E           = 210000; % MPa : Young modulus
 nu          = 0.3;    % Poisson ratio
 fscalar     = 250;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
-Npg         = 5;      % Nb Gauss points
-ordertest   = 10;     % Order of test fonctions
+br          = .0;      % Noise level
+mur         = 1e1;%2e3;    % Regularization parameter
+regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
+froreg      = 1;      % Frobenius preconditioner
+recompute   = 1;      % Recompute the operators
+theta1      = pi;     %3.7296;%pi;%pi/2; 3.7083;%
+theta2      = 0;      %0.58800;%0%3*pi/2; 5.5975;% % Initial angles of the crack
+anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
+kauto       = 10;     % Coefficient for the auto-adaptation
+nbstep      = 20;     % Nb of Newton Iterations
+Npg         = 2;      % Nb Gauss points
+ordertest   = 20;     % Order of test fonctions
+zerobound   = 1;      % Put the boundaries of the crack to 0
+nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
+kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
+ndofcrack   = 20;      % Nb of elements on the crack
+teskase     = 2;       % Choice of the test case
 dp          = 0;       % Plane strain
+
+nbDirichlet = [];
+%nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
+%nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ NEVER go above the nb of dofs)
+%nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
+%nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
 dirichlet  = [0,1,0 ; 0,2,0 ; 0,3,0];
@@ -28,13 +49,31 @@ neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
 %neumann4   = [3,1,-fscalar ; 2,2,-fscalar ; ...
 %              1,1,fscalar ; 4,2,fscalar];
 
-dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; ... 
-               4,1,0 ; 4,2,0 ; 5,1,0 ; 5,2,0 ; 6,1,0 ; 6,2,0 ]; % TODO : remove this useless stuff
-neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; ... 
-               4,1,0 ; 4,2,0 ; 5,1,0 ; 5,2,0 ; 6,1,0 ; 6,2,0 ];
+dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
-[ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/verif/plate_c_squared.msh' );
+if teskase == 3
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared3.msh' );
+elseif teskase == 4
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared4.msh' );
+elseif teskase == 2
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
+end
 nnodes = size(nodes,1);
 
 % mapBounds
@@ -75,81 +114,139 @@ sigma = stress(u4,E,nu,nodes,elements,order,1,ntoelem,dp);
 % Output :
 plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
 
-%% Overkill resolution
-[ nodeso,elementso,ntoelemo,boundaryo,ordero] = readmesh( 'meshes/verif/plate_c_squared3.msh' );%/plate_overkill.msh' );
-nnodeso = size(nodeso,1);
-[Ko,Co,nbloqo,node2co,c2nodeo] = Krig2 (nodeso,elementso,mat,ordero,boundaryo,dirichlet,dp);
-f1o  = loading(nbloqo,nodeso,boundaryo,neumann1);
-f2o  = loading(nbloqo,nodeso,boundaryo,neumann2);
-f3o  = loading(nbloqo,nodeso,boundaryo,neumann3);
-f4o  = loading(nbloqo,nodeso,boundaryo,neumann4);
-uin = Ko\[f1o,f2o,f3o,f4o];
-u1o = uin(1:2*nnodeso,1); u2o = uin(1:2*nnodeso,2);
-u3o = uin(1:2*nnodeso,3); u4o = uin(1:2*nnodeso,4);
+%% Find the reference angles of the crack
+x1 = nodes(5,1); y1 = nodes(5,2);
+x2 = nodes(6,1); y2 = nodes(6,2);
 
-% Compute the "real" error by the energy
-e1 = energy( u1,nodes,elements,mat,order );
-e2 = energy( u2,nodes,elements,mat,order );
-e3 = energy( u3,nodes,elements,mat,order );
-e4 = energy( u4,nodes,elements,mat,order );
+xmin = min(nodes(:,1)); xmax = max(nodes(:,1));
+ymin = min(nodes(:,2)); ymax = max(nodes(:,2));
+xb = .5*(xmin+xmax); yb = .5*(ymin+ymax);
 
-e1o = energy( u1o,nodeso,elementso,mat,ordero );
-e2o = energy( u2o,nodeso,elementso,mat,ordero );
-e3o = energy( u3o,nodeso,elementso,mat,ordero );
-e4o = energy( u4o,nodeso,elementso,mat,ordero );
+% 4 intersections of the line with the boundaries
+t1 = (xmin-x1)/(x2-x1); t2 = (xmax-x1)/(x2-x1);
+t3 = (ymin-y1)/(y2-y1); t4 = (ymax-y1)/(y2-y1);
+xy11 = [xmin;y1+(y2-y1)*t1];
+xy22 = [xmax;y1+(y2-y1)*t2];
+xy33 = [x1+(x2-x1)*t3;ymin];
+xy44 = [x1+(x2-x1)*t4;ymax];
+xy1234 = [xy11,xy22,xy33,xy44];
+% limit to those that are inside the square
+elim1 = find(xy1234(1,:)>1); elim2 = find(xy1234(2,:)>1);
+elim3 = find(xy1234(1,:)<0); elim4 = find(xy1234(2,:)<0);
+total = setdiff( [1,2,3,4] , union(union(elim1,elim2),union(elim3,elim4)) );
+xyt = xy1234(:,total); % Normally, this one should be of size 2
+xy1 = xyt(:,1); xy2 = xyt(:,2); xy1r = xy1; xy2r = xy2;
+theta1ref = atan2( xy1(2)-yb , xy1(1)-xb );
+theta2ref = atan2( xy2(2)-yb , xy2(1)-xb );
 
-error1 = sqrt(sum(e1o) - sum(e1));
-error2 = sqrt(sum(e2o) - sum(e2));
-error3 = sqrt(sum(e3o) - sum(e3));
-error4 = sqrt(sum(e4o) - sum(e4));
-
-%%% Local error with a passmesh (doesn't work for the order 2 mesh)
-%up = passMesh2D(nodes, elements, nodeso, elementso, [u1,u2,u3,u4], 0);
-%up1 = up(:,1); up2 = up(:,2); up3 = up(:,3); up4 = up(:,4);
-
-%e1d = energy( u1o-up1,nodeso,elementso,mat,ordero );
-%e2d = energy( u2o-up2,nodeso,elementso,mat,ordero );
-%e3d = energy( u3o-up3,nodeso,elementso,mat,ordero );
-%e4d = energy( u4o-up4,nodeso,elementso,mat,ordero );
-
-%% And display the error
-%try
-%figure;
-%patch('Faces',elementso,'Vertices',nodeso,'FaceVertexCData',e1d,'FaceColor','flat');
-%colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
-%legend('Overkill error');
-%end
-
-%error1d = sqrt(sum(e1d));
-%error2d = sqrt(sum(e2d));
-%error3d = sqrt(sum(e3d));
-%error4d = sqrt(sum(e4d));
+theta1ref = mod(theta1ref,2*pi);
+theta2ref = mod(theta2ref,2*pi);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/verif/plate_c_squared.msh' );
+[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
 nnodes2 = size(nodes2,1);
-%[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet,dp);
-%Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
+[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet,dp);
+Kinter2 = K2( 1:2*nnodes2, 1:2*nnodes2 );
+
+%% Mapbounds
+%[ node2b12, b2node12 ] = mapBound( 1, boundary2, nnodes2 );
+%[ node2b22, b2node22 ] = mapBound( 2, boundary2, nnodes2 );
+%[ node2b32, b2node32 ] = mapBound( 3, boundary2, nnodes2 );
+%[ node2b42, b2node42 ] = mapBound( 4, boundary2, nnodes2 );
+%
+%indexbound  = [2*b2node1-1 ; 2*b2node1 ; 2*b2node2-1 ; 2*b2node2 ;...
+%               2*b2node3-1 ; 2*b2node3 ; 2*b2node4-1 ; 2*b2node4];
+%
+% % Sort the nodes (in case order > 1)
+%[~,order5]  = sort( nodes( b2node5, 1 ) );
+%[~,order6]  = sort( nodes( b2node6, 1 ) );
+%
+%icrack5x    = [ 2*b2node5(order5)-1 ];
+%icrack6x    = [ 2*b2node6(order6)-1 ];
+%icrack5y    = [ 2*b2node5(order5) ];
+%icrack6y    = [ 2*b2node6(order6) ];
+%
+%indexbound2 = [2*b2node12-1 ; 2*b2node12 ; 2*b2node22-1 ; 2*b2node22 ;...
+%               2*b2node32-1 ; 2*b2node32 ; 2*b2node42-1 ; 2*b2node42];
+%% Pass f and u on the uncracked mesh
+%ur1 = zeros( 2*nnodes2, 1 ); fr1 = zeros( 2*nnodes2, 1 );
+%ur1(indexbound2) = u1(indexbound);
+%fr1(indexbound2) = f1(indexbound);
+%% Same for the second one
+%ur2 = zeros( 2*nnodes2, 1 ); fr2 = zeros( 2*nnodes2, 1 );
+%ur2(indexbound2) = u2(indexbound);
+%fr2(indexbound2) = f2(indexbound);
+%% 3
+%ur3 = zeros( 2*nnodes2, 1 ); fr3 = zeros( 2*nnodes2, 1 );
+%ur3(indexbound2) = u3(indexbound);
+%fr3(indexbound2) = f3(indexbound);
+%% 4
+%ur4 = zeros( 2*nnodes2, 1 ); fr4 = zeros( 2*nnodes2, 1 );
+%ur4(indexbound2) = u4(indexbound);
+%fr4(indexbound2) = f4(indexbound);
 
 %% Pass meshes
 UF = [u1,u2,u3,u4,f1,f2,f3,f4];
 UR = passMesh2D(nodes, elements, nodes2, elements2, UF, 0);
 
-ur1 = UR(:,1); fr1 = UR(:,5);
-ur2 = UR(:,2); fr2 = UR(:,6);
-ur3 = UR(:,3); fr3 = UR(:,7);
-ur4 = UR(:,4); fr4 = UR(:,8);
+ur1 = UR(:,1); fr1 = UR(:,5)*50; % 50 is the ratio between mesh sizes (hack)
+ur2 = UR(:,2); fr2 = UR(:,6)*50;
+ur3 = UR(:,3); fr3 = UR(:,7)*50;
+ur4 = UR(:,4); fr4 = UR(:,8)*50;
+
+% Add the noise
+u1n = ur1; u2n = ur2; u3n = ur3; u4n = ur4;
+am1 = sqrt(mean(ur1.^2)); am2 = sqrt(mean(ur2.^2));
+am3 = sqrt(mean(ur3.^2)); am4 = sqrt(mean(ur4.^2));
+br1 = randn(2*nnodes2,1); br2 = randn(2*nnodes2,1);
+br3 = randn(2*nnodes2,1); br4 = randn(2*nnodes2,1);
+%noise = load('noises/cauchyRG.mat');
+%br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
+%ur1 = ( 1 + br*br1 ) .* ur1; ur2 = ( 1 + br*br2 ) .* ur2;
+%ur3 = ( 1 + br*br3 ) .* ur3; ur4 = ( 1 + br*br4 ) .* ur4;
+ur1 = ur1 + am1*br*br1; ur2 = ur2 + am1*br*br2;
+ur3 = ur3 + am3*br*br3; ur4 = ur4 + am4*br*br4;
 
 plotGMSH({ur1,'U1';ur2,'U2';ur3,'U3';ur4,'U4'},elements2, nodes2, 'output/bound');
 
-nmin = 1:nnodes2;
+%% Test the discrete measure point stuff
+if min(size(nbDirichlet))>0
+   nmin = [];
+   for i=1:4
+      nbdiscrete = find(nbDirichlet(:,1)==i);
+      if min(size(nbdiscrete)) > 0
+         nbi = nbDirichlet(nbdiscrete,2);
+         if nbi>0
+            [~, b2node] = mapBound(i, boundary2, nnodes2);
+            xmin = min(nodes2(b2node,1)); xmax = max(nodes2(b2node,1)); Lx1 = xmax-xmin; sx = Lx1/(nbi-1);
+            ymin = min(nodes2(b2node,2)); ymax = max(nodes2(b2node,2)); Ly1 = ymax-ymin; sy = Ly1/(nbi-1);
+            if sx==0 xy = [ xmin*ones(1,nbi) ; ymin:sy:ymax ];
+            elseif sy==0 xy = [ xmin:sx:xmax ; ymin*ones(1,nbi) ];
+            else xy = [ xmin:sx:xmax ; ymin:sy:ymax ];
+            end
+         
+            nm = zeros(nbi,1);
+            for j=1:nbi % Find the closest nodes
+               xyj = xy(:,j)';
+               nodiff = nodes2(b2node,:)-xyj;
+               normdiff = nodiff(:,1).^2+nodiff(:,2).^2;
+               [~,nm(j)] = min(normdiff);
+            end
+            nm = unique(nm); nmin = [nmin;b2node(nm)];
+         end
+      end
+   end
+   nmin = unique(nmin);
+else
+   nmin = 1:nnodes2;
+end
 
 %% Build the maps of the Dirichlet and Neumann bounds
 %b2nodesD = cell(4,2); % nb of boundaries * nb of dimensions
 %b2nodesN = cell(4,2);
 b2nodesD = []; b2nodesN = []; b2nodesTOT = [];
-for i=1:6
+for i=1:4
    [~, b2node] = mapBound(i, boundary2, nnodes2);
    dofD = dirichlet0(find(dirichlet0(:,1)==i),2); % dof of the given dirichlet
    dofN = neumann0(find(neumann0(:,1)==i),2); % dof of the given neumann
@@ -178,8 +275,8 @@ boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
 for i=1:nboun2
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1)-1,nelem2 )+1; % find gives line + column*size
-   cand2 = rem( find(elements2==no2)-1,nelem2 )+1;
+   cand1 = rem( find(elements2==no1),nelem2 ); % find gives line + column*size
+   cand2 = rem( find(elements2==no2),nelem2 );
    boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -202,8 +299,8 @@ urr3  = zeros( nboun1, 2+2*order ); urr4 = zeros( nboun1, 2+2*order );
 for i=1:nboun1 % TODO : rationalize the stuff (don't do 2 times the same work)
    % Volumic element
    no1 = boundary2(i,2); no2 = boundary2(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements2==no1)-1,nelem1 )+1; % find gives line + column*size
-   cand2 = rem( find(elements2==no2)-1,nelem1 )+1;
+   cand1 = rem( find(elements2==no1),nelem1 ); % find gives line + column*size
+   cand2 = rem( find(elements2==no2),nelem1 );
    boun2vol1(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -281,7 +378,7 @@ tofindD = setdiff( 1:2*nnbound2 , knownD );
 tofindN = setdiff( 1:2*nnbound2 , knownN );
 %%
 
-[ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/verif/plate_c_squared.msh' );
+[ nodesu,elementsu,ntoelemu,boundaryu,orderu] = readmesh( 'meshes/rg_refined/plate_nu.msh' );
 nnodesu = size(nodesu,1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -325,56 +422,6 @@ M(toremove,:) = [];
 
 coef   = null(full(M));
 nftest = size(coef,2); % Nb of avaliable test functions
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Build the matrix of the energetic inner product
-
-P0 = zeros(2*(nmax+1)^2);
-for ii=0:nmax
-   nd1 = nmax-ii;
-   for jj=0:nd1
-      for kk=0:nmax
-         nd2 = nmax-kk;
-         for ll=0:nd2
-            indexij = (nmax+1)*ii + jj + 1;
-            indexkl = (nmax+1)*kk + ll + 1;
-
-            e1111 = 0; e1112 = 0; e1211 = 0; e1212 = 0;
-            e2212 = 0; e2222 = 0; e2111 = 0; e2112 = 0;
-
-            if ii+kk>1
-               e1111 = E/(1-nu^2)*(ii*kk)/((ii+kk-1)*(jj+ll+1));
-               e2212 = E/(4*(1+nu))*(ii*kk)/((ii+kk-1)*(jj+ll+1));
-            end
-            if jj+ll>1
-               e1112 = E/(4*(1+nu))*(jj*ll)/((ii+kk+1)*(jj+ll-1));
-               e2222 = E/(1-nu^2)*(jj*ll)/((ii+kk+1)*(jj+ll-1));
-            end
-            if ii+kk>0 && jj+ll>0
-               e1211 = nu*E/(1-nu^2)*(ii*ll)/((ii+kk)*(jj+ll));
-               e1212 = E/(4*(1+nu))*(jj*kk)/((ii+kk)*(jj+ll));
-               e2111 = nu*E/(1-nu^2)*(jj*kk)/((ii+kk)*(jj+ll));
-               e2112 = E/(4*(1+nu))*(ii*ll)/((ii+kk)*(jj+ll));
-            end
-
-            P0( indexij, indexkl ) = e1111 + 2*e1112;
-            P0( (nmax+1)^2 + indexij, indexkl ) = e2111 + 2*e2112;
-            P0( indexij, (nmax+1)^2 + indexkl ) = e1211 + 2*e1212;
-            P0( (nmax+1)^2 + indexij, (nmax+1)^2 + indexkl ) = e2222 + 2*e2212;
-         end
-      end
-   end
-end
-
-P = coef'*P0*coef; % Pass in the test-functions basis
-P = .5*(P+P');
-
-[Q,Theta] = eig(P); %Q = real(Q); Theta = real(Theta);% Diagonalize P
-[theta,ind] = sort(diag(Theta),'descend'); Q = Q(:,ind);
-inc = min(find(theta<1e-12*theta(1))); % Truncate the inner product
-sT = diag(sqrt(theta)); Q1 = Q*sT; Q2 = Q*inv(sT); % Normalize
-Q1 = Q1(:,1:inc-1); Q2 = Q2(:,1:inc-1); % And truncate
-% Q2 passes from the old basis to the new one that is orthogonalized (but smaller because of condition number)
 
 %% Build the (Petrov-Galerkin) Left Hand Side
 nelemu = size(elementsu,1); nn = size(elementsu,2); %nn=3
@@ -432,8 +479,6 @@ for i=1:nboun2
    elseif exno(2) == -1 % Bound 1
       fer1 = -[0;fscalar]; fer2 = [0;0];
       fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];%fer4 = [fscalar;0];%
-   else % The cracks (no loading)
-      fer1 = [0;0]; fer2 = [0;0]; fer3 = [0;0]; fer4 = [0;0];
    end
      
    indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
@@ -452,26 +497,7 @@ end
 
 disp([ 'Direct problem solved and data management ', num2str(toc) ]);
 
-%% The operator that passes from the polynomial stuff to the spacial one
-Xx  = nodes2(:,1); Yy = nodes2(:,2);
-XYp = zeros(2*nnodes2,2*(nmax+1)^2);
-for ii=0:nmax
-   nd1 = nmax-ii;
-   for jj=0:nd1
-      indexij = (nmax+1)*ii + jj + 1;
-      XYp(1:2:2*nnodes2-1,indexij)              = Xx.^ii.*Yy.^jj;
-      XYp(2:2:2*nnodes2  ,(nmax+1)^2 + indexij) = Xx.^ii.*Yy.^jj;
-   end
-end
-Apas = XYp*coef;
-
-%% Debug : get u in the polynomial basis
-AAA = Apas'*Apas+1e-10*eye(nftest);
-upol1 = AAA\(Apas'*u1);
-upol2 = AAA\(Apas'*u2);
-upol3 = AAA\(Apas'*u3);
-upol4 = AAA\(Apas'*u4);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the operators
 tic
 Ng = Npg;
@@ -573,17 +599,71 @@ f_known3(tofindN) = 0; f_known4(tofindN) = 0;
 u_known1(tofindD) = 0; u_known2(tofindD) = 0;
 u_known3(tofindD) = 0; u_known4(tofindD) = 0;
 
-%% Restrict the operators
-Rfr = Rf(:,knownN); Rur = Ru(:,knownD);
+ndofs = size(f_known1(tofindN),1) + size(u_known1(tofindD),1) + 2*(ndofcrack+1);
 
+%% Restrict the operators
+Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
+Rum = Ru(:,tofindD); Rur = Ru(:,knownD);
+
+LhsA = -Rum;
+LhsB = Rfm;
 Rhs1 = Rur*u_known1(knownD) - Rfr*f_known1(knownN);
 Rhs2 = Rur*u_known2(knownD) - Rfr*f_known2(knownN);
 Rhs3 = Rur*u_known3(knownD) - Rfr*f_known3(knownN);
 Rhs4 = Rur*u_known4(knownD) - Rfr*f_known4(knownN);
 
-%% Pass into the orthogonalized basis
-%R1 = (Q1'*Q1)\(Q1'*Rhs1); R2 = (Q1'*Q1)\(Q1'*Rhs2);
-%R3 = (Q1'*Q1)\(Q1'*Rhs3); R4 = (Q1'*Q1)\(Q1'*Rhs4);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Build the matrix of the energetic inner product
+
+P0 = zeros(2*(nmax+1)^2);
+for ii=0:nmax
+   nd1 = nmax-ii;
+   for jj=0:nd1
+      for kk=0:nmax
+         nd2 = nmax-kk;
+         for ll=0:nd2
+            indexij = (nmax+1)*ii + jj + 1;
+            indexkl = (nmax+1)*kk + ll + 1;
+
+            e1111 = 0; e1112 = 0; e1211 = 0; e1212 = 0;
+            e2212 = 0; e2222 = 0; e2111 = 0; e2112 = 0;
+
+            if ii+kk>1
+               e1111 = E/(1-nu^2)*(ii*kk)/((ii+kk-1)*(jj+ll+1));
+               e2212 = E/(4*(1+nu))*(ii*kk)/((ii+kk-1)*(jj+ll+1));
+            end
+            if jj+ll>1
+               e1112 = E/(4*(1+nu))*(jj*ll)/((ii+kk+1)*(jj+ll-1));
+               e2222 = E/(1-nu^2)*(jj*ll)/((ii+kk+1)*(jj+ll-1));
+            end
+            if ii+kk>0 && jj+ll>0
+               e1211 = nu*E/(1-nu^2)*(ii*ll)/((ii+kk)*(jj+ll));
+               e1212 = E/(4*(1+nu))*(jj*kk)/((ii+kk)*(jj+ll));
+               e2111 = nu*E/(1-nu^2)*(jj*kk)/((ii+kk)*(jj+ll));
+               e2112 = E/(4*(1+nu))*(ii*ll)/((ii+kk)*(jj+ll));
+            end
+
+            P0( indexij, indexkl ) = e1111 + 2*e1112;
+            P0( (nmax+1)^2 + indexij, indexkl ) = e2111 + 2*e2112;
+            P0( indexij, (nmax+1)^2 + indexkl ) = e1211 + 2*e1212;
+            P0( (nmax+1)^2 + indexij, (nmax+1)^2 + indexkl ) = e2222 + 2*e2212;
+         end
+      end
+   end
+end
+
+P = coef'*P0*coef; % Pass in the test-functions basis
+P = .5*(P+P');
+
+[Q,Theta] = eig(P); %Q = real(Q); Theta = real(Theta);% Diagonalize P
+[theta,ind] = sort(diag(Theta),'descend'); Q = Q(:,ind);
+inc = min(find(theta<1e-12*theta(1))); % Truncate the inner product
+sT = diag(real(sqrt(theta))); isT = diag(1./real(sqrt(theta)));
+Q1 = Q*sT; Q2 = Q*isT; % Normalize
+Q1 = Q1(:,1:inc-1); Q2 = Q2(:,1:inc-1); % And truncate
+% Q2 passes from the old basis to the new one that is orthogonalized (but smaller because of condition number)
+
+% Pass the Rhs into the orthogonalized basis
 R1 = Q2'*Rhs1; R2 = Q2'*Rhs2;
 R3 = Q2'*Rhs3; R4 = Q2'*Rhs4;
 
@@ -602,82 +682,22 @@ eest2 = norm(R2);
 eest3 = norm(R3);
 eest4 = norm(R4);
 
-%% Compute the local energetic error
-% First, the list of Gauss points and surfaces
-Xxg = zeros( nelemu,1 ); Yyg = zeros( nelemu,1 );
-Ssg = zeros( nelemu,1); % Surface
+%% RG Local error map
+Xx  = nodes2(:,1); Yy = nodes2(:,2);
+XYp = zeros(2*nnodes2,2*(nmax+1)^2);
+for ii=0:nmax
+   nd1 = nmax-ii;
+   for jj=0:nd1
+      indexij = (nmax+1)*ii + jj + 1;
+      XYp(1:2:2*nnodes2-1,indexij)              = Xx.^ii.*Yy.^jj;
+      XYp(2:2:2*nnodes2  ,(nmax+1)^2 + indexij) = Xx.^ii.*Yy.^jj;
+   end
+end
 
-% The test-field the energy of which is being computed
 v01 = coef*Q2*R1; v02 = coef*Q2*R2;
 v03 = coef*Q2*R3; v04 = coef*Q2*R4;
 %v01 = coef*Rhs1; v02 = coef*Rhs2;
 %v03 = coef*Rhs3; v04 = coef*Rhs4;
-
-Evloc1 = zeros(nelemu,1);
-Evloc2 = zeros(nelemu,1);
-Evloc3 = zeros(nelemu,1);
-Evloc4 = zeros(nelemu,1);
-
-%for i=1:nelemu
-%   no1 = elementsu(i,1); no2 = elementsu(i,2); no3 = elementsu(i,3);
-%   x1 = nodesu(no1,1); x2 = nodesu(no2,1); x3 = nodesu(no3,1);
-%   y1 = nodesu(no1,2); y2 = nodesu(no2,2); y3 = nodesu(no3,2);
-
-%   Sg = .5*abs( (y2-y1)*(x3-x1) - (y3-y1)*(x2-x1) );
-%   Xg = (x1+x2+x3)/3;
-%   Yg = (y1+y2+y3)/3;
-
-%   %Ssg(i,1) = Sg; Xxg(i,1) = Xg; Yyg(i,1) = Yg;
-
-%   Eloc = zeros(2*(nmax+1)^2);
-%   for ii=0:nmax
-%      nd1 = nmax-ii;
-%      for jj=0:nd1
-%         for kk=0:nmax
-%            nd2 = nmax-kk;
-%            for ll=0:nd2
-%               indexij = (nmax+1)*ii + jj + 1;
-%               indexkl = (nmax+1)*kk + ll + 1;
-
-%               e1111 = 0; e1112 = 0; e1211 = 0; e1212 = 0;
-%               e2212 = 0; e2222 = 0; e2111 = 0; e2112 = 0;
-
-%               if ii+kk>1
-%                  e1111 = Sg*E/(1-nu^2)*(ii*kk)*Xg^(ii+kk-2)*Yg^(jj+ll);
-%                  e2212 = E/(4*(1+nu))*(ii*kk)*Xg^(ii+kk-2)*Yg^(jj+ll);
-%               end
-%               if jj+ll>1
-%                  e1112 = E/(4*(1+nu))*(jj*ll)*Xg^(ii+kk)*Yg^(jj+ll-2);
-%                  e2222 = E/(1-nu^2)*(jj*ll)*Xg^(ii+kk)*Yg^(jj+ll-2);
-%               end
-%               if ii+kk>0 && jj+ll>0
-%                  e1211 = nu*E/(1-nu^2)*(ii*ll)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-%                  e1212 = E/(4*(1+nu))*(jj*kk)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-%                  e2111 = nu*E/(1-nu^2)*(jj*kk)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-%                  e2112 = E/(4*(1+nu))*(ii*ll)*Xg^(ii+kk-1)*Yg^(jj+ll-1);
-%               end
-
-%               Eloc( indexij, indexkl ) = e1111 + 2*e1112;
-%               Eloc( (nmax+1)^2 + indexij, indexkl ) = e2111 + 2*e2112;
-%               Eloc( indexij, (nmax+1)^2 + indexkl ) = e1211 + 2*e1212;
-%               Eloc( (nmax+1)^2 + indexij, (nmax+1)^2 + indexkl ) = e2222 + 2*e2212;
-%            end
-%         end
-%      end
-%   end
-
-%   Evloc1(i) = v01'*Eloc*v01;
-%   Evloc2(i) = v02'*Eloc*v02;
-%   Evloc3(i) = v03'*Eloc*v03;
-%   Evloc4(i) = v04'*Eloc*v04;
-%end
-
-%% Display locally the error
-%try
-%figure;
-%patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',Evloc1 ,'FaceColor','flat');
-%colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
-%end
 
 %% Display the argmax of the residual
 varg01 = XYp*v01; varg02 = XYp*v02; varg03 = XYp*v03; varg04 = XYp*v04;
@@ -688,15 +708,66 @@ e03 = energy( varg03,nodes2,elements2,mat,order );
 e04 = energy( varg04,nodes2,elements2,mat,order );
 
 try
-figure;
-patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',varg01(2:2:2*nnodes2) ,'FaceColor','interp');
+figure; hold on;
+patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',e01 ,'FaceColor','flat');
 colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
+colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+legend('RG error');
+end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% ERC part
+% Neumann problem
+f1  = loading(nbloq2,nodes2,boundary2,neumann1);
+f2  = loading(nbloq2,nodes2,boundary2,neumann2);
+f3  = loading(nbloq2,nodes2,boundary2,neumann3);
+f4  = loading(nbloq2,nodes2,boundary2,neumann4);
+
+uin = K2\[f1,f2,f3,f4];
+uN1 = uin(1:2*nnodes2,1); uN2 = uin(1:2*nnodes2,2);
+uN3 = uin(1:2*nnodes2,3); uN4 = uin(1:2*nnodes2,4);
+
+% Dirichlet problem
+dirichlet2  = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0 ];
+[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes2,elements2,mat,order,boundary2,dirichlet2,dp);
+
+f1234 = zeros( 2*nnodes2+nbloq2, 4 );
+f1234(2*nnodes2+1:end,:) = C2'*[ur1,ur2,ur3,ur4];
+
+uin = K2\f1234;
+uD1 = uin(1:2*nnodes2,1); uD2 = uin(1:2*nnodes2,2);
+uD3 = uin(1:2*nnodes2,3); uD4 = uin(1:2*nnodes2,4);
+
+% Error
+du1 = uN1-uD1; du2 = uN2-uD2; du3 = uN3-uD3; du4 = uN4-uD4;
+
+e1 = energy( du1,nodes2,elements2,mat,order ); erc1 = sqrt(sum(e1));
+e2 = energy( du2,nodes2,elements2,mat,order ); erc2 = sqrt(sum(e2));
+e3 = energy( du3,nodes2,elements2,mat,order ); erc3 = sqrt(sum(e3));
+e4 = energy( du4,nodes2,elements2,mat,order ); erc4 = sqrt(sum(e4));
+
+et1 = energy( uN1-ur1,nodes2,elements2,mat,order ); erct1 = sqrt(sum(et1));
+et2 = energy( uN2-ur2,nodes2,elements2,mat,order ); erct2 = sqrt(sum(et2));
+et3 = energy( uN3-ur3,nodes2,elements2,mat,order ); erct3 = sqrt(sum(et3));
+et4 = energy( uN4-ur4,nodes2,elements2,mat,order ); erct4 = sqrt(sum(et4));
+
+% And display the error
+try
+figure; hold on;
+patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',e1,'FaceColor','flat');
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
+colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+legend('ERC');
 end
 
 try
-figure;
-patch('Faces',elementsu,'Vertices',nodesu,'FaceVertexCData',e01 ,'FaceColor','flat');
+figure; hold on;
+patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',et1,'FaceColor','flat');
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2); 
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
 colorbar(); set(colorbar, 'fontsize', 20); axis([0,1,0,1,0,1],'square');
+legend('ERC (full field known)');
 end
-
-disp([ 'Error estimation ', num2str(toc) ]);
