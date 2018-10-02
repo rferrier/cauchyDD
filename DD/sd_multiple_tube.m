@@ -285,7 +285,7 @@ for i = 1:2*nsub
       Gglob( [ 2*newbouns{el2bound(i,1)}-1, 2*newbouns{el2bound(i,1)} ], 3*j-2:3*j ) = ...
              sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
       Gloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : ) = ...
-                  sign*Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
+                  Rloc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ], : );
       % Upper boundary
 %      norm( Gglob( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ], 3*j-2:3*j ) )
 %      norm( Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : ) )
@@ -293,7 +293,7 @@ for i = 1:2*nsub
       Gglob( [ 2*newbouns{el2bound(i,2)}-1, 2*newbouns{el2bound(i,2)} ], 3*j-2:3*j ) = ...
              sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
       Gloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : ) = ...
-                  sign*Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
+                  Rloc( [ 2*bounsloc{2*i}-1, 2*bounsloc{2*i} ], : );
                   
       G{i} = Gloc;
       j = j+1;
@@ -419,11 +419,11 @@ end
 
 if norm(Gglob) ~= 0
    Zed(:,1) = P*Zed(:,1);
+   resid(1) = norm( P*Res(:,1) );
 else
    Zed(:,1) = Zed(:,1);
+   resid(1) = norm( Res(:,1) );
 end
-
-resid(1) = norm( Res(:,1) );
 
 d(:,1) = Zed(:,1);
 
@@ -530,7 +530,7 @@ for i = 1:2*nsub
    if rem(i,4) == 0 || rem(i-1,4) == 0
       sign = -1;
    end
-%   sign=1;
+
    floc = zeros( 2*size(newnode{i},1) + nbloq{i}, 1 );
 
    floc( [ 2*bounsloc{2*i-1}-1, 2*bounsloc{2*i-1} ] ) =...

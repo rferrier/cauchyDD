@@ -1,6 +1,8 @@
-function [index] = findCorner (x, y, varargin)
- % This function finds the corner of a L-curve
- % /!\ This function works if the curve orientation is non-direct: a sign has to be changed for Tychonov
+function [index] = findCorner2 (x, y, varargin)
+ % This function finds the corner of an L-curve
+ % Yep, I did copy/paste the entire function just because I didn't want to code
+ % a clean way to integrate the (-) at line 87. @dirtycoding
+
  if size(x,1) <= 2
     error(['Not enough points on L-curve : it has no corner', ...
       ' Rem : if you actually have lots of points, try to transpose the vectors'])
@@ -21,9 +23,9 @@ function [index] = findCorner (x, y, varargin)
     x = log10(x); y = log10(y);
  end
 
-% % Normalize Should be done, but I'm afread it could break some dependancies
-% x = (x-min(x))/(max(x)-min(x));
-% y = (y-min(y))/(max(y)-min(y));
+ % Normalize
+ x = (x-min(x))/(max(x)-min(x));
+ y = (y-min(y))/(max(y)-min(y));
 
  sx = size(x,1);     % size of x (hopefully too the size of y)
  n  = floor(sx/d)+1; %max(sx-2,floor(sx/2)+1);   % degree of polynoms
@@ -41,7 +43,6 @@ function [index] = findCorner (x, y, varargin)
  dl = sqrt(dx.^2 + dy.^2);
  t = cumsum(dl);
  %%
-
  if numel(varargin)>2 % This prescripted order erases the other one
      n = cell2mat(varargin(3));
  end
@@ -72,7 +73,7 @@ function [index] = findCorner (x, y, varargin)
 % hold on
 % plot(xx,yy,'Color','red');
 % plot(x,y,'Color','blue');
- 
+
  % Find the point with the smallest curve radius
  R = 0;
  index = 0;
@@ -82,7 +83,7 @@ function [index] = findCorner (x, y, varargin)
     denom = (xx1(i)^2 + yy1(i)^2)^(3/2);
     
     if denom ~= 0
-       Ga(i) = (yy2(i)*xx1(i) - xx2(i)*yy1(i)) / denom;
+       Ga(i) = -(yy2(i)*xx1(i) - xx2(i)*yy1(i)) / denom; % Yes, right there
     else
        Ga(i) = R+1.;  % eliminate this candidate
     end
@@ -95,5 +96,5 @@ function [index] = findCorner (x, y, varargin)
        %end
     end
  end
- 
+
 end

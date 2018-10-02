@@ -822,7 +822,7 @@ for iter = 1:niter
       Lhs = [ Lhs0, Z0, Z0, Z0, K121*Lhs121, K331*Lhs331 ;...
               Z0, Lhs0, Z0, Z0, K121*Lhs122, K331*Lhs332 ;...
               Z0, Z0, Lhs0, Z0, K121*Lhs123, K331*Lhs333 ;... %/!\ There is the same K on purpose, on order to reconstruct k12 and k33
-            Z0, Z0, Z0, Lhs0, K121*Lhs124, K331*Lhs334 ];
+              Z0, Z0, Z0, Lhs0, K121*Lhs124, K331*Lhs334 ];
       Rhs = [ Rhs1 - Lhs0*Uu1 ; Rhs2 - Lhs0*Uu2 ; Rhs3 - Lhs0*Uu3 ; Rhs4 - Lhs0*Uu4 ];
       Res(iter) = norm(Rhs);
    
@@ -1013,7 +1013,7 @@ for iter = 1:niter
 
       %% Then, solve for k12 and k33
       Lhs = [ Lhs121, Lhs331 ; Lhs122, Lhs332 ; Lhs123, Lhs333 ; Lhs124, Lhs334 ];
-      Rhs = [ Rhs1 - Lhs0*Uu1; Rhs2 - Lhs0*Uu2; Rhs3 - Lhs0*Uu3 ; Rhs4 - Lhs0*Uu4 ];
+      Rhs = [ Rhs1 - Lhs0*Uu1; Rhs2 - Lhs0*Uu2; Rhs3 - Lhs0*Uu3; Rhs4 - Lhs0*Uu4];
       Res(iter) = norm(Rhs);
    
       A = Lhs'*Lhs; sA = size(A,1);

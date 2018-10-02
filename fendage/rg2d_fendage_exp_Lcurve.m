@@ -1,34 +1,34 @@
-% 28/06/2018
-% Essai de fendage, 1 seule donnée, code simplifié, régularisation temporelle
+% 25/09/2018
+% Essai de fendage, 1 seule donnée, code simplifié : L-curve
 
 tic
 close all;
 clear all;
 
-addpath(genpath('./tools'))
+addpath(genpath('./tools'));
 
 % Parameters
 E           = 17000; % MPa : Young modulus
 nu          = 0.2;    % Poisson ratio
 fscalar     = 1;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
-mur         = 2e11;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-%theta1      = pi/2;
-%theta2      = 3*pi/2;   % angles of the crack
-anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
-kauto       = 10;     % Coefficient for the auto-adaptation
-nbstep      = 1;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
-%ordertest   = 20;     % Order of test fonctions (by default 20)
 nuzawa      = 1;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
-ndofcrack   = 20;      % Nb of elements on the crack
+ndofcrack   = 50;      % Nb of elements on the crack
 ratio       = 0.062;   % mm/pix ratio
 order       = 1;       % Order of the mesh
 th          = 72.5;   % Thickness (unused as it is only for the loadings)
 t0          = 0;%263;     % Time for the computation (263 is good) 0 means all
+gapbound    = 0; % Take the gap on the known extremity into account
+
+murs = 10.^[6,7,8,9,10,11,12,13]; % Regularization parameters
+%murs = [2e8,4e8,6e8,8e8,1e9,2e9,4e9,6e9,8e9,1e10,2e10,4e10];
+%murs = [9e8,1e9,1.5e9,2e9,3e9,4e9,5e9,6e9,7e9,8e9,9e9,1e10];
+%murs = [1e5,1e6,1e7,1e8,2e8,4e8,6e8,8e8,1e9,2e9,4e9,6e9,8e9,1e10,2e10,4e10,1e11,1e12,1e13];
+%murs = [1e5,1e6,1e7,1e8,2e8,4e8,6e8,8e8,9e8,1e9,2e9,3e9,4e9,5e9,6e9,7e9,8e9,9e9,1e10,2e10,4e10,1e11,1e12,1e13];
 
 % Material properties
 lambda = nu*E/((1+nu)*(1-2*nu));
@@ -51,9 +51,11 @@ Ume      = Mesh.U; nt = size(Ume,2);
 
 % Gap
 gap = load('fendage/delta_U_distance.mat');
-gap = ratio * gap.delta_U;
+gap = ratio * gap.delta_U; lmax = size(gap,1);
+ixe = 1:nt;
+ygrec = 0:lmax-1; ygrec = ygrec*62/(lmax-1);
 figure;
-surf(gap);
+surf(ixe,ygrec,gap);
 shading interp;
 colorbar();
 legend('Gap in function of the time')
@@ -71,6 +73,22 @@ Umes = Umes - M*((M'*M)\M')*Umes;
 
 % Get the right size
 Umes = ratio*Umes; nodes = ratio*nodes;
+
+% Vectorial gap from the measurements directly
+gapv = Umes([2*14-1;2*14],:) - Umes([2*11-1;2*11],:);
+
+% Get the crack's size
+crlen = load('fendage/crack_tip_2methods.mat');
+lenFEMU = ratio*crlen.crack_FEMU;
+lenIDIC = ratio*crlen.crack_IDIC;
+
+try
+figure;
+hold on;
+plot(lenFEMU,'Color','red');
+plot(lenIDIC,'Color','blue');
+legend('Crack length FEMU', 'Crack length IDIC');
+end
 
 %% Manually create the boundaries
 n101 = [6,51:-1:35];         b101 = [n101(1:end-1)',n101(2:end)'];
@@ -132,6 +150,9 @@ boundary = [ [ones(size(bo1,1),1),bo1] ; [2*ones(size(bo2,1),1),bo2] ];
 %Fmes = Kinter*Umes;
 Fmes = zeros(size(Umes));
 %plotGMSH({Umes,'U_mes';Fmes,'F_mes'}, elements, nodes, 'output/mesure');
+%save('fields/F.mat','Fmes');
+
+%% TODO : try to remove the out of plane movements
 
 if t0 == 0
    u1 = Umes; f1 = Fmes;
@@ -153,22 +174,6 @@ xy1r = [(xmax+xmin)/2;y15];
 xy2r = [(xmax+xmin)/2;ymax];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%[ nodes,elements,ntoelem2,boundary,order] = readmesh( 'meshes/fendage/fendage_direct2.msh' );
-%nnodes = size(nodes,1);
-%[K2,C2,nbloq2,node2c2,c2node2] = Krig2 (nodes,elements,mat,order,boundary,dirichlet,1);
-%Kinter2 = K2( 1:2*nnodes, 1:2*nnodes );
-
-
-%%% Pass meshes
-%UF = [u1,f1];
-%UR = passMesh2D(nodes, elements, nodes, elements, UF, 0);
-
-%ur1 = UR(:,1); fr1 = UR(:,2);
-
-%u1n = ur1;
-
-%plotGMSH({ur1,'U1'},elements, nodes, 'output/bound');
 
 ur1 = u1; fr1 = f1;
 
@@ -208,8 +213,8 @@ boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
 for i=1:nboun2
    % Volumic element
    no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements==no1),nelem2 ); % find gives line + column*size
-   cand2 = rem( find(elements==no2),nelem2 );
+   cand1 = rem( find(elements==no1)-1,nelem2 )+1; % find gives line + column*size
+   cand2 = rem( find(elements==no2)-1,nelem2 )+1;
    boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -319,10 +324,6 @@ tofindN = setdiff( 1:2*nboun2 , knownN );
 %nnodesu = size(nodesu,1);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Test-functions shit
-% Build the polynomial test functions.
-%load('conditions20_2dc_nu2.mat','-ascii');
-%M = spconvert(conditions20_2dc_nu2); clear('conditions20_2dc');
 nmax = 20;
 
 % Build the condition matrix by hand
@@ -570,6 +571,9 @@ end
 nbnotwork = 0; % Records the number of failures
 previous = []; % Stores the index of the previous solutions
 
+nbstep = max(size(murs));
+regu = zeros(nbstep,1); resu = zeros(nbstep,1);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Compute the crack RHS (not from angle)
 xy1 = xy1r; xy2 = xy2r;
@@ -730,6 +734,12 @@ if regular == 1
    L12 = [ Du(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
    L2 = Du(knownD,knownD);
    L121 = L12*u_known1(knownD,:); L21 = u_known1(knownD,:)'*Du(knownD,knownD)*u_known1(knownD,:);
+   if gapbound == 1 % Add gapv as reference on the left
+      totreg = [ndofs-2*nnodes3+1, ndofs-2*nnodes3+2];
+      L121o = L121; L21o = L21; % Store those terms for the computation of the cost-function
+      L121 = L121 + [ zeros(size(Duu,2),2) ; zeros(size(Dfu,2),2) ; D3(:,[1,2]) ] * gapv;
+      L21 = L21 + gapv'*D3([1,2],[1,2])*gapv;
+   end
 else
 
    L = Mtot;
@@ -749,141 +759,80 @@ for i=2:nnodes3-1
 end
 C = [ zeros(nnodes3,ndofs-2*nnodes3), C ];
 
-if anglestep == 0 % Initialize the step
-   anglestep1 = pi/kauto;
-   anglestep2 = pi/kauto;
-else
-   anglestep1 = anglestep;
-   anglestep2 = anglestep;
-end
+Solu10 = zeros(size(L,1),nt,nbstep);
 
-% Initialize
-SoluRG = zeros(ndofs,nt);
-
-for iter = 1:nt % loop of time steps
-   pbmax = 2;
-%   if iter == nbstep
-%      pbmax == 0;
-%   end
-%   if anglestep == 0 && iter > 1
-%      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
-%   end
-
-   for pb = 0:0%pbmax % Construct all the problems
-
-      if iter > 1
-         Vprec = SoluRG(:,iter-1);
-         duknown = u_known1(knownD,iter) - u_known1(knownD,iter-1);
-      else
-         Vprec = zeros(size(L,1),1);
-         duknown = u_known1(knownD,iter);
-      end
+for iter = 1:nbstep % L-curve loop
+   mur = murs(iter);
+   for pb = 0:0
 
       MAT = Lhs'*Lhs + mur*L;
-      VE1 = Lhs'*Rhs1 - mur*L12*duknown + mur*L*Vprec;
-      %VE1 = Lhs'*Rhs1 - mur*L12*u_known1(knownD,iter);
+      VE1 = Lhs'*Rhs1 - mur*L121;
 
-      f = zeros(nnodes3,1); Ctf = C'*f;
+      f = zeros(nnodes3,nt); Ctf = C'*f;
       respos = zeros(nuzawa,1); df = zeros(nuzawa);
 
-%      if zerobound == 1
-         %toremove = [ ndofs, ndofs-1, ndofs-2*nnodes3+2, ndofs-2*nnodes3+1 ];
+      if gapbound == 1
+         toremove = [ ndofs-2*nnodes3+2, ndofs-2*nnodes3+1, ndofs, ndofs-1 ]; % Remove first and last node
+      else
          toremove = [ ndofs, ndofs-1 ]; % Remove the last node
-         tokeep = setdiff(1:size(L,1),toremove);
-         [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep)); % No more zerobound
-         kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
-%      else
-%         [Ll, Uu, Pp] = lu (MAT);  % Pp*MAT = Ll*Uu
-%         kuzawa1 = .999*min(eig(MAT));
-%      end
+      end
 
-      SoluRG(:,iter) = zeros(size(L,1),1);
+      tokeep = setdiff(1:size(L,1),toremove);
+      [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep)); % No more zerobound
+      kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
+
+      SoluRG = zeros(size(L,1),nt);
 
       for i=1:nuzawa % Uzawa for the contact problems
-         SoluRG(tokeep,iter) = Uu \ ( Ll \ ( Pp * ( VE1(tokeep,iter) + Ctf(tokeep) ) ) );
-         %SoluRG = Uu \ ( Ll \ ( Pp * ( VE1 + Ctf ) ) );
+         SoluRG(tokeep,:) = Uu \ ( Ll \ ( Pp * ( VE1(tokeep,:) + Ctf(tokeep,:) ) ) );
          respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
          fp = f;
          if kuzawa == 0
-            f = f - kuzawa1*C*SoluRG(:,iter);
+            f = f - kuzawa1*C*SoluRG;
          else
-            f = f - kuzawa*C*SoluRG(:,iter);
+            f = f - kuzawa*C*SoluRG;
          end
          f = .5*(f + abs(f)); Ctf = C'*f;
          df(i) = norm(f-fp);
+      end
+
+      if gapbound == 1
+         SoluRG(totreg,:) = gapv;
       end
 
       Solu1 = SoluRG;
 
       if pb == 0
          nor1 = diag( Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1);
-         nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21  ); % TODO : add the previous one
+         if gapbound == 1 % DOn't count 2 times the additionnal terms
+            nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121o + mur*L21o  );
+         else
+            nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21  );
+         end
          phi( iter )  = sum(nor1+nor2);
 
-%         res1 = Lhs*Solu1 - Rhs1; % Residuals
+         regu(iter) = sum(nor2)/mur;
+         resu(iter) = sum(nor1); % Regularization norm and residual
 
-%         rel1 = sL*Solu1;
-
-%         res = [ res1 ];
-%         rel = [ rel1 ];
-%         Ax  = [ Lhs*Solu1 ];
-%         xt  = [ Solu1 ];
-%         sLx = [ sL*Solu1 ];
-%         L1x = [ Solu1'*L121 ];
-%         Lh0 = Lhs; sL0 = sL; L1210 = L121;
-
-         Solu10 = Solu1; % Store the values
+         Solu10(:,:,iter) = Solu1; % Store the values
 
          if phi(iter) == min(phi)
             nodes3b = nodes3;
          end
 
-%      elseif pb == 1
-%         D1    = ([ Lhs*Solu1 ] - Ax)/anglestep1;
-%         Dx1   = ([ Solu1 ] - xt)/anglestep1;
-%         DL1   = ([ sL*Solu1 ] - sLx)/anglestep1;
-%         DL121 = ([ Solu1'*L121 ] - L1x)/anglestep1;
-%         Lh1   = (Lhs-Lh0)/anglestep1;
-
-%%         D1    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; D1 = D1(:);
-%%         DL1   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; DL1 = DL1(:);
-%%         DL121 = [ Solu10'*(L121-L1210) , Solu20'*(L122-L1220) , Solu30'*(L123-L1230) , Solu40'*(L124-L1240) ]/anglestep1; DL121 = DL121(:);
-%      elseif pb == 2
-%         D2    = ([ Lhs*Solu1 ] - Ax)/anglestep2;
-%         Dx2   = ([ Solu1 ] - xt)/anglestep2;
-%         DL2   = ([ sL*Solu1 ] - sLx)/anglestep2;
-%         DL122 = ([ Solu1'*L121 ] - L1x)/anglestep2;
-%         Lh2   = (Lhs-Lh0)/anglestep2;
-
-%%         D2    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; D2 = D2(:);
-%%         DL2   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; DL2 = DL2(:);
-%%         DL122 = [ Solu10'*(L121-L1210) , Solu20'*(L122-L1220) , Solu30'*(L123-L1230) , Solu40'*(L124-L1240) ]/anglestep2; DL122 = DL122(:);
       end
    end
-%   D = [D1,D2]; DL = [DL1,DL2]; DL12 = [DL121,DL122];% Dx = [Dx1,Dx2];
-%%   Dd = [ Lh1*Solu10 , Lh2*Solu10 ; Lh1*Solu20 , Lh2*Solu20 ;...
-%%          Lh1*Solu30 , Lh2*Solu30 ; Lh1*Solu40 , Lh2*Solu40 ];
-
-%%   ZL = zeros(size(L));
-%%   Aile = [ L, ZL, ZL, ZL ; ...
-%%            ZL, L, ZL, ZL ; ...
-%%            ZL, ZL, L, ZL ; ...
-%%            ZL, ZL, ZL, L ];
-
-%   %dtheta = - ( D'*D + mur*Dx'*Aile*Dx ) \ ( D'*res - mur*Dx'*[L121;L122;L123;L124] );
-%   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
-%   %dtheta = - ( D'*D ) \ ( D'*res );
-%   %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
-
-%   theta1 = theta1 + dtheta(1); theta1 = mod(theta1,2*pi);
-%   theta2 = theta2 + dtheta(2); theta2 = mod(theta2,2*pi);
-
-%   theta1rec(iter+1) = theta1;
-%   theta2rec(iter+1) = theta2;
 end
 disp(['Iterative method terminated ', num2str(toc) ]);
 
-Solu1 = Solu10;
+%% L-curve
+zebest = findCorner2 (resu, regu, 3, 1); bestmu = murs(zebest);
+try
+figure; hold on;
+loglog(resu,regu,'-*');
+loglog(resu(zebest),regu(zebest),'o');
+end
+Solu1 = Solu10(:,:,zebest);
 
 % Post-process : reconstruct u and f from Solu
 fsolu1 = zeros(2*nboun2,nt); usolu1 = zeros(2*nnodes,nt);
@@ -1024,7 +973,7 @@ curv = sqrt( (nodes3b(:,1)-nodes3b(1,1)).^2 + (nodes3b(:,2)-nodes3b(1,2)).^2 );
 
 n = extnorm3(1,:)';
 toplot1  = ucrsol1(1:2:end-1,:)*n(1) + ucrsol1(2:2:end,:)*n(2);
-toplotr1 = urg(1:2:end-1,1,:)*n(1) + urg(2:2:end,1,:)*n(2);
+toplotr1 = urg(1:2:end-1,:)*n(1) + urg(2:2:end,:)*n(2);
 
 if nt==1
    try
@@ -1040,11 +989,81 @@ else
    figure;
    hold on;
    set(gca, 'fontsize', 20);
-   surf( toplot1 );
+   surf( 1:nt, curv, toplot1 );
    shading interp;
    colorbar();
    end
+   try
+   figure;
+   hold on;
+   set(gca, 'fontsize', 20);
+   plot( curv, toplot1(:,263),'Color','red','LineWidth',3 );
+   plot( curv, toplot1(:,176),'Color','blue','LineWidth',3 );
+   plot( curv, toplot1(:,100),'Color','green','LineWidth',3 );
+   plot( curv, toplot1(:,45),'Color','black','LineWidth',3 );
+%   plot( curv, toplot1(:,176)*toplot1(1,263)/toplot1(1,176),'Color','blue','LineWidth',3 );
+%   plot( curv, toplot1(:,100)*toplot1(1,263)/toplot1(1,100),'Color','green','LineWidth',3 );
+%   plot( curv, toplot1(:,45)*toplot1(1,263)/toplot1(1,45),'Color','black','LineWidth',3 );
+   legend('[[u]] 263', '[[u]] 176', '[[u]] 100', '[[u]] 45');
+   end
 end
+
+%% Compute the derivatives and such of toplot1
+i=1:ndofcrack+1; im1 = 1:ndofcrack; ip1 = 2:ndofcrack+1;
+M1 = sparse(im1,im1,-1,ndofcrack,ndofcrack+1);
+M2 = sparse(im1,ip1,1,ndofcrack,ndofcrack+1);
+Md1 = M1+M2; % Derivative matrix
+
+toplod = Md1*toplot1;
+
+i=1:ndofcrack; im1 = 1:ndofcrack-1; ip1 = 2:ndofcrack;
+M1 = sparse(im1,im1,-1,ndofcrack-1,ndofcrack);
+M2 = sparse(im1,ip1,1,ndofcrack-1,ndofcrack);
+Md2 = M1+M2; % Derivative matrix
+
+toplodd = Md2*toplod;
+
+% Find the last negative second derivative point / ceil data
+lcrack = zeros(nt,1);
+curvdd = curv(2:end-1); % /!\ curv(1:end-1) is not very clean
+for i=1:nt
+%   indexmax = max(find(toplodd(:,i)<0));
+   epscrit = max(toplot1(:))/3;
+   %epscrit = max(toplot1(:,i))/3;
+   indexmax = min( find( toplot1(:,i) < epscrit ) );
+   if min(size(indexmax))==0
+      lcrack(i) = 0;
+   else
+%   lcrack(i) = curvdd(indexmax);
+      lcrack(i) = curv(indexmax);
+   end
+end
+
+% The same according to the reference (gap function)
+lcrackr = zeros(nt,1);
+for i=1:nt
+%   indexmaxr = max(find(toplodd(:,i)<0));
+   epscrit = max(gap(:))/3;
+   %epscrit = max(gap(:,i))/100;
+   indexmaxr = min( find( gap(:,i) < epscrit ) );
+   if min(size(indexmaxr))==0
+      lcrackr(i) = 0;
+   else
+%   lcrack(i) = curvdd(indexmax);
+      lcrackr(i) = ygrec(indexmaxr);
+   end
+end
+
+try
+figure;
+hold on;
+plot(lenFEMU,'Color','red');
+plot(lenIDIC,'Color','blue');
+plot(lcrack,'Color','black');
+plot(lcrackr,'Color','green');
+legend('Crack length FEMU', 'Crack length IDIC', 'Crack length RG', 'Crack length gap');
+end
+
 
 %erroru = norm(usolu1(b2nodesnoD)-ur1(b2nodesnoD))   / norm(ur1(b2nodesnoD));
 %errorf = norm(fsolu1no(b2nodesnoN)-fr1(b2nodesnoN)) / norm(fr1(b2nodesnoN));

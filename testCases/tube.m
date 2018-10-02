@@ -832,7 +832,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dual SP with Orthodir (niter = 70)
 if find(methods==5)
-    niter   = 10;
+    niter   = 20;
     mu      = 0.0/E;      % Regularization parameter
     precond = 0;      % use a primal precond ?
     
