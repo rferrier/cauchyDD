@@ -12,7 +12,7 @@ E           = 17000; % MPa : Young modulus
 nu          = 0.2;    % Poisson ratio
 fscalar     = 1;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
-mur         = 1e9;%2e3;    % Regularization parameter
+mur         = 1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
 %theta1      = pi/2;
@@ -29,6 +29,15 @@ ratio       = 0.062;   % mm/pix ratio
 order       = 1;       % Order of the mesh
 th          = 72.5;   % Thickness (unused as it is only for the loadings)
 t0          = 0;%263;     % Time for the computation (263 is good) 0 means all
+frf         = 1; % Give dof to the forces (modified RG)
+fru         = 1; % Give dof to the displacement (modified RG)
+gamma       = 1; % Weight of the data (modified RG)
+regularized = 0; % Use the regularized data
+keep_disgus = 1; % Keep the disgusting values near of the crack (for not regularized only)
+
+% Manually disable some nodes for Dirichlet
+d_nodes = [37,59,60,68,10,74,11,75,12,13,76,14,77,15,78,79];
+%d_nodes = [];
 
 % Material properties
 lambda = nu*E/((1+nu)*(1-2*nu));
@@ -39,10 +48,16 @@ dirichlet  = [ 12,1,0 ; 12,2,0 ];
 neumann1   = [ 4,1,fscalar ; 4,2,-fscalar ; 9,1,-fscalar ; 9,2,-fscalar ];
 
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
-neumann0   = [ 1,1,0 ; 1,2,0 ];
+neumann0   = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ]; % 3 are the discarded Dirichlet
+%neumann0   = [ 1,1,0 ; 1,2,0 ];
 
 %% Import the experimental data
-Exp = load('fendage/dic_e9f_mechreg_200_coarser_relaxGV.mat');
+if regularized==1
+   Exp = load('fendage/dic_e9f_mechreg_200_coarser_relaxGV.mat');
+else
+   Exp = load('fendage/dic_e9f_cohesive_coarse.mat');
+end
+
 Mesh = Exp.Mesh;
 
 nodes    = Mesh.coordinates(:,[1,2]); nnodes = size(nodes,1);
@@ -54,11 +69,6 @@ gap = load('fendage/delta_U_distance.mat');
 gap = ratio * gap.delta_U; lmax = size(gap,1);
 ixe = 1:nt;
 ygrec = 0:lmax-1; ygrec = ygrec*62/(lmax-1);
-figure;
-surf(ixe,ygrec,gap);
-shading interp;
-colorbar();
-legend('Gap in function of the time')
 
 % Change the formate of Umes
 Umes = zeros(2*nnodes, nt);
@@ -74,71 +84,160 @@ Umes = Umes - M*((M'*M)\M')*Umes;
 % Get the right size
 Umes = ratio*Umes; nodes = ratio*nodes;
 
+%if regularized==0 % Truncate (for visu purposes)
+%   for i=1:nt
+%      Umes(find(Umes(:,i)>7e-2), i)  = 7e-2;
+%      Umes(find(Umes(:,i)<-7e-2), i) = -7e-2;
+%   end
+%end
+
+% Vectorial gap from the measurements directly
+if regularized==1
+   gapv = Umes([2*14-1;2*14],:) - Umes([2*11-1;2*11],:);
+   figure; hold on;
+   set(gca, 'fontsize', 20);
+   surf(ixe,ygrec,gap);
+   shading interp;
+   colorbar();
+   %legend('Gap in function of the time')
+else
+   gapv = Umes([2*13-1;2*13],:) - Umes([2*12-1;2*12],:);
+   indp = [13,128:142,3]; indm = [12,113:127,4];
+   gato = zeros(2*size(indp,2),nt);
+   gato(1:2:end-1,:) = - Umes(2*indp-1,:) + Umes(2*indm-1,:);
+   gato(2:2:end,:)   = - Umes(2*indp,:) + Umes(2*indm,:);
+
+   gato = min(gato,.08); gato = max(gato,-.01);
+
+   lmax = size(indp,2);
+   ixe = 1:nt;
+   ygrec = 0:lmax-1; ygrec = ygrec*62/(lmax-1);
+   figure; hold on;
+   set(gca, 'fontsize', 20);
+   surf(ixe,ygrec,gato(1:2:end-1,:));
+   shading interp;
+   colorbar();
+   %legend('Gap in function of the time')
+end
+
 % Get the crack's size
 crlen = load('fendage/crack_tip_2methods.mat');
 lenFEMU = ratio*crlen.crack_FEMU;
 lenIDIC = ratio*crlen.crack_IDIC;
 
-try
-figure;
-hold on;
-plot(lenFEMU,'Color','red');
-plot(lenIDIC,'Color','blue');
-legend('Crack length FEMU', 'Crack length IDIC');
+%try
+%figure;
+%hold on;
+%plot(lenFEMU,'Color','red');
+%plot(lenIDIC,'Color','blue');
+%legend('Crack length FEMU', 'Crack length IDIC');
+%end
+
+if regularized==1
+   %% Manually create the boundaries
+   n101 = [6,51:-1:35];         b101 = [n101(1:end-1)',n101(2:end)'];
+   n102 = [34:-1:19,1];         b102 = [n102(1:end-1)',n102(2:end)'];
+   n2   = [1,198:-1:164,18];    b2 = [n2(1:end-1)',n2(2:end)'];
+   n3   = [18,163:-1:153,17];   b3 = [n3(1:end-1)',n3(2:end)'];
+   n4   = [17,152:-1:146,16];   b4 = [n4(1:end-1)',n4(2:end)'];
+   n51  = [16,145:-1:143];      b51 = [n51(1:end-1)',n51(2:end)'];
+   n52  = [143,142,15];         b52 = [n52(1:end-1)',n52(2:end)'];
+   n6   = [15,141:-1:137,14];   b6 = [n6(1:end-1)',n6(2:end)'];
+   b1411 = [14,11]; b43 = [4,3];
+   n7   = [11,114:-1:110,10];   b7 = [n7(1:end-1)',n7(2:end)'];
+   n82  = [10,109,108];         b82 = [n82(1:end-1)',n82(2:end)'];
+   n81  = [108,107,106,9];      b81 = [n81(1:end-1)',n81(2:end)'];
+   n9   = [9,105:-1:99,8];      b9 = [n9(1:end-1)',n9(2:end)'];
+   n10  = [8,98:-1:87,7];       b10 = [n10(1:end-1)',n10(2:end)'];
+   n11  = [7,86:-1:52,6];       b11 = [n11(1:end-1)',n11(2:end)'];
+   n121 = [35,5,4];             b121 = [n121(1:end-1)',n121(2:end)'];
+   n122 = [3,2,34];             b122 = [n122(1:end-1)',n122(2:end)'];
+
+   %% Add a few elements in the riff
+   elemadd = [ 14,115,136 ; 14,115,11 ;...
+               136,116,135 ; 136,116,115 ;...
+               135,117,134 ; 135,117,116 ;...
+               134,118,133 ; 134,118,117 ;...
+               133,119,132 ; 133,119,118 ;...
+               132,120,131 ; 132,120,119 ;...
+               131,121,130 ; 131,121,120 ;...
+               130,122,129 ; 130,122,121 ;...
+               129,123,128 ; 129,123,122 ;...
+               128,124,127 ; 128,124,123 ;...
+               127,125,126 ; 127,125,124 ;...
+               126,12,13 ; 126,12,125 ;...
+               13,199,210 ; 13,199,12 ;...
+               210,200,211 ; 210,200,199 ;...
+               211,201,212 ; 211,201,200 ;...
+               212,202,213 ; 212,202,201 ;...
+               213,203,214 ; 213,203,202 ;...
+               214,204,215 ; 214,204,203 ;...
+               215,205,216 ; 215,205,204 ;...
+               216,206,217 ; 216,206,205 ;...
+               217,207,218 ; 217,207,206 ;...
+               218,208,219 ; 218,208,207 ;...
+               219,209,220 ; 219,209,208 ;...
+               220,4,3 ; 220,4,209 ];
+
+   elements = [ elements ; elemadd ];
+
+   % Assemble it into 2 boundaries : bo1 : all data, bo2 : no Neumann
+   bo1 = [b101;b102;b2;b3;b52;b6;b7;b82;b10;b11];
+   bo2 = [b121;b43;b122;b4;b51;b1411;b81;b9];
+
+   boundary = [ [ones(size(bo1,1),1),bo1] ; [2*ones(size(bo2,1),1),bo2] ];
+else
+   %% Manually create the boundaries
+   n101 = [6,38:-1:29];         b101 = [n101(1:end-1)',n101(2:end)'];
+   n102 = [28:-1:19,1];         b102 = [n102(1:end-1)',n102(2:end)'];
+   n2   = [1,112:-1:91,18];     b2 = [n2(1:end-1)',n2(2:end)'];
+   n3   = [18,90:-1:84,17];     b3 = [n3(1:end-1)',n3(2:end)'];
+   n4   = [17,83:-1:80,16];     b4 = [n4(1:end-1)',n4(2:end)'];
+   n51  = [16,79,78];           b51 = [n51(1:end-1)',n51(2:end)'];
+   n52  = [78,15];              b52 = [n52(1:end-1)',n52(2:end)'];
+   n6   = [15,77,14,76,13];     b6 = [n6(1:end-1)',n6(2:end)'];
+   b1411 = [13,12]; b43 = [4,3];
+   n7   = [12,75,11,74,10];     b7 = [n7(1:end-1)',n7(2:end)'];
+   n82  = [10,73];              b82 = [n82(1:end-1)',n82(2:end)'];
+   n81  = [73,72,9];            b81 = [n81(1:end-1)',n81(2:end)'];
+   n9   = [9,71:-1:68,8];       b9 = [n9(1:end-1)',n9(2:end)'];
+   n10  = [8,67:-1:61,7];       b10 = [n10(1:end-1)',n10(2:end)'];
+   n11  = [7,60:-1:39,6];       b11 = [n11(1:end-1)',n11(2:end)'];
+   n121 = [29,5,4];             b121 = [n121(1:end-1)',n121(2:end)'];
+   n122 = [3,2,28];             b122 = [n122(1:end-1)',n122(2:end)'];
+
+   %% Add a few elements in the riff
+   elemadd = [ 13,12,113 ; 13,113,128 ; ...
+               128,113,114 ; 128,114,129 ; ...
+               129,114,115 ; 129,115,130 ; ...
+               130,115,116 ; 130,116,131 ; ...
+               131,116,117 ; 131,117,132 ; ...
+               132,117,118 ; 132,118,133 ; ...
+               133,118,119 ; 133,119,134 ; ...
+               134,119,120 ; 134,120,135 ; ...
+               135,120,121 ; 135,121,136 ; ...
+               136,121,122 ; 136,122,137 ; ...
+               137,122,123 ; 137,123,138 ; ...
+               138,123,124 ; 138,124,139 ; ...
+               139,124,125 ; 139,125,140 ; ...
+               140,125,126 ; 140,126,141 ; ...
+               141,126,127 ; 141,127,142 ; ...
+               142,127,4 ; 142,4,3 ];
+
+   elements = [ elements ; elemadd ];
+
+   % Assemble it into 2 boundaries : bo1 : all data, bo2 : no Neumann
+   if keep_disgus==1
+      bo1 = [b101;b102;b2;b3;b52;b6;b7;b82;b10;b11];
+      bo2 = [b121;b43;b122;b4;b51;b1411;b81;b9];
+   else
+      bo1 = [b101;b102;b2;b3;b10;b11];
+      bo2 = [b121;b43;b122;b4;b51;b1411;b81;b9];
+      bo3 = [b52;b6;b7;b82];
+   end
+
+   boundary = [ [ones(size(bo1,1),1),bo1] ; [2*ones(size(bo2,1),1),bo2] ];
 end
-
-%% Manually create the boundaries
-n101 = [6,51:-1:35];         b101 = [n101(1:end-1)',n101(2:end)'];
-n102 = [34:-1:19,1];         b102 = [n102(1:end-1)',n102(2:end)'];
-n2   = [1,198:-1:164,18];    b2 = [n2(1:end-1)',n2(2:end)'];
-n3   = [18,163:-1:153,17];   b3 = [n3(1:end-1)',n3(2:end)'];
-n4   = [17,152:-1:146,16];   b4 = [n4(1:end-1)',n4(2:end)'];
-n51  = [16,145:-1:143];      b51 = [n51(1:end-1)',n51(2:end)'];
-n52  = [143,142,15];         b52 = [n52(1:end-1)',n52(2:end)'];
-n6   = [15,141:-1:137,14];   b6 = [n6(1:end-1)',n6(2:end)'];
-b1411 = [14,11]; b43 = [4,3];
-n7   = [11,114:-1:110,10];   b7 = [n7(1:end-1)',n7(2:end)'];
-n82  = [10,109,108];         b82 = [n82(1:end-1)',n82(2:end)'];
-n81  = [108,107,106,9];      b81 = [n81(1:end-1)',n81(2:end)'];
-n9   = [9,105:-1:99,8];      b9 = [n9(1:end-1)',n9(2:end)'];
-n10  = [8,98:-1:87,7];       b10 = [n10(1:end-1)',n10(2:end)'];
-n11  = [7,86:-1:52,6];       b11 = [n11(1:end-1)',n11(2:end)'];
-n121 = [35,5,4];             b121 = [n121(1:end-1)',n121(2:end)'];
-n122 = [3,2,34];             b122 = [n122(1:end-1)',n122(2:end)'];
-
-%% Add a few elements in the riff
-elemadd = [ 14,115,136 ; 14,115,11 ;...
-            136,116,135 ; 136,116,115 ;...
-            135,117,134 ; 135,117,116 ;...
-            134,118,133 ; 134,118,117 ;...
-            133,119,132 ; 133,119,118 ;...
-            132,120,131 ; 132,120,119 ;...
-            131,121,130 ; 131,121,120 ;...
-            130,122,129 ; 130,122,121 ;...
-            129,123,128 ; 129,123,122 ;...
-            128,124,127 ; 128,124,123 ;...
-            127,125,126 ; 127,125,124 ;...
-            126,12,13 ; 126,12,125 ;...
-            13,199,210 ; 13,199,12 ;...
-            210,200,211 ; 210,200,199 ;...
-            211,201,212 ; 211,201,200 ;...
-            212,202,213 ; 212,202,201 ;...
-            213,203,214 ; 213,203,202 ;...
-            214,204,215 ; 214,204,203 ;...
-            215,205,216 ; 215,205,204 ;...
-            216,206,217 ; 216,206,205 ;...
-            217,207,218 ; 217,207,206 ;...
-            218,208,219 ; 218,208,207 ;...
-            219,209,220 ; 219,209,208 ;...
-            220,4,3 ; 220,4,209 ];
-
-elementsp = [ elements ; elemadd ];
-
-% Assemble it into 2 boundaries : bo1 : all data, bo2 : no Neumann
-bo1 = [b101;b102;b2;b3;b52;b6;b7;b82;b10;b11];
-bo2 = [b121;b43;b122;b4;b51;b1411;b81;b9];
-
-boundary = [ [ones(size(bo1,1),1),bo1] ; [2*ones(size(bo2,1),1),bo2] ];
 
 %mesh2GMSH( nodes, elements, boundary, 'fendage/correlimesh' );
 
@@ -159,7 +258,11 @@ else
 end
 
 %% Find the reference angles of the crack
-x15 = nodes(14,1); y15 = nodes(14,2); % To see the detail
+if regularized==1
+   x15 = nodes(14,1); y15 = nodes(14,2); % To see the detail
+else
+   x15 = nodes(13,1); y15 = nodes(13,2); % To see the detail
+end
 
 xmin = min(nodes(:,1)); xmax = max(nodes(:,1)); Lx = xmax-xmin;
 ymin = min(nodes(:,2)); ymax = max(nodes(:,2)); Ly = ymax-ymin;
@@ -168,6 +271,7 @@ xb = .5*(xmin+xmax); yb = .5*(ymin+ymax);
 U = ymax-y15;
 
 xy1r = [(xmax+xmin)/2;y15];
+%xy1r = [(xmax+xmin)/2;ymin];
 xy2r = [(xmax+xmin)/2;ymax];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -226,8 +330,8 @@ boun2vol2 = zeros( nboun2, 1 ); extnorm2 = zeros( nboun2, 2 );
 for i=1:nboun2
    % Volumic element
    no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements==no1),nelem2 ); % find gives line + column*size
-   cand2 = rem( find(elements==no2),nelem2 );
+   cand1 = rem( find(elements==no1)-1,nelem2 )+1; % find gives line + column*size
+   cand2 = rem( find(elements==no2)-1,nelem2 )+1;
    boun2vol2(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -249,8 +353,8 @@ urr1  = zeros( nboun1, 2+2*order );
 for i=1:nboun1 % TODO : rationalize the stuff (don't do 2 times the same work)
    % Volumic element
    no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
-   cand1 = rem( find(elements==no1),nelem1 ); % find gives line + column*size
-   cand2 = rem( find(elements==no2),nelem1 );
+   cand1 = rem( find(elements==no1)-1,nelem1 )+1; % find gives line + column*size
+   cand2 = rem( find(elements==no2)-1,nelem1 )+1;
    boun2vol1(i) = intersect(cand1, cand2); % If everything went well, there is only one
    
    % Exterior normal
@@ -540,16 +644,25 @@ Ru = coef'*Rupij; Rf = coef'*Rfpij;
 %% Restrict the data on the given part (not necessary, but cleaner)
 f_known1(tofindN,:) = 0;
 u_known1(tofindD,:) = 0;
+Piu = eye(size(u_known1,1)); Piu(tofindD,tofindD) = 0; % Projectors of measurements
+Piu([2*d_nodes-1,2*d_nodes],[2*d_nodes-1,2*d_nodes]) = 0; % Remove the disgusting nodes (global/local confusion as usual)
+Pif = eye(size(f_known1,1)); Pif(tofindN,tofindN) = 0;
 
-ndofs = size(f_known1(tofindN,:),1) + size(u_known1(tofindD,:),1) + 2*(ndofcrack+1);
+ndofs = 2*(ndofcrack+1);
+if frf==0, ndofs=ndofs+size(tofindN,2); else ndofs=ndofs+size(f_known1,1); end
+if fru==0, ndofs=ndofs+size(tofindD,2); else ndofs=ndofs+size(u_known1,1); end
+%ndofs = size(f_known1(tofindN,:),1) + size(u_known1(tofindD,:),1) + 2*(ndofcrack+1);
 
 %% Restrict the operators
 Rfm = Rf(:,tofindN); Rfr = Rf(:,knownN);
 Rum = Ru(:,tofindD); Rur = Ru(:,knownD);
 
-LhsA = -Rum;
-LhsB = Rfm;
-Rhs1 = Rur*u_known1(knownD,:) - Rfr*f_known1(knownN,:);
+if fru==1, LhsA = -Ru; else, LhsA = -Rum; end % If there is freedom, more dof appear
+if frf==1, LhsB =  Rf; else, LhsB =  Rfm; end
+Rhs1 = zeros(nftest,nt);
+if frf==0, Rhs1=Rhs1-Rfr*f_known1(knownN,:); end
+if fru==0, Rhs1=Rhs1+Rur*u_known1(knownD,:); end
+%Rhs1 = Rur*u_known1(knownD,:) - Rfr*f_known1(knownN,:);
    
 % Build the matrix that passes f on the nodes from the bound
 Fntob = zeros( 2*nnbound2, 2*nboun2 );
@@ -579,7 +692,7 @@ if regular == 1
       Du( 2*coefU-1, 2*coefU-1 ) = Du( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
       Du( 2*coefU, 2*coefU )     = Du( 2*coefU, 2*coefU ) + 1/len*[1,-1;-1,1];
    end
-
+   %Du = eye(2*nnbound2);
    Duu  = Du(tofindD,tofindD); Dfu  = Df(tofindN,tofindN);
    Duk  = Du(knownD,knownD);   Dfk  = Df(knownN,knownN);
    Duuk = Du(tofindD,knownD);  Dfuk = Df(tofindN,knownN);
@@ -588,22 +701,22 @@ end
 nbnotwork = 0; % Records the number of failures
 previous = []; % Stores the index of the previous solutions
 
-if anglestep == 0 % Initialize the step
-   anglestep1 = pi/kauto;
-   anglestep2 = pi/kauto;
-else
-   anglestep1 = anglestep;
-   anglestep2 = anglestep;
-end
+%if anglestep == 0 % Initialize the step
+%   anglestep1 = pi/kauto;
+%   anglestep2 = pi/kauto;
+%else
+%   anglestep1 = anglestep;
+%   anglestep2 = anglestep;
+%end
 
 for iter = 1:nbstep % Newton loop
    pbmax = 2;
 %   if iter == nbstep
 %      pbmax == 0;
 %   end
-   if anglestep == 0 && iter > 1
-      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
-   end
+%   if anglestep == 0 && iter > 1
+%      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
+%   end
 
    for pb = 0:0%pbmax % Construct all the problems
 
@@ -762,6 +875,7 @@ for iter = 1:nbstep % Newton loop
       Mtop   = Mtot-Msmall; % Debug asset
 
       % Differential regularization matrix
+      %D3 = eye(2*nboun3+2);
       D3 = zeros(2*nboun3+2);
       for i=1:nboun3
          coefU = [ i , i+1 ];
@@ -769,17 +883,43 @@ for iter = 1:nbstep % Newton loop
          D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
          D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len*[1,-1;-1,1];
       end
+%      for i=1:nboun3-1
+%         coefU = [ i , i+1 ,i+2 ];
+%         len1 = norm(nodes3(i,:) - nodes3(i+1,:));
+%         len2 = norm(nodes3(i+1,:) - nodes3(i+2,:));
+%         D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len1*[1,-2,1;-2,4,-2;1,-2,1];
+%         D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len1*[1,-2,1;-2,4,-2;1,-2,1];
+%      end
+%      D3 = 500*D3;
       Dsmall = [ 0*Mum, Z12, Z13  ; Z12', 0*Mfm, Z23 ; Z13', Z23', D3 ];
 
       if regular == 1
-         Z12 = zeros( size(Duu,1) , size(Dfu,2) ); Z13 = zeros( size(Duu,1), size(D3,2) );
-         Z23 = zeros( size(Dfu,1), size(D3,2) );
-         Dtot = [ Duu ,Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3 ];
-         L = Dtot;% + Mtot * norm(Dtot,'fro')/(10*norm(Mtot,'fro'));
+         if frf==1 && fru==1
+            Z12 = zeros( size(Du,1) , size(Df,2) ); Z13 = zeros( size(Du,1), size(D3,2) );
+            Z23 = zeros( size(Df,1), size(D3,2) );
+            Dtot = [ Du, Z12, Z13 ; Z12', Df, Z23 ; Z13', Z23', D3 ];
+            L121 = zeros(ndofs,nt); L21 = zeros(nt);
+         elseif frf==1
+            Z12 = zeros( size(Duu,1) , size(Df,2) ); Z13 = zeros( size(Duu,1), size(D3,2) );
+            Z23 = zeros( size(Df,1), size(D3,2) );
+            Dtot = [ Duu, Z12, Z13 ; Z12', Df, Z23 ; Z13', Z23', D3 ];
+            L12 = [ Du(tofindD,knownD) ; zeros(size(Df,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
+            L121 = L12*u_known1(knownD,:); L21 = u_known1(knownD,:)'*Du(knownD,knownD)*u_known1(knownD,:);
+         elseif fru==1
+            Z12 = zeros( size(Du,1) , size(Dfu,2) ); Z13 = zeros( size(Du,1), size(D3,2) );
+            Z23 = zeros( size(Dfu,1), size(D3,2) );
+            Dtot = [ Du, Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3 ];
+            L121 = zeros(ndofs,nt); L21 = zeros(nt);
+         else
+            Z12 = zeros( size(Duu,1) , size(Dfu,2) ); Z13 = zeros( size(Duu,1), size(D3,2) );
+            Z23 = zeros( size(Dfu,1), size(D3,2) );
+            Dtot = [ Duu, Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3 ];
+            L12 = [ Du(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
+            L121 = L12*u_known1(knownD,:); L21 = u_known1(knownD,:)'*Du(knownD,knownD)*u_known1(knownD,:);
+         end
 
-         L12 = [ Du(tofindD,knownD) ; zeros(size(Dfu,2),size(Duk,2)) ; zeros(2*nboun3+2,size(Duk,2)) ];
-         L2 = Du(knownD,knownD);
-         L121 = L12*u_known1(knownD,:); L21 = u_known1(knownD,:)'*Du(knownD,knownD)*u_known1(knownD,:);
+         L = Dtot;
+
       else
 %      L = eye(size(A));
          L = Mtot;
@@ -791,8 +931,24 @@ for iter = 1:nbstep % Newton loop
 
       sL = real(L^(1/2));   % Square root of L (as usual, real should not be)
 
-      MAT = Lhs'*Lhs + mur*L;
-      VE1 = Lhs'*Rhs1-mur*L121;
+      % Assemble the projector of measurements
+      if frf==1 && fru==1
+         Pi = [ Piu, Z12, Z13 ; Z12', Pif, Z23 ; Z13', Z23', zeros(size(D3)) ];
+         Ix0 = [ u_known1 ; f_known1 ; zeros(size(D3),nt) ];% Measurements
+      elseif frf==1
+         Pi = [ Piu, Z12, Z13 ; Z12', zeros(size(Pif)), Z23 ; Z13', Z23', zeros(size(D3)) ];
+         Ix0 = [ u_known1(tofindD,:) ; f_known1 ; zeros(size(D3),nt) ];
+      elseif fru==1
+         Pi = [ zeros(size(Piu)), Z12, Z13 ; Z12', Pif, Z23 ; Z13', Z23', zeros(size(D3)) ];
+         Ix0 = [ u_known1 ; f_known1(tofindN,:) ; zeros(size(D3),nt) ];
+      else
+         Pi = zeros(ndofs);
+         Ix0 = [ u_known1(tofindD,:) ; f_known1(tofindN,:) ; zeros(size(D3),nt) ];
+      end
+      Ix0PiIx0 = Ix0'*Pi*Ix0;
+
+      MAT = Lhs'*Lhs + gamma*Pi + mur*L; % Rem : Pi'*Pi = Pi
+      VE1 = Lhs'*Rhs1 - mur*L121 + gamma*Pi*Ix0;
 
       % Build the contact inequation condition
       C = zeros(nnodes3, 2*nnodes3);
@@ -808,6 +964,7 @@ for iter = 1:nbstep % Newton loop
 
 %      if zerobound == 1
          %toremove = [ ndofs, ndofs-1, ndofs-2*nnodes3+2, ndofs-2*nnodes3+1 ];
+         %toremove = [];
          toremove = [ ndofs, ndofs-1 ]; % Remove the last node
          tokeep = setdiff(1:size(L,1),toremove);
          [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep)); % No more zerobound
@@ -836,9 +993,14 @@ for iter = 1:nbstep % Newton loop
       Solu1 = SoluRG;
 
       if pb == 0
-         nor1 = diag( Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1);
-         nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21  );
-         phi( iter )  = norm(nor1+nor2);
+         nor1 = diag( Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1 );
+         nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21 );
+         nor3 = diag( gamma*Solu1'*Pi*Solu1 - 2*gamma*Solu1'*Pi*Ix0 + gamma*Ix0PiIx0 );
+         phi( iter )  = sum(nor1+nor2+nor3);
+         phi0( iter ) = sum( diag( Rhs1'*Rhs1 + mur*L21 + gamma*Ix0PiIx0 ) ); % Worst residual possible
+
+         regu = sum(nor2)/mur; resu = sum(nor1); % Regularization norm and residual
+         remu = sum(nor3)/gamma;
 
 %         res1 = Lhs*Solu1 - Rhs1; % Residuals
 
@@ -1044,7 +1206,7 @@ curv = sqrt( (nodes3b(:,1)-nodes3b(1,1)).^2 + (nodes3b(:,2)-nodes3b(1,2)).^2 );
 
 n = extnorm3(1,:)';
 toplot1  = ucrsol1(1:2:end-1,:)*n(1) + ucrsol1(2:2:end,:)*n(2);
-toplotr1 = urg(1:2:end-1,1,:)*n(1) + urg(2:2:end,1,:)*n(2);
+toplotr1 = urg(1:2:end-1,:)*n(1) + urg(2:2:end,:)*n(2);
 
 if nt==1
    try
@@ -1063,6 +1225,36 @@ else
    surf( 1:nt, curv, toplot1 );
    shading interp;
    colorbar();
+   end
+   try
+   figure;
+   hold on;
+   set(gca, 'fontsize', 20);
+   plot( curv, toplot1(:,263),'Color','red','LineWidth',3 );
+   plot( curv, toplot1(:,215),'Color','magenta','LineWidth',3 );
+   plot( curv, toplot1(:,176),'Color','blue','LineWidth',3 );
+   plot( curv, toplot1(:,100),'Color','green','LineWidth',3 );
+   plot( curv, toplot1(:,45),'Color','black','LineWidth',3 );
+%   plot( curv, toplot1(:,215)*toplot1(1,263)/toplot1(1,215),'Color','magenta','LineWidth',3 );
+%   plot( curv, toplot1(:,176)*toplot1(1,263)/toplot1(1,176),'Color','blue','LineWidth',3 );
+%   plot( curv, toplot1(:,100)*toplot1(1,263)/toplot1(1,100),'Color','green','LineWidth',3 );
+%   plot( curv, toplot1(:,45)*toplot1(1,263)/toplot1(1,45),'Color','black','LineWidth',3 );
+   legend('[[u]] 263', '[[u]] 215', '[[u]] 176', '[[u]] 100', '[[u]] 45');
+   end
+   try
+   figure;
+   hold on;
+   set(gca, 'fontsize', 20);
+   plot( curvr, toplotr1(:,263),'Color','red','LineWidth',3 );
+   plot( curvr, toplotr1(:,215),'Color','magenta','LineWidth',3 );
+   plot( curvr, toplotr1(:,176),'Color','blue','LineWidth',3 );
+   plot( curvr, toplotr1(:,100),'Color','green','LineWidth',3 );
+   plot( curvr, toplotr1(:,45),'Color','black','LineWidth',3 );
+%   plot( curvr, toplotr1(:,215)*toplotr1(1,263)/toplotr1(1,215),'Color','magenta','LineWidth',3 );
+%   plot( curvr, toplotr1(:,176)*toplotr1(1,263)/toplotr1(1,176),'Color','blue','LineWidth',3 );
+%   plot( curvr, toplotr1(:,100)*toplotr1(1,263)/toplotr1(1,100),'Color','green','LineWidth',3 );
+%   plot( curvr, toplotr1(:,45)*toplotr1(1,263)/toplotr1(1,45),'Color','black','LineWidth',3 );
+   legend('[[u]] 263', '[[u]] 215', '[[u]] 176', '[[u]] 100', '[[u]] 45');
    end
 end
 
@@ -1120,12 +1312,12 @@ toplodd = Md2*toplod;
 %   end
 %end
 
-% Find the last negative second derivative point
+% Find the last negative second derivative point / ceil data
 lcrack = zeros(nt,1);
 curvdd = curv(2:end-1); % /!\ curv(1:end-1) is not very clean
 for i=1:nt
 %   indexmax = max(find(toplodd(:,i)<0));
-   epscrit = max(toplot1(:))/3;
+   epscrit = max(toplot1(:))/2.5;
    %epscrit = max(toplot1(:,i))/100;
    indexmax = min( find( toplot1(:,i) < epscrit ) );
    if min(size(indexmax))==0
@@ -1136,12 +1328,29 @@ for i=1:nt
    end
 end
 
+%% The same according to the reference (gap function)
+%lcrackr = zeros(nt,1);
+%for i=1:nt
+%%   indexmaxr = max(find(toplodd(:,i)<0));
+%   epscrit = max(gap(:))/3;
+%   %epscrit = max(gap(:,i))/100;
+%   indexmaxr = min( find( gap(:,i) < epscrit ) );
+%   if min(size(indexmaxr))==0
+%      lcrackr(i) = 0;
+%   else
+%%   lcrack(i) = curvdd(indexmax);
+%      lcrackr(i) = ygrec(indexmaxr);
+%   end
+%end
+
 try
 figure;
 hold on;
 plot(lenFEMU,'Color','red');
 plot(lenIDIC,'Color','blue');
 plot(lcrack,'Color','black');
+%plot(lcrackr,'Color','green');
+%legend('Crack length FEMU', 'Crack length IDIC', 'Crack length RG', 'Crack length gap');
 legend('Crack length FEMU', 'Crack length IDIC', 'Crack length RG');
 end
 

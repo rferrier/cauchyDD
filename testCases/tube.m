@@ -10,14 +10,14 @@ addpath(genpath('./tools'))
 E       = 70000;  % MPa : Young modulus
 nu      = 0.3;    % Poisson ratio
 fscalar = 1;      % N.mm-1 : Loading on the plate
-br      = 0.01;      % noise
+br      = 0.0;      % noise
 
 % Methods : 1=KMF, 2=KMF Orthodir, 3=KMF Robin, 4=SPP, 5=SPD,
 % 6=SPD flottant, 7=SPD flottant constraint, 8=evanescent regu
 % 9=SPP GC Ritz, 10=SPD GC Ritz
 % 100=KMF-R+ERC
 
-methods = [10];
+methods = [5];
 
 % Boundary conditions
 % first index  : index of the boundary
@@ -832,7 +832,7 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% dual SP with Orthodir (niter = 70)
 if find(methods==5)
-    niter   = 10;
+    niter   = 20;
     mu      = 0.0/E;      % Regularization parameter
     precond = 0;      % use a primal precond ?
     
@@ -985,7 +985,7 @@ if find(methods==5)
     legend('error (log)','residual (log)')
     % L-curve
     figure
-    loglog(residual,regulari);
+    loglog(residual(2:end),regulari(2:end));
     
     %% Final problem
     dirichlet = [2,1,0;2,2,0];
