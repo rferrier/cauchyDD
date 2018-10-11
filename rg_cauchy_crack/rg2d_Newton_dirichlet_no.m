@@ -13,14 +13,14 @@ nu          = 0.3;    % Poisson ratio
 fscalar     = 250;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
 br          = .0;      % Noise level
-mur         = 1e1;%2e3;    % Regularization parameter
+mur         = 5e2;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-theta1      = 3.8234;%pi;%pi/2; 
-theta2      = 5.7364;%0%3*pi/2;  % Initial angles of the crack
+theta1      = pi;%pi/2; 
+theta2      = 0%3*pi/2;  % Initial angles of the crack
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
 kauto       = 10;     % Coefficient for the auto-adaptation
-nbstep      = 1;     % Nb of Newton Iterations
+nbstep      = 10;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
@@ -29,7 +29,7 @@ nuzawad     = 1000;      % nb of Uzawa of the direct problem
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 kuzawad     = 1e4;     % Idem for the direct problem
 ndofcrack   = 20;      % Nb of elements on the crack
-teskase     = 6;       % Choice of the test case
+teskase     = 4;       % Choice of the test case
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
@@ -40,22 +40,10 @@ nbDirichlet = [];
 % Boundary conditions
 dirichlet  = [3,1,0 ; 3,2,0];
 
-%neumann1   = [1,2,-fscalar];
-%neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-%neumann3   = [1,2,-fscalar;2,1,fscalar;4,1,-fscalar];
-%neumann4   = [2,2,-fscalar ; 4,2,-fscalar];
-
-neumann1   = [1,1,-fscalar];
+neumann1   = [1,1,-fscalar];   % /!\ Very Megagafe : change also the fer1/2/3/4 in the input
 neumann2   = [1,2,fscalar];
 neumann3   = [1,1,-fscalar ; 1,2,fscalar];
 neumann4   = [1,1,-fscalar ; 1,2,2*fscalar];
-
-%neumann1   = [3,2,fscalar ; 1,2,-fscalar];
-%neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-%neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
-%              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-%neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
-%              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
@@ -522,47 +510,20 @@ f_known4 = zeros(2*nboun2,1); u_known4 = zeros(2*nnbound2,1);
 for i=1:nboun2
    bonod = boundary2(i,:); exno = extnorm2(i,:)';
    % Reference force from the BC's
-%   if exno(1) == 1 % Bound 2
-%      fer1 = [0;0]; fer2 = [fscalar;0];
-%      fer3 = [fscalar;0]; fer4 = [0;-fscalar];
-%   elseif exno(1) == -1 % Bound 4
-%      fer1 = [0;0]; fer2 = -[fscalar;0];
-%      fer3 = [-fscalar;0]; fer4 = [0;-fscalar];
-%   elseif exno(2) == 1 % Bound 3
-%      fer1 = [0;0]; fer2 = [0;0];
-%      fer3 = [0;0]; fer4 = [0;0];
-%   elseif exno(2) == -1 % Bound 1
-%      fer1 = -[0;fscalar]; fer2 = [0;0];
-%      fer3 = -[0;fscalar]; fer4 = [0;0];
-%   end
 
    if exno(1) == 1 % Bound 2
-      fer1 = [0;0]; fer2 = [fscalar;0];
-      fer3 = [0;0]; fer4 = [fscalar;-fscalar];
+      fer1 = [0;0]; fer2 = [0;0];
+      fer3 = [0;0]; fer4 = [0;0];
    elseif exno(1) == -1 % Bound 4
-      fer1 = [0;0]; fer2 = -[fscalar;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [0;0];
+      fer1 = [0;0]; fer2 = [0;0];
+      fer3 = [0;0]; fer4 = [0;0];
    elseif exno(2) == 1 % Bound 3
       fer1 = [0;0]; fer2 = [0;0];
       fer3 = [0;0]; fer4 = [0;0];
    elseif exno(2) == -1 % Bound 1
-      fer1 = -[0;fscalar]; fer2 = [0;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+      fer1 = -[fscalar;0]; fer2 = [0;fscalar];
+      fer3 = [-fscalar;fscalar]; fer4 = [-fscalar;2*fscalar];
    end
-
-%   if exno(1) == 1 % Bound 2
-%      fer1 = [0;0]; fer2 = [fscalar;0];
-%      fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
-%   elseif exno(1) == -1 % Bound 4
-%      fer1 = [0;0]; fer2 = -[fscalar;0];
-%      fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
-%   elseif exno(2) == 1 % Bound 3
-%      fer1 = [0;0]; fer2 = [0;0];
-%      fer3 = [0;0]; fer4 = [0;0];
-%   elseif exno(2) == -1 % Bound 1
-%      fer1 = -[0;fscalar]; fer2 = [0;0];
-%      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
-%   end
      
    indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
    indicesGlo = [2*boundary2(i,[2,3])-1,2*boundary2(i,[2,3])]; % Global Displacement dofs
@@ -1309,9 +1270,9 @@ n = extnorm3(1,:)';
 
 
 toplot1  = -ucrsol1(1:2:end-1)*n(2) + ucrsol1(2:2:end)*n(1);
-toplot2  = -ucrsol2(1:2:end-1)*n(2) + ucrsol2(2:2:end)*n(2);
-toplot3  = -ucrsol3(1:2:end-1)*n(2) + ucrsol3(2:2:end)*n(2);
-toplot4  = -ucrsol4(1:2:end-1)*n(2) + ucrsol4(2:2:end)*n(2);
+toplot2  = -ucrsol2(1:2:end-1)*n(2) + ucrsol2(2:2:end)*n(1);
+toplot3  = -ucrsol3(1:2:end-1)*n(2) + ucrsol3(2:2:end)*n(1);
+toplot4  = -ucrsol4(1:2:end-1)*n(2) + ucrsol4(2:2:end)*n(1);
 
 toplotr1 = -urg(1:2:end-1,1)*n(2) + urg(2:2:end,1)*n(1);
 toplotr2 = -urg(1:2:end-1,2)*n(2) + urg(2:2:end,2)*n(1);

@@ -13,8 +13,8 @@ fscalar = 250;    % N.mm-2 : Loading on the plate
 mat = [0, E, nu];
 br      = 0.0;      % noise
 
-nsub    = 9; % nb subdomains = 2*nsub
-niter   = 500;
+nsub    = 1; % nb subdomains = 2*nsub
+niter   = 200;
 precond = 0; % 1=full-precond, 2=semi-precond
 kappa   = 1e-4; % Scalar preconditionner for the Cauchy Part
 
@@ -953,6 +953,15 @@ for iter = 1:niter
    MAd(:,iter) = (Zed(:,iter) - Zed(:,iter+1)) / num;
    AAd(:,iter) = (AZed(:,iter) - AZed(:,iter+1)) / num;
 
+%   for jter=1:iter-2   % MAd Re-Hessenbergification
+%       betac = (MAd(:,iter)'*AAd(:,jter)) / (MAd(:,jter)'*AAd(:,jter));
+%       MAd(:,iter) = MAd(:,iter) - MAd(:,jter) * betac;
+%       AAd(:,iter) = AAd(:,iter) - AAd(:,jter) * betac;
+%%       d(:,iter)   = d(:,iter) - d(:,jter) * betac;
+%%       Ad(:,iter)  = Ad(:,iter) - Ad(:,jter) * betac;
+%%       Az(:,iter)  = Az(:,iter) - Az(:,jter) * betac;
+%   end
+
    for jter = 1:iter
        betaij = ( Ad(:,iter+1)'*Ad(:,jter) );
        d(:,iter+1)   = d(:,iter+1) - d(:,jter) * betaij;
@@ -966,7 +975,7 @@ for iter = 1:niter
    
 end
 disp([ 'End of OrthoDir ', num2str(toc) ]);
-
+tic
 %%% Find the last MAd
 %MAd(:,iter+1) = (Zed(:,iter+1) - Zf) / num;
 %AAd(:,iter+1) = (AZed(:,iter+1) - AZf) / num;
@@ -974,8 +983,9 @@ disp([ 'End of OrthoDir ', num2str(toc) ]);
 %% Triangularize the Hessenberg stuff and use the Ritz values
 H = MAd'*AAd; H = H( 1:end-1, 1:end-1 ); Pp = MAd(:,1:end-1);
 
+%Ht = H;
 %for i=3:niter
-%   H(i,1:i-2) = 0;
+%   Ht(i,1:i-2) = 0;
 %end
 
 [Uu,Theta1,Vv] = svd(H); theta = diag(Theta1);
@@ -1011,6 +1021,8 @@ for j=1:niter+1
    lambdD = ItereD(1:2*nnodes) + ItereD(2*nnodes+1:4*nnodes);
    errD(j) = norm( lambdD([2*b2node3-1;2*b2node3]) - fref([2*b2node3-1;2*b2node3]) );
 end
+
+disp([ 'End of Ritz computation ', num2str(toc) ]);
 
 try
 figure;

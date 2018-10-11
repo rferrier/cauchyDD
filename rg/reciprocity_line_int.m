@@ -19,10 +19,10 @@ mu         = 0;%1e-5;%5e-3;     % Regularization coef
 dolcurve   = 0;      % Do a L-curve or not
 br         = .0;      % Noise level
 
-usefourier = 0;
-usepolys   = 1;
+usefourier = 1;
+usepolys   = 0;
 
-nbase = 2; % Number of Fourier basis functions
+nbase = 4; % Number of Fourier basis functions
 ordp = 10;  % Number of Polynomial basis functions
 
 useorder = 2; % Order of the FE computation

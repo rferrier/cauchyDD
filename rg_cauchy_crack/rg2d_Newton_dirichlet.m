@@ -32,7 +32,7 @@ teskase     = 4;       % Choice of the test case
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
 %nbDirichlet = [ 1,5 ; 2,5 ; 3,5 ; 4,5 ]; % Nb of displacement measure points on the boundaries (0=all, /!\ NEVER go above the nb of dofs)
-nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
+%nbDirichlet = [ 1,6 ; 2,6 ; 3,6 ; 4,6 ];
 %nbDirichlet = [ 1,11 ; 2,0 ; 3,11 ; 4,0 ];
 
 % Boundary conditions
@@ -1265,22 +1265,21 @@ toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
 %toplotr4 = urg(1:2:end-1,4)*n(2) - urg(2:2:end,4)*n(1);
 %toplotr4 = urg(1:2:end-1,4);
 
-
-%try
-%figure;
-%hold on;
-%set(gca, 'fontsize', 20);
-%plot( curv, toplot1,'Color','green' );
-%plot( curv, toplot2,'Color','black' );
-%plot( curv, toplot3,'Color','blue' );
-%plot( curv, toplot4,'Color','red' );
-%plot( curvr, toplotr1,'Color','green' );
-%plot( curvr, toplotr2,'Color','black' );
-%plot( curvr, toplotr3,'Color','blue' );
-%plot( curvr, toplotr4,'Color','red' );
-%legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
-%       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
-%end
+try
+figure;
+hold on;
+set(gca, 'fontsize', 20);
+plot( curv, toplot1,'Color','green' );
+plot( curv, toplot2,'Color','black' );
+plot( curv, toplot3,'Color','blue' );
+plot( curv, toplot4,'Color','red' );
+plot( curvr, toplotr1,'Color','green' );
+plot( curvr, toplotr2,'Color','black' );
+plot( curvr, toplotr3,'Color','blue' );
+plot( curvr, toplotr4,'Color','red' );
+legend('[[u]] identified (1)', '[[u]] identified (2)', '[[u]] identified (3)', '[[u]] identified (4)',...
+       '[[u]] reference (1)', '[[u]] reference (2)', '[[u]] reference (3)', '[[u]] reference (4)');
+end
 
 try
 figure;

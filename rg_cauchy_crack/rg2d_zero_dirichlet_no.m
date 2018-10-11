@@ -1,5 +1,5 @@
-% 22/05/2018
-% ID fissure par RG Petrov-Galerkin et fct-test nulle sur le bord de Dirichlet
+% 04/10/2018
+% ID fissure par RG Petrov-Galerkin et fct-test nulle sur le bord de Dirichlet et la fissure est non-ouvrante
 % Il s'agit d'une particularisation de l'algo général : pas mal d'opérateurs sont construits inutilement
 % The top boundary is Dirichlet only and the other are redondant
 
@@ -15,11 +15,11 @@ nu          = 0.3;    % Poisson ratio
 fscalar     = 250;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
 br          = .0;      % Noise level
-mur         = 1e1;%1e1;%2e3;    % Regularization parameter
+mur         = 1e2;%1e1;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg      = 1;      % Frobenius preconditioner
-theta1      = pi;     %3.7296;%pi;%pi/2; 3.8273
-theta2      = 0;      %0.58800;%0%3*pi/2;5.7608  % Initial angles of the crack
+theta1      = pi;%pi/2; 
+theta2      = 0%3*pi/2;  % Initial angles of the crack
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
 kauto       = 20;     % Coefficient for the auto-adaptation
 nbstep      = 10;      % Nb of Newton Iterations
@@ -27,7 +27,9 @@ Npg         = 2;      % Nb Gauss points
 ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
 nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
+nuzawad     = 1000;      % nb of Uzawa of the direct problem
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
+kuzawad     = 1e4;     % Idem for the direct problem
 ndofcrack   = 20;      % Nb of elements on the crack
 teskase     = 4;       % Choice of the test case
 
@@ -36,22 +38,10 @@ nbDirichlet = [];
 % Boundary conditions
 dirichlet  = [3,1,0 ; 3,2,0];
 
-%neumann1   = [1,2,-fscalar];
-%neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-%neumann3   = [1,2,-fscalar;2,1,fscalar;4,1,-fscalar];
-%neumann4   = [1,1,fscalar];
-
-neumann1   = [1,2,-fscalar];
-neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-neumann3   = [1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
-
-%neumann1   = [3,2,fscalar ; 1,2,-fscalar];
-%neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-%neumann3   = [3,1,fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,fscalar ; ...
-%              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-%neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
-%              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
+neumann1   = [1,1,-fscalar];  % /!\ Very Megagafe : change also the fer1/2/3/4 in the input
+neumann2   = [1,2,fscalar];
+neumann3   = [1,1,-fscalar ; 1,2,fscalar];
+neumann4   = [1,1,-fscalar ; 1,2,2*fscalar];
            
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0 ];
 neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0 ];
@@ -91,7 +81,48 @@ f2  = loading(nbloq,nodes,boundary,neumann2);
 f3  = loading(nbloq,nodes,boundary,neumann3);
 f4  = loading(nbloq,nodes,boundary,neumann4);
 
-uin = K\[f1,f2,f3,f4];
+%% Find the contact condition
+bou5 = boundary(find(boundary(:,1)==5),:); nbc = size(bou5,1);
+bou6 = boundary(find(boundary(:,1)==6),:);
+nod5 = bou5(:,[2,3]); nod5 = unique(nod5(:));
+nod6 = bou6(:,[2,3]); nod6 = unique(nod6(:));
+n5n6 = intersect(nod5,nod6); % Tips of the cracks, they have no condition
+nod5 = setdiff(nod5,n5n6); nod6 = setdiff(nod6,n5n6); nnc = max(size(nod5));
+
+C = sparse(nnc,2*nnodes+nbloq);
+for i=1:nnc
+   no = nod5(i); x = nodes(no,1); y = nodes(no,2);
+   x6 = nodes(nod6,1); y6 = nodes(nod6,2);
+   len = sqrt((x-x6).^2+(y-y6).^2);
+   [d,bff] = min(len); % Find the other node (his bff)
+   n = [x-x6(bff);y-y6(bff)]; n = n/norm(n);
+
+   C(i,2*no-1) = n(1)/2;
+   C(i,2*nod6(bff)-1) = -n(1)/2;
+   C(i,2*no) = n(2)/2;
+   C(i,2*nod6(bff)) = -n(2)/2;
+end
+
+f = zeros(nnc,4); Ctf = C'*f;
+respos = zeros(nuzawad,1); df = zeros(nuzawad,1);
+
+[Ll, Uu, Pp, Qq] = lu (K);  % Pp*MAT*Qq = Ll*Uu
+
+for i=1:nuzawad % Uzawa for the contact problem
+   uin = Qq * ( Uu \ ( Ll \ ( Pp * ( [f1,f2,f3,f4] + Ctf ) ) ) );
+
+   respos(i) = norm(C*uin - abs(C*uin),'fro');
+   fp = f;
+   f = f - kuzawad*C*uin;
+   f = .5*(f + abs(f)); Ctf = C'*f;
+   df(i) = norm(f-fp);
+end
+
+if respos(end)>respos(1) % Pb
+   warning('Direct problem: Uzawa algorithm failed. Try reducing kuzawad');
+end
+
+%uin = K\[f1,f2,f3,f4];
 u1 = uin(1:2*nnodes,1); u2 = uin(1:2*nnodes,2);
 u3 = uin(1:2*nnodes,3); u4 = uin(1:2*nnodes,4);
 f1 = Kinter*u1; f2 = Kinter*u2; f3 = Kinter*u3; f4 = Kinter*u4;
@@ -439,48 +470,19 @@ f_known4 = zeros(2*nboun2,1); u_known4 = zeros(2*nnbound2,1);
    
 for i=1:nboun2
    bonod = boundary2(i,:); exno = extnorm2(i,:)';
-   % Reference force from the BC's
-%   if exno(1) == 1 % Bound 2
-%      fer1 = [0;0]; fer2 = [fscalar;0];
-%      fer3 = [fscalar;0]; fer4 = [0;0];
-%   elseif exno(1) == -1 % Bound 4
-%      fer1 = [0;0]; fer2 = -[fscalar;0];
-%      fer3 = [-fscalar;0]; fer4 = [0;0];
-%   elseif exno(2) == 1 % Bound 3
-%      fer1 = [0;0]; fer2 = [0;0];
-%      fer3 = [0;0]; fer4 = [0;0];
-%   elseif exno(2) == -1 % Bound 1
-%      fer1 = -[0;fscalar]; fer2 = [0;0];
-%      fer3 = -[0;fscalar]; fer4 = [fscalar;0];
-%   end
-
    if exno(1) == 1 % Bound 2
-      fer1 = [0;0]; fer2 = [fscalar;0];
-      fer3 = [0;0]; fer4 = [fscalar;-fscalar];
+      fer1 = [0;0]; fer2 = [0;0];
+      fer3 = [0;0]; fer4 = [0;0];
    elseif exno(1) == -1 % Bound 4
-      fer1 = [0;0]; fer2 = -[fscalar;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [0;0];
+      fer1 = [0;0]; fer2 = [0;0];
+      fer3 = [0;0]; fer4 = [0;0];
    elseif exno(2) == 1 % Bound 3
       fer1 = [0;0]; fer2 = [0;0];
       fer3 = [0;0]; fer4 = [0;0];
    elseif exno(2) == -1 % Bound 1
-      fer1 = -[0;fscalar]; fer2 = [0;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+      fer1 = -[fscalar;0]; fer2 = [0;fscalar];
+      fer3 = [-fscalar;fscalar]; fer4 = [-fscalar;2*fscalar];
    end
-
-%   if exno(1) == 1 % Bound 2
-%      fer1 = [0;0]; fer2 = [fscalar;0];
-%      fer3 = [fscalar;fscalar]; fer4 = [fscalar;-fscalar];
-%   elseif exno(1) == -1 % Bound 4
-%      fer1 = [0;0]; fer2 = -[fscalar;0];
-%      fer3 = [-fscalar;-fscalar]; fer4 = [-fscalar;fscalar];
-%   elseif exno(2) == 1 % Bound 3
-%      fer1 = [0;0]; fer2 = [0;0];
-%      fer3 = [0;0]; fer4 = [0;0];
-%   elseif exno(2) == -1 % Bound 1
-%      fer1 = -[0;fscalar]; fer2 = [0;0];
-%      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
-%   end
      
    indicesLoc = [2*boun2doftot(i,:)-1,2*boun2doftot(i,:)]; % Local Displacement dofs
    indicesGlo = [2*boundary2(i,[2,3])-1,2*boundary2(i,[2,3])]; % Global Displacement dofs
@@ -1118,50 +1120,30 @@ plot( [x1,x2], [y1,y2], 'Color', 'red', 'LineWidth', 3 );
 axis equal;
 end
 
-%try
-%figure;
-%hold on;
-%plot(ind1+ind2+ind3+ind4,'Color','blue');
-%plot(indp1+indp2+indp3+indp4,'Color','black');
-%plot(indd1+indd2+indd3+indd4,'Color','green');
-%plot(inds1+inds2+inds3+inds4,'Color','magenta');
-%legend('stop Picard','stop L-curve','stop DL-curve','stop SL-curve');
-%end
-
-%try
-%figure;
-%hold on;
-%plot(log10(phiP),'Color','blue');
-%plot(log10(phiL),'Color','black');
-%plot(log10(phiD),'Color','green');
-%plot(log10(phiS),'Color','magenta');
-%plot(log10(phi),'Color','red');
-%legend('residual Picard','residual L-curve','residual DL-curve','residual SL-curve','residual');
-%end
-
 % Graph for [[u]]
 curv = sqrt( (nodes3b(:,1)-nodes3b(1,1)).^2 + (nodes3b(:,2)-nodes3b(1,2)).^2 );
-%toplot1  = sqrt( ucrsol1(1:2:end-1).^2 + ucrsol1(2:2:end).^2 );
-%toplot2  = sqrt( ucrsol2(1:2:end-1).^2 + ucrsol2(2:2:end).^2 );
-%toplot3  = sqrt( ucrsol3(1:2:end-1).^2 + ucrsol3(2:2:end).^2 );
-%toplot4  = sqrt( ucrsol4(1:2:end-1).^2 + ucrsol4(2:2:end).^2 );
-%toplotr1 = sqrt( urg(1:2:end-1,1).^2 + urg(2:2:end,1).^2 );
-%toplotr2 = sqrt( urg(1:2:end-1,2).^2 + urg(2:2:end,2).^2 );
-%toplotr3 = sqrt( urg(1:2:end-1,3).^2 + urg(2:2:end,3).^2 );
-%toplotr4 = sqrt( urg(1:2:end-1,4).^2 + urg(2:2:end,4).^2 );
 
 n = extnorm3(1,:)';
-toplot1  = ucrsol1(1:2:end-1)*n(1) + ucrsol1(2:2:end)*n(2);
-toplot2  = ucrsol2(1:2:end-1)*n(1) + ucrsol2(2:2:end)*n(2);
-toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
-toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
-%toplot4  = ucrsol4(1:2:end-1);
-toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
-toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
-toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
-toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
-%toplotr4 = urg(1:2:end-1,4);
 
+toplot1  = -ucrsol1(1:2:end-1)*n(2) + ucrsol1(2:2:end)*n(1);
+toplot2  = -ucrsol2(1:2:end-1)*n(2) + ucrsol2(2:2:end)*n(1);
+toplot3  = -ucrsol3(1:2:end-1)*n(2) + ucrsol3(2:2:end)*n(1);
+toplot4  = -ucrsol4(1:2:end-1)*n(2) + ucrsol4(2:2:end)*n(1);
+
+toplotr1 = -urg(1:2:end-1,1)*n(2) + urg(2:2:end,1)*n(1);
+toplotr2 = -urg(1:2:end-1,2)*n(2) + urg(2:2:end,2)*n(1);
+toplotr3 = -urg(1:2:end-1,3)*n(2) + urg(2:2:end,3)*n(1);
+toplotr4 = -urg(1:2:end-1,4)*n(2) + urg(2:2:end,4)*n(1);
+
+%toplot1  = ucrsol1(1:2:end-1)*n(1) + ucrsol1(2:2:end)*n(2);
+%toplot2  = ucrsol2(1:2:end-1)*n(1) + ucrsol2(2:2:end)*n(2);
+%toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
+%toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
+
+%toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
+%toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
+%toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
+%toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);
 
 try
 figure;

@@ -271,6 +271,7 @@ xb = .5*(xmin+xmax); yb = .5*(ymin+ymax);
 U = ymax-y15;
 
 xy1r = [(xmax+xmin)/2;y15];
+%xy1r = [(xmax+xmin)/2;ymin];
 xy2r = [(xmax+xmin)/2;ymax];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -691,7 +692,7 @@ if regular == 1
       Du( 2*coefU-1, 2*coefU-1 ) = Du( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
       Du( 2*coefU, 2*coefU )     = Du( 2*coefU, 2*coefU ) + 1/len*[1,-1;-1,1];
    end
-
+   %Du = eye(2*nnbound2);
    Duu  = Du(tofindD,tofindD); Dfu  = Df(tofindN,tofindN);
    Duk  = Du(knownD,knownD);   Dfk  = Df(knownN,knownN);
    Duuk = Du(tofindD,knownD);  Dfuk = Df(tofindN,knownN);
@@ -874,6 +875,7 @@ for iter = 1:nbstep % Newton loop
       Mtop   = Mtot-Msmall; % Debug asset
 
       % Differential regularization matrix
+      %D3 = eye(2*nboun3+2);
       D3 = zeros(2*nboun3+2);
       for i=1:nboun3
          coefU = [ i , i+1 ];
@@ -881,6 +883,14 @@ for iter = 1:nbstep % Newton loop
          D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
          D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len*[1,-1;-1,1];
       end
+%      for i=1:nboun3-1
+%         coefU = [ i , i+1 ,i+2 ];
+%         len1 = norm(nodes3(i,:) - nodes3(i+1,:));
+%         len2 = norm(nodes3(i+1,:) - nodes3(i+2,:));
+%         D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len1*[1,-2,1;-2,4,-2;1,-2,1];
+%         D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len1*[1,-2,1;-2,4,-2;1,-2,1];
+%      end
+%      D3 = 500*D3;
       Dsmall = [ 0*Mum, Z12, Z13  ; Z12', 0*Mfm, Z23 ; Z13', Z23', D3 ];
 
       if regular == 1
@@ -954,6 +964,7 @@ for iter = 1:nbstep % Newton loop
 
 %      if zerobound == 1
          %toremove = [ ndofs, ndofs-1, ndofs-2*nnodes3+2, ndofs-2*nnodes3+1 ];
+         %toremove = [];
          toremove = [ ndofs, ndofs-1 ]; % Remove the last node
          tokeep = setdiff(1:size(L,1),toremove);
          [Ll, Uu, Pp] = lu (MAT(tokeep,tokeep)); % No more zerobound
@@ -984,8 +995,9 @@ for iter = 1:nbstep % Newton loop
       if pb == 0
          nor1 = diag( Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1 );
          nor2 = diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21 );
-         nor3 = diag( gamma*Solu1'*Pi*Solu1 - gamma*Solu1'*Pi*Ix0 + gamma*Ix0PiIx0 );
+         nor3 = diag( gamma*Solu1'*Pi*Solu1 - 2*gamma*Solu1'*Pi*Ix0 + gamma*Ix0PiIx0 );
          phi( iter )  = sum(nor1+nor2+nor3);
+         phi0( iter ) = sum( diag( Rhs1'*Rhs1 + mur*L21 + gamma*Ix0PiIx0 ) ); % Worst residual possible
 
          regu = sum(nor2)/mur; resu = sum(nor1); % Regularization norm and residual
          remu = sum(nor3)/gamma;
@@ -1219,14 +1231,14 @@ else
    hold on;
    set(gca, 'fontsize', 20);
    plot( curv, toplot1(:,263),'Color','red','LineWidth',3 );
-%   plot( curv, toplot1(:,215),'Color','magenta','LineWidth',3 );
-%   plot( curv, toplot1(:,176),'Color','blue','LineWidth',3 );
-%   plot( curv, toplot1(:,100),'Color','green','LineWidth',3 );
-%   plot( curv, toplot1(:,45),'Color','black','LineWidth',3 );
-   plot( curv, toplot1(:,215)*toplot1(1,263)/toplot1(1,215),'Color','magenta','LineWidth',3 );
-   plot( curv, toplot1(:,176)*toplot1(1,263)/toplot1(1,176),'Color','blue','LineWidth',3 );
-   plot( curv, toplot1(:,100)*toplot1(1,263)/toplot1(1,100),'Color','green','LineWidth',3 );
-   plot( curv, toplot1(:,45)*toplot1(1,263)/toplot1(1,45),'Color','black','LineWidth',3 );
+   plot( curv, toplot1(:,215),'Color','magenta','LineWidth',3 );
+   plot( curv, toplot1(:,176),'Color','blue','LineWidth',3 );
+   plot( curv, toplot1(:,100),'Color','green','LineWidth',3 );
+   plot( curv, toplot1(:,45),'Color','black','LineWidth',3 );
+%   plot( curv, toplot1(:,215)*toplot1(1,263)/toplot1(1,215),'Color','magenta','LineWidth',3 );
+%   plot( curv, toplot1(:,176)*toplot1(1,263)/toplot1(1,176),'Color','blue','LineWidth',3 );
+%   plot( curv, toplot1(:,100)*toplot1(1,263)/toplot1(1,100),'Color','green','LineWidth',3 );
+%   plot( curv, toplot1(:,45)*toplot1(1,263)/toplot1(1,45),'Color','black','LineWidth',3 );
    legend('[[u]] 263', '[[u]] 215', '[[u]] 176', '[[u]] 100', '[[u]] 45');
    end
    try
@@ -1238,10 +1250,10 @@ else
    plot( curvr, toplotr1(:,176),'Color','blue','LineWidth',3 );
    plot( curvr, toplotr1(:,100),'Color','green','LineWidth',3 );
    plot( curvr, toplotr1(:,45),'Color','black','LineWidth',3 );
-%   plot( curvr, toplotr1(:,215)*toplot1(1,263)/toplot1(1,215),'Color','magenta','LineWidth',3 );
-%   plot( curvr, toplotr1(:,176)*toplot1(1,263)/toplot1(1,176),'Color','blue','LineWidth',3 );
-%   plot( curvr, toplotr1(:,100)*toplot1(1,263)/toplot1(1,100),'Color','green','LineWidth',3 );
-%   plot( curvr, toplotr1(:,45)*toplot1(1,263)/toplot1(1,45),'Color','black','LineWidth',3 );
+%   plot( curvr, toplotr1(:,215)*toplotr1(1,263)/toplotr1(1,215),'Color','magenta','LineWidth',3 );
+%   plot( curvr, toplotr1(:,176)*toplotr1(1,263)/toplotr1(1,176),'Color','blue','LineWidth',3 );
+%   plot( curvr, toplotr1(:,100)*toplotr1(1,263)/toplotr1(1,100),'Color','green','LineWidth',3 );
+%   plot( curvr, toplotr1(:,45)*toplotr1(1,263)/toplotr1(1,45),'Color','black','LineWidth',3 );
    legend('[[u]] 263', '[[u]] 215', '[[u]] 176', '[[u]] 100', '[[u]] 45');
    end
 end
