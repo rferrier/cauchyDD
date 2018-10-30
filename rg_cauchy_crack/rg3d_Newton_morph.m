@@ -1,5 +1,5 @@
-% 30/05/2018
-% ID fissure 3D par Newton
+% 29/10/2018
+% ID fissure 3D par Newton -- Morphing de maillage
 
 tic
 close all;
@@ -884,6 +884,7 @@ for iter = 1:niter
    end
    
    for pb = 0:pbmax
+
       if pb == 0
          thetac = theta;
       elseif pb == 1
@@ -962,30 +963,39 @@ for iter = 1:niter
          end
       end
 
-      %% Generate the file for GMSH
-      nnso = size(doso,2);
-      fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
-      fprintf(fmid,'%s%i%s\n','lc1 = ',lc1,';');
-      for i=1:nnso
-         fprintf(fmid,'%s%d%s%f%s%f%s%f%s\n','Point(',i,') = {',doso(1,i),',',doso(2,i),',',doso(3,i),',lc1};');
-      end
-      for i=1:nnso-1
-         fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',i,') = {',i,',',i+1,'};');
-      end
-      fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',nnso,') = {',nnso,',',1,'};');
-      
-      fprintf(fmid,'%s','Line Loop(11) = {');
-      for i=1:nnso-1
-         fprintf(fmid,'%d%s',i,',');
-      end
-      fprintf(fmid,'%d%s\n',nnso,'};');
-      fprintf(fmid,'%s\n','Plane Surface(1) = {11};');
-      fprintf(fmid,'%s','Physical Surface(11) = {1};');
-      fclose(fmid);
+     % TODO : if there are 2 dots that are too close : merge them (lc1/2)
 
-      % Use GMSH to mesh the surface
-      [stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
-      [ nodes3,elements3,ntoelem3,boundary3,order3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
+      if pb == 0 %% Generate the file for GMSH
+         nnso = size(doso,2);
+         fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
+         fprintf(fmid,'%s%i%s\n','lc1 = ',lc1,';');
+         for i=1:nnso
+            fprintf(fmid,'%s%d%s%f%s%f%s%f%s\n','Point(',i,') = {',doso(1,i),',',doso(2,i),',',doso(3,i),',lc1};');
+         end
+         for i=1:nnso-1
+            fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',i,') = {',i,',',i+1,'};');
+         end
+         fprintf(fmid,'%s%d%s%d%s%d%s\n','Line(',nnso,') = {',nnso,',',1,'};');
+      
+         fprintf(fmid,'%s','Line Loop(11) = {');
+         for i=1:nnso-1
+            fprintf(fmid,'%d%s',i,',');
+         end
+         fprintf(fmid,'%d%s\n',nnso,'};');
+         fprintf(fmid,'%s\n','Plane Surface(1) = {11};');
+         fprintf(fmid,'%s\n','Physical Line(111) = {11};');
+         fprintf(fmid,'%s','Physical Surface(11) = {1};');
+         fclose(fmid);
+   
+         % Use GMSH to mesh the surface
+         [stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
+         [ nodes3,elements3,ntoelem3,boundary3,order3,lin3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
+         boundnodes = lin3(:,2);
+      else %% Morph the mesh
+         %figure; patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceAlpha',.25);
+         nodes3 = morph2D( nodes3, boundary3(:,2:4), boundnodes, doso' );
+         %patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceAlpha',0); axis('equal');
+      end
 
       % Write the normal to the elements
       nboun3   = size(boundary3,1); nnodes3 = size(nodes3,1);
@@ -1134,6 +1144,7 @@ for iter = 1:niter
       Ruc(toremove,:) = [];    % Clear zeros lines
       
       %%%% End of the building of the operator
+
       if regular==0
          %% Surface mass matrix and pass F from elements to nodes
          Fbton3 = zeros( 3*nnodes3, 3*nboun3 ); Fntob3 = zeros( 3*nboun3, 3*nnodes3 ); 
@@ -1406,32 +1417,36 @@ for iter = 1:niter
          %disp([ 'iteration ', num2str(iter),' pb 0' ]);
       elseif pb == 1
          Ax1  = Lhs*Solu1; L1x1 = diag(Solu1'*L12i);
-         sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
-         topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
-         sLx1   = [ sLx1 ; topass ];
+         sLx1 = sL*Solu1;% topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
+         %topass = topass0;
+         %topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
+         %sLx1   = [ sLx1 ; topass ];
          Dd1    = (Ax1(:)-Ax(:))/stepstep;
          DL1    = (sLx1(:)-sLx(:))/stepstep;
          DL121  = (L1x1-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 1' ]);
       elseif pb == 2
          Ax2  = Lhs*Solu1; L1x2 = diag(Solu1'*L12i);
-         sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
-         topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
-         sLx2   = [ sLx2 ; topass ];
+         sLx2 = sL*Solu1;% topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
+         %topass = topass0;
+         %topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
+         %sLx2   = [ sLx2 ; topass ];
          Dd2    = (Ax2(:)-Ax(:))/stepstep;
          DL2    = (sLx2(:)-sLx(:))/stepstep;
          DL122  = (L1x2-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 2' ]);
       else % pb == 3
          Ax3  = Lhs*Solu1; L1x3 = diag(Solu1'*L12i);
-         sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
-         topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
-         sLx3   = [ sLx3 ; topass ];
+         sLx3 = sL*Solu1;% topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
+         %topass = topass0;
+         %topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
+         %sLx3   = [ sLx3 ; topass ];
          Dd3    = (Ax3(:)-Ax(:))/stepstep;
          DL3    = (sLx3(:)-sLx(:))/stepstep;
          DL123  = (L1x3-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 3' ]);
       end
+
    end
    D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3]; DL12 = [DL121,DL122,DL123];
    dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );

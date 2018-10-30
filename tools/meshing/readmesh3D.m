@@ -1,4 +1,4 @@
-function [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( adress )
+function [ nodes,elements,ntoelem,boundary,order,lin ] = readmesh3D( adress )
  % Extracts the tables of nodes and elements
  % Adapted from a codebase from Pierre-Eric Allier
  
@@ -18,8 +18,10 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( adress )
         nb = sscanf(fgetl(file), '%d',1); % number of elements
         elements = zeros(nb,10);
         boundary = zeros(nb,7);
+        lin      = zeros(nb,4);
         nelem = 1;
         nbound = 1;
+        nlin = 1;
         for i=1:nb
             data = sscanf(fgetl(file), '%d');
             if data(2) == 4  % Core elements
@@ -37,21 +39,34 @@ function [ nodes,elements,ntoelem,boundary,order ] = readmesh3D( adress )
             elseif data(2) == 9 % Boundary elements (T6)
                 boundary(nbound,:) = data([data(3)+2,data(3)+4:end]);
                 nbound = nbound+1;
+            elseif data(2) == 1 % Line elements
+                lin(nlin,1:3) = data([data(3)+2,data(3)+4:end]);
+                nlin = nlin+1;
+            elseif data(2) == 8 % Line elements S3
+                lin(nlin,:) = data([data(3)+2,data(3)+4:end]);
+                nlin = nlin+1;
+            elseif data(2) == 15 % Just a dot : do nothing
             else
                 error('The dimension of elements you are trying to use is not implemented');
             end
             
         end
         % Cut the database
-        if nbound > 1
+        if nbound > 1 || nlin > 1
             elements(nelem:end,:) = [];
             boundary(nbound:end,:) = [];
-        else
+        elseif nbound == 1
             boundary = [];
+        end
+        if nlin > 1
+           lin(nlin:end,:) = [];
+        else
+           lin = [];
         end
         if order == 1
            elements(:,5:end) = [];
            boundary(:,5:end) = [];
+           lin(:,4:end)      = [];
         end
     end
  end

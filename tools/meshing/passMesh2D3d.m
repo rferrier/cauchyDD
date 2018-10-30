@@ -37,7 +37,7 @@ function u2 = passMesh2D3d (nodes1, elements1, nodes2, elements2, u1, varargin)
           x3,y3,z3,1 ;
           1,1,1,1 ];
 
- if cond(mat) > 1e4 % In case of bad conditionning (close to x-y+z-1=0) change the extra condition
+ if cond(mat) > 1e4 % In case of bad conditionning (close to x+y+z-1=0) change the extra condition
     mat = [ x1,y1,z1,1 ; ...
              x2,y2,z2,1 ;
              x3,y3,z3,1 ;
