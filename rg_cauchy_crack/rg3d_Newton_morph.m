@@ -12,17 +12,18 @@ E          = 210000; % MPa : Young modulus
 nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
-br         = .0;      % Noise level
-mur        = 1e2;      % Regularization parameter
+br         = .01;      % Noise level
+mur        = 1e3;      % Regularization parameter
 regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 1;      % Nb of iterations in the Newton algorithm
+niter      = 20;      % Nb of iterations in the Newton algorithm
 %init       = [0;0;0;0];
 init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
+stepmin    = .05;     % Minimal step for the finite differences
 nuzawa     = 100;    % Nb of Uzawa iterations
 lc1        = .1;     % Size of the mesh of the plane
 nelemax    = 4500;   % Max nb of elements in the matrix (for memory usage) (30 Go ram => 5500 max)
@@ -129,6 +130,17 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
                4,1,0 ; 4,2,0 ; 4,3,0 ; 
                5,1,0 ; 5,2,0 ; 5,3,0 ; 
                6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
@@ -880,7 +892,7 @@ for iter = 1:niter
    pbmax = 3; % 3 directions
    
    if step == 0 && iter > 1 % Adapt the step
-      stepstep = norm(dtheta)/10;
+      stepstep = max( norm(dtheta)/10, stepmin );
    end
    
    for pb = 0:pbmax
@@ -962,11 +974,10 @@ for iter = 1:niter
             end
          end
       end
+      nnso = size(doso,2);
 
-     % TODO : if there are 2 dots that are too close : merge them (lc1/2)
-
+      % TODO : if there are 2 dots that are too close : merge them (lc1/2)
       if pb == 0 %% Generate the file for GMSH
-         nnso = size(doso,2);
          fmid = fopen(['meshes/rg3d_crack/plane.geo'],'w');
          fprintf(fmid,'%s%i%s\n','lc1 = ',lc1,';');
          for i=1:nnso
@@ -983,18 +994,23 @@ for iter = 1:niter
          end
          fprintf(fmid,'%d%s\n',nnso,'};');
          fprintf(fmid,'%s\n','Plane Surface(1) = {11};');
-         fprintf(fmid,'%s\n','Physical Line(111) = {11};');
+
+         fprintf(fmid,'%s','Physical Line(111) = {');
+         for i=1:nnso-1
+            fprintf(fmid,'%d%s',i,',');
+         end
+         fprintf(fmid,'%d%s\n',nnso,'};');
+
          fprintf(fmid,'%s','Physical Surface(11) = {1};');
          fclose(fmid);
    
          % Use GMSH to mesh the surface
-         [stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
+         [stat,out] = system('../gmsh-4.0.4-Linux64/bin/gmsh -2 "meshes/rg3d_crack/plane.geo" -format msh2 -o "meshes/rg3d_crack/plane.msh"');
+         %[stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
          [ nodes3,elements3,ntoelem3,boundary3,order3,lin3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
          boundnodes = lin3(:,2);
       else %% Morph the mesh
-         %figure; patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceAlpha',.25);
-         nodes3 = morph2D( nodes3, boundary3(:,2:4), boundnodes, doso' );
-         %patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceAlpha',0); axis('equal');
+         nodes3 = morph2D( nodes3_ref, boundary3(:,2:4), boundnodes, doso' );
       end
 
       % Write the normal to the elements
@@ -1417,7 +1433,7 @@ for iter = 1:niter
          %disp([ 'iteration ', num2str(iter),' pb 0' ]);
       elseif pb == 1
          Ax1  = Lhs*Solu1; L1x1 = diag(Solu1'*L12i);
-         sLx1 = sL*Solu1;% topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
+         sLx1 = sL*Solu1; %topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx1 = sLxt(1:end-3*size(nodes3,1),:);
          %topass = topass0;
          %topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
          %sLx1   = [ sLx1 ; topass ];
@@ -1427,7 +1443,7 @@ for iter = 1:niter
          %disp([ 'iteration ', num2str(iter),' pb 1' ]);
       elseif pb == 2
          Ax2  = Lhs*Solu1; L1x2 = diag(Solu1'*L12i);
-         sLx2 = sL*Solu1;% topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
+         sLx2 = sL*Solu1; %topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
          %topass = topass0;
          %topass = passMesh2D3d (nodes3, boundary3(:,2:4), nodes3_ref, [], topass0); % Get it on the reference mesh
          %sLx2   = [ sLx2 ; topass ];
@@ -1450,7 +1466,7 @@ for iter = 1:niter
    end
    D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3]; DL12 = [DL121,DL122,DL123];
    dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
-   
+
    % Actualize and normalize
    theta = theta + Q*dtheta;
    theta = theta/norm(theta);
