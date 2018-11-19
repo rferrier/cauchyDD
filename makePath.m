@@ -16,3 +16,4 @@ addpath( genpath('./dynamic') );
 addpath( genpath('./experimental') );
 addpath( genpath('./verif') );
 addpath( genpath('./fendage') );
+addpath( genpath('./erc') );

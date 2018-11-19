@@ -23,7 +23,7 @@ function nodes2 = morph2D( nodes, elements, boundnodes, geometry )
  t1 = nodes(1,:)';    nodes = nodes-t1';
  t2 = geometry(1,:)'; geometry = geometry-t2';
 
- %% Rotate the mesh in the Oxy plane
+ %% Rotate the mesh in the Oxy plane. Wow. The algorithm is REALLY stupid. TODO: Simply build Q = [t,n,v] and rotate
  theta = 0; phi = 0; %Initialize the angles
  for i=1:100 % Newton iterations
     vec = [ cos(theta)*sin(phi) ; sin(theta) ; cos(theta)*cos(phi) ];

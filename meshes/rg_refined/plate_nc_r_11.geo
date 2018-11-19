@@ -13,8 +13,8 @@ x8 = 4*L/5; y8 = 3*H/8;
 
 // Discretization parameters
 lc1 = .05;  // element size at the interior
-lc2 = .05;  // element size at the crack tip
-lc3 = .02;  // element size at the boundary
+lc2 = .025;  // element size at the crack tip
+lc3 = .002;  // element size at the boundary
 
 // Domain construction
 Point(1) = {0.0,0.0,0.0,lc3};

@@ -18,14 +18,14 @@ regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : der
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 1;      % Nb of iterations in the Newton algorithm
+niter      = 15;      % Nb of iterations in the Newton algorithm
 %init       = [0;0;0;0];
 init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
 nuzawa     = 100;    % Nb of Uzawa iterations
 lc1        = .1;     % Size of the mesh of the plane
-nelemax    = 4500;   % Max nb of elements in the matrix (for memory usage) (30 Go ram => 5500 max)
+nelemax    = 1000;   % Max nb of elements in the matrix (for memory usage) (30 Go ram => 5500 max)
 schur      = 1;      % Use the Schur complement ?
 testkase   = 2;
 

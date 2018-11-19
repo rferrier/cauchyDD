@@ -236,7 +236,7 @@ figure;
 hold on;
 plot(f1ref8(:,2),'Color', 'red');
 plot(f1id8(:,2),'Color', 'blue');
-legend('F : referenceon the top','F : solution on the top');
+legend('F : reference on the top','F : solution on the top');
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -569,11 +569,11 @@ end
 
 % Vizualize the crack's line
 try
-figure; hold on;
-x1m = xym1(1); y1m = xym1(2);
-x2m = xym2(1); y2m = xym2(2);
-x1p = xyp1(1); y1p = xyp1(2);
-x2p = xyp2(1); y2p = xyp2(2);
+figure; hold on; set(gca, 'fontsize', 15);
+x1mv = xym1(1); y1mv = xym1(2);
+x2mv = xym2(1); y2mv = xym2(2);
+x1pv = xyp1(1); y1pv = xyp1(2);
+x2pv = xyp2(1); y2pv = xyp2(2);
 x1r = xy1r(1); y1r = xy1r(2);
 x2r = xy2r(1); y2r = xy2r(2);
 plot( [xmin,xmax], [ymin,ymin], 'Color', 'black');
@@ -582,8 +582,12 @@ plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
 plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
 plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-plot( [x1m,x2m], [y1m,y2m], 'Color', 'green', 'LineWidth', 3 );
-plot( [x1p,x2p], [y1p,y2p], 'Color', 'red', 'LineWidth', 3 );
+plot( [x1m,x2m], [y1m,y2m], 'Color', 'green', 'LineWidth', 3, ';load case 1;' );
+plot( [x1p,x2p], [y1p,y2p], 'Color', 'red', 'LineWidth', 3, ';load case 3;' );
+%plot( [x1mv,x2mv], [y1mv,y2mv], 'Color', 'green', 'LineWidth', 3, 'linestyle', '--', ';plot3;' );
+plot( [x1pv,x2pv], [y1pv,y2pv], 'Color', 'red', 'LineWidth', 3, 'linestyle', '--', ';load case 3, surface \Gamma;' );
+h = legend();
+legend(h);
 axis equal;
 end
 

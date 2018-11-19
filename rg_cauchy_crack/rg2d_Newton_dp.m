@@ -209,7 +209,7 @@ br3 = randn(2*nnodes2,1); br4 = randn(2*nnodes2,1);
 %br1 = noise.br1; br2 = noise.br2; br3 = noise.br3; br4 = noise.br4;
 %ur1 = ( 1 + br*br1 ) .* ur1; ur2 = ( 1 + br*br2 ) .* ur2;
 %ur3 = ( 1 + br*br3 ) .* ur3; ur4 = ( 1 + br*br4 ) .* ur4;
-ur1 = ur1 + am1*br*br1; ur2 = ur2 + am1*br*br2;
+ur1 = ur1 + am1*br*br1; ur2 = ur2 + am2*br*br2;
 ur3 = ur3 + am3*br*br3; ur4 = ur4 + am4*br*br4;
 
 plotGMSH({ur1,'U1';ur2,'U2';ur3,'U3';ur4,'U4'},elements2, nodes2, 'output/bound');
