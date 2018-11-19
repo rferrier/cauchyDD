@@ -73,9 +73,9 @@ function nodes2 = morph2D( nodes, elements, boundnodes, geometry )
        -sin(theta)*sin(phi), cos(theta), -sin(theta)*cos(phi) ; ...
        cos(theta)*sin(phi), sin(theta), cos(theta)*cos(phi) ];
  geometry = transpose(R*geometry'); % Apply the rotation
+%norm(geometry(:,3))
  geometry(:,3) = 0; % Clean the last row
 
-%norm(geometry(:,3))
 %theta
 %phi
 
@@ -91,8 +91,8 @@ function nodes2 = morph2D( nodes, elements, boundnodes, geometry )
     lcurv(i) = cum;
  end
  % And the last point
- xp1 = nodes(boundnodes(end-1),1); yp1 = nodes(boundnodes(end-1),2); zp1 = nodes(boundnodes(end-1),3);
- x1  = nodes(boundnodes(end),1);   y1  = nodes(boundnodes(end),2);   z1  = nodes(boundnodes(end),3);
+ xp1 = nodes(boundnodes(end),1); yp1 = nodes(boundnodes(end),2); zp1 = nodes(boundnodes(end),3);
+ x1  = nodes(boundnodes(1),1);   y1  = nodes(boundnodes(1),2);   z1  = nodes(boundnodes(1),3);
  cum = cum + sqrt( (x1-xp1)^2 + (y1-yp1)^2 + (z1-zp1)^2 );
  lcurv = lcurv/cum; % Normalize
 
@@ -104,8 +104,8 @@ function nodes2 = morph2D( nodes, elements, boundnodes, geometry )
     lcurg(i) = cum;
  end
  % And the last point
- xp1 = geometry(end-1,1); yp1 = geometry(end-1,2); zp1 = geometry(end-1,3);
- x1  = geometry(end,1);   y1  = geometry(end,2);   z1  = geometry(end,3);
+ xp1 = geometry(end,1); yp1 = geometry(end,2); zp1 = geometry(end,3);
+ x1  = geometry(1,1);   y1  = geometry(1,2);   z1  = geometry(1,3);
  cum = cum + sqrt( (x1-xp1)^2 + (y1-yp1)^2 + (z1-zp1)^2 );
  lcurg = lcurg/cum;
 
@@ -124,11 +124,13 @@ function nodes2 = morph2D( nodes, elements, boundnodes, geometry )
     avaliable(zebest) = []; % Eliminate it
     % Place all the others
     if i > 1
-       lcc = ( lcurv(lasti+1:index-1) - lcurg(i-1) ) / ( lcurg(i) - lcurg(i-1) ); % Re-normalize
+       %lcc = ( lcurv(lasti+1:index-1) - lcurg(i-1) ) / ( lcurg(i) - lcurg(i-1) ); % Re-normalize
+       lcc = ( lcurv(lasti+1:index-1) - lcurv(lasti) ) / ( lcurv(index) - lcurv(lasti) ); % This variant keeps the space between nodes
        nodes1(lasti+1:index-1,:) = lcc*geometry(i,:) + (1-lcc)*geometry(i-1,:);
     end
     if i == ng
-       lcc = ( lcurv(index+1:end) - 1 ) / ( lcurg(i) - 1 );
+       %lcc = ( lcurv(index+1:end) - 1 ) / ( lcurg(i) - 1 );
+       lcc = ( lcurv(index+1:end) - 1 ) / ( lcurv(index) - 1 );
        nodes1(index+1:end,:) = lcc*geometry(i,:) + (1-lcc)*geometry(1,:);
     end
  end

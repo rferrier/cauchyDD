@@ -18,16 +18,17 @@ regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : der
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
 ordertest  = 20;     % Order of test fonctions
-niter      = 15;      % Nb of iterations in the Newton algorithm
+niter      = 10;      % Nb of iterations in the Newton algorithm
 %init       = [0;0;0;0];
 init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm is 0 : use the reference plane
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
 nuzawa     = 100;    % Nb of Uzawa iterations
 lc1        = .1;     % Size of the mesh of the plane
-nelemax    = 1000;   % Max nb of elements in the matrix (for memory usage) (30 Go ram => 5500 max)
+nelemax    = 4000;   % Max nb of elements in the matrix (for memory usage) (30 Go ram => 5500 max)
 schur      = 1;      % Use the Schur complement ?
 testkase   = 2;
+bfgs       = 0;      % Use BFGS update instead of re-computation
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,20 ; 2,20 ; 3,20 ; 4,20 ; 5,20 ; 6,20 ];
@@ -131,6 +132,17 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
                6,1,0 ; 6,2,0 ; 6,3,0 ];
 
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               3,1,0 ; 3,2,0 ; 3,3,0 ; 
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
@@ -151,6 +163,16 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ;
 %               4,1,0 ; 4,2,0 ; 4,3,0 ; 
 %               5,1,0 ; 5,2,0 ; 5,3,0 ; 
 %               6,1,0 ; 6,2,0 ; 6,3,0 ];
+
+%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               2,1,0 ; 2,2,0 ; 2,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ; 
+%               5,1,0 ; 5,2,0 ; 5,3,0 ; 
+%               6,1,0 ; 6,2,0 ; 6,3,0 ];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
+%               3,1,0 ; 3,2,0 ; 3,3,0 ; 
+%               4,1,0 ; 4,2,0 ; 4,3,0 ];
             
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 1,3,0 ; 
 %               2,1,0 ; 2,2,0 ; 2,3,0 ; 
@@ -984,7 +1006,8 @@ for iter = 1:niter
       fclose(fmid);
 
       % Use GMSH to mesh the surface
-      [stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
+      [stat,out] = system('../gmsh-4.0.4-Linux64/bin/gmsh -2 "meshes/rg3d_crack/plane.geo" -format msh2 -o "meshes/rg3d_crack/plane.msh"');
+      %[stat,out] = system('gmsh -2 "meshes/rg3d_crack/plane.geo" -o "meshes/rg3d_crack/plane.msh"');
       [ nodes3,elements3,ntoelem3,boundary3,order3 ] = readmesh3D( 'meshes/rg3d_crack/plane.msh' );
 
       % Write the normal to the elements
@@ -1413,6 +1436,7 @@ for iter = 1:niter
          DL1    = (sLx1(:)-sLx(:))/stepstep;
          DL121  = (L1x1-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 1' ]);
+         phi1 = sum( diag( Solu1'*AAA*Solu1 - 2*Solu1'*BBB + Rhs1'*Rhs1 ) + diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L12i + mur*L2i ) );
       elseif pb == 2
          Ax2  = Lhs*Solu1; L1x2 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx2 = sLxt(1:end-3*size(nodes3,1),:);
@@ -1422,6 +1446,7 @@ for iter = 1:niter
          DL2    = (sLx2(:)-sLx(:))/stepstep;
          DL122  = (L1x2-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 2' ]);
+         phi2 = sum( diag( Solu1'*rg3d_Newton_dirichlet.mAAA*Solu1 - 2*Solu1'*BBB + Rhs1'*Rhs1 ) + diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L12i + mur*L2i ) );
       else % pb == 3
          Ax3  = Lhs*Solu1; L1x3 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
@@ -1431,10 +1456,21 @@ for iter = 1:niter
          DL3    = (sLx3(:)-sLx(:))/stepstep;
          DL123  = (L1x3-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 3' ]);
+         phi3 = sum( diag( Solu1'*AAA*Solu1 - 2*Solu1'*BBB + Rhs1'*Rhs1 ) + diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L12i + mur*L2i ) );
       end
    end
-   D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3]; DL12 = [DL121,DL122,DL123];
-   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
+
+   if bfgs == 0 || iter==1
+      D = [Dd1,Dd2,Dd3]; DL = [DL1,DL2,DL3]; DL12 = [DL121,DL122,DL123];
+      H = D'*D + mur*DL'*DL;
+      g = [ phi1-phi(iter) ; phi2-phi(iter) ; phi3-phi(iter) ] / stepstep; %g = D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1);
+   else % Do the BFGS update instead of the re-computation of the Hessian
+      gp = g;
+      g  = [ phi1-phi(iter) ; phi2-phi(iter) ; phi3-phi(iter) ] / stepstep;
+      y  = g-gp;
+      H  = H + (y*y')/(y'*dtheta) - (H*dtheta*dtheta'*H)/(dtheta'*H*dtheta);
+   end
+   dtheta = - H \ ( g );
    
    % Actualize and normalize
    theta = theta + Q*dtheta;
