@@ -12,8 +12,8 @@ E          = 210000; % MPa : Young modulus
 nu         = 0.3;    % Poisson ratio
 fscalar    = 1;      % N.mm-2 : Loading on the plate
 mat        = [0, E, nu];
-br         = .0;      % Noise level
-mur        = 1e2;      % Regularization parameter
+br         = 0;%.01;      % Noise level
+mur        = 1e2;%5e2;      % Regularization parameter
 regular    = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
 froreg     = 1;      % frobenius preconditioner
 Npg        = 2;      % Nb Gauss points
@@ -24,11 +24,14 @@ init       = [0;0;-1;.5];%  initialization for the plane parameters. If its norm
 zerobound  = 1;      % Put the boundaries of the crack to 0
 step       = 0;%1e-2;   % Step for the finite differences 0 means auto-adptation
 nuzawa     = 100;    % Nb of Uzawa iterations
+nuzawad    = 100;      % nb of Uzawa of the direct problem
+kuzawad    = 2e2;     % Uzawa parameter for the direct problem
 lc1        = .1;     % Size of the mesh of the plane
 nelemax    = 4000;   % Max nb of elements in the matrix (for memory usage) (30 Go ram => 5500 max)
 schur      = 1;      % Use the Schur complement ?
-testkase   = 2;
+testkase   = 3;
 bfgs       = 0;      % Use BFGS update instead of re-computation
+direct     = 0;     % Wether to solve the direct problem
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,20 ; 2,20 ; 3,20 ; 4,20 ; 5,20 ; 6,20 ];
@@ -37,33 +40,35 @@ nbDirichlet = [];
 %dirichlet  = [ 0,1,0 ; 0,2,0 ; 0,3,0 ; 0,4,0 ; 0,5,0 ; 0,6,0 ];
 dirichlet  = [ 2,1,0 ; 2,2,0 ; 2,3,0 ];
 
+ss2 = 2*sqrt(2); ss3 = 3*sqrt(3); % ponderation
+
 neumann    = {};
 
 neumann{1} = [ 4,1,fscalar ; 6,1,-fscalar ];
 neumann{2} = [ 5,2,fscalar ; 3,2,-fscalar ];
 neumann{3} = [ 1,3,-fscalar ];
 
-neumann{4} = [ 4,1,fscalar ; 4,2,fscalar ; 5,1,fscalar ; 5,2,fscalar ; ...
-               3,1,-fscalar ; 3,2,-fscalar ; 6,1,-fscalar ; 6,2,-fscalar ];
-neumann{5} = [ 4,1,fscalar ; 4,2,-fscalar ; 3,1,fscalar ; 3,2,-fscalar ; ...
-               5,1,-fscalar ; 5,2,fscalar ; 6,1,-fscalar ; 6,2,fscalar ];
-neumann{6} = [ 1,1,-fscalar ; 1,3,-fscalar ; 6,1,-fscalar ; 6,3,-fscalar ];
-neumann{7} = [ 4,1,fscalar ; 4,3,-fscalar ; 1,1,fscalar ; 1,3,-fscalar ];
-neumann{8} = [ 3,3,-fscalar ; 3,2,-fscalar ; 1,3,-fscalar ; 1,2,-fscalar ];
-neumann{9} = [ 1,3,-fscalar ; 1,2,fscalar ; 5,3,-fscalar ; 5,2,fscalar ];
+neumann{4} = [ 4,1,fscalar/ss2 ; 4,2,fscalar/ss2 ; 5,1,fscalar/ss2 ; 5,2,fscalar/ss2 ; ...
+               3,1,-fscalar/ss2 ; 3,2,-fscalar/ss2 ; 6,1,-fscalar/ss2 ; 6,2,-fscalar/ss2 ];
+neumann{5} = [ 4,1,fscalar/ss2 ; 4,2,-fscalar/ss2 ; 3,1,fscalar/ss2 ; 3,2,-fscalar/ss2 ; ...
+               5,1,-fscalar/ss2 ; 5,2,fscalar/ss2 ; 6,1,-fscalar/ss2 ; 6,2,fscalar/ss2 ];
+neumann{6} = [ 1,1,-fscalar/ss2 ; 1,3,-fscalar/ss2 ; 6,1,-fscalar/ss2 ; 6,3,-fscalar/ss2 ];
+neumann{7} = [ 4,1,fscalar/ss2 ; 4,3,-fscalar/ss2 ; 1,1,fscalar/ss2 ; 1,3,-fscalar/ss2 ];
+neumann{8} = [ 3,3,-fscalar/ss2 ; 3,2,-fscalar/ss2 ; 1,3,-fscalar/ss2 ; 1,2,-fscalar/ss2 ];
+neumann{9} = [ 1,3,-fscalar/ss2 ; 1,2,fscalar/ss2 ; 5,3,-fscalar/ss2 ; 5,2,fscalar/ss2 ];
 
-neumann{10} = [ 1,1,-fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
-                3,1,-fscalar ; 3,2,-fscalar ; 3,3,-fscalar ;...
-                6,1,-fscalar ; 6,2,-fscalar ; 6,3,-fscalar ];
-neumann{11} = [ 1,1,fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
-                4,1,fscalar ; 4,2,fscalar ; 4,3,-fscalar ;...
-                5,1,fscalar ; 5,2,fscalar ; 5,3,-fscalar ];
-neumann{12} = [ 1,1,-fscalar ; 1,2,fscalar ; 1,3,-fscalar ;...
-                5,1,-fscalar ; 5,2,fscalar ; 5,3,-fscalar ;...
-                6,1,-fscalar ; 6,2,fscalar ; 6,3,-fscalar ];
-neumann{13} = [ 1,1,fscalar ; 1,2,-fscalar ; 1,3,-fscalar ;...
-                3,1,fscalar ; 3,2,-fscalar ; 3,3,-fscalar ;...
-                4,1,fscalar ; 4,2,-fscalar ; 4,3,-fscalar ];
+neumann{10} = [ 1,1,-fscalar/ss3 ; 1,2,-fscalar/ss3 ; 1,3,-fscalar/ss3 ;...
+                3,1,-fscalar/ss3 ; 3,2,-fscalar/ss3 ; 3,3,-fscalar/ss3 ;...
+                6,1,-fscalar/ss3 ; 6,2,-fscalar/ss3 ; 6,3,-fscalar/ss3 ];
+neumann{11} = [ 1,1,fscalar/ss3 ; 1,2,fscalar/ss3 ; 1,3,-fscalar/ss3 ;...
+                4,1,fscalar/ss3 ; 4,2,fscalar/ss3 ; 4,3,-fscalar/ss3 ;...
+                5,1,fscalar/ss3 ; 5,2,fscalar/ss3 ; 5,3,-fscalar/ss3 ];
+neumann{12} = [ 1,1,-fscalar/ss3 ; 1,2,fscalar/ss3 ; 1,3,-fscalar/ss3 ;...
+                5,1,-fscalar/ss3 ; 5,2,fscalar/ss3 ; 5,3,-fscalar/ss3 ;...
+                6,1,-fscalar/ss3 ; 6,2,fscalar/ss3 ; 6,3,-fscalar/ss3 ];
+neumann{13} = [ 1,1,fscalar/ss3 ; 1,2,-fscalar/ss3 ; 1,3,-fscalar/ss3 ;...
+                3,1,fscalar/ss3 ; 3,2,-fscalar/ss3 ; 3,3,-fscalar/ss3 ;...
+                4,1,fscalar/ss3 ; 4,2,-fscalar/ss3 ; 4,3,-fscalar/ss3 ];
 
 %neumann{1} = [ 4,1,fscalar ; 6,1,-fscalar ];
 %neumann{2} = [ 5,2,fscalar ; 3,2,-fscalar ];
@@ -197,7 +202,7 @@ else
 end
 %[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_noplane.msh' );
 %[ nodes,elements,ntoelem,boundary,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_smile.msh' );
-nnodes = size(nodes,1);
+nnodes = size(nodes,1); nelem = size(elements,1);
 
 %% Lagrange
 %[K,C,nbloq] = Krig3D (nodes,elements,mat,order,boundary,dirichlet);
@@ -209,18 +214,6 @@ nnodes = size(nodes,1);
 %
 %uin = K\f; uref = uin(1:3*nnodes,:); fref = Kinter*uref;
 
-% % Substitution
-% Kinter = Krig3D (nodes,elements,mat,order,boundary,[]);
-% C = Cbound2 ( nodes, dirichlet, boundary ); index = find(diag(C*C'));
-% 
-% indexdex = setdiff(1:3*nnodes,index);
-% 
-% f = zeros(3*nnodes,13);
-% for i = 1:13
-% f(:,i) = loading3D(0,nodes,boundary,neumann{i});
-% end
-% 
-% uref = zeros(3*nnodes,13);% relres = zeros(13,1);
 %% %tic
 % PJag = diag(Kinter); 
 % PJac = sparse( 1:3*nnodes, 1:3*nnodes, PJag, 3*nnodes, 3*nnodes ); % Jacobi
@@ -230,30 +223,162 @@ nnodes = size(nodes,1);
 % %toc
 % relres
 %%
-% Kinter = .5*(Kinter+Kinter');
-% uref(indexdex,:) = Kinter(indexdex,indexdex)\f(indexdex,:);
-%%
-if testkase==1
-   urefl = load('fields/rg3d_Newton_dirichlet.mat');
+if direct == 1
+   % Substitution
+   Kinter = Krig3D (nodes,elements,mat,order,boundary,[]);
+   C = Cbound2 ( nodes, dirichlet, boundary ); index = find(diag(C*C'));
+   indexdex = setdiff(1:3*nnodes,index);
+
+   f = zeros(3*nnodes,13);
+   for i = 1:13
+      f(:,i) = loading3D(0,nodes,boundary,neumann{i});
+   end
+
+   uref = zeros(3*nnodes,13);
+   
+   % Contact condition
+   bou5 = boundary(find(boundary(:,1)==7),:); nbc = size(bou5,1);
+   bou6 = boundary(find(boundary(:,1)==8),:);
+   nod5 = bou5(:,[2,3,4]); nod5 = unique(nod5(:));
+%    nod6 = bou6(:,[2,3,4]); nod6 = unique(nod6(:));
+%    n5n6 = intersect(nod5,nod6); % Tips of the cracks, they should have no condition /!\ TO DEBUG
+%    nod5 = setdiff(nod5,n5n6); nod6 = setdiff(nod6,n5n6); 
+   nnc = max(size(nod5));
+   x6 = nodes(:,1); y6 = nodes(:,2); z6 = nodes(:,3);
+
+   C = sparse(nnc,3*nnodes);
+   
+   for i=1:nbc
+      no1 = bou5(i,2); no2 = bou5(i,3); no3 = bou5(i,4);      
+      cand1 = rem( find(elements==no1)-1,nelem )+1; % find gives line + column*size
+      cand2 = rem( find(elements==no2)-1,nelem )+1;
+      cand3 = rem( find(elements==no3)-1,nelem )+1;
+      elt = intersect( intersect(cand1, cand2), cand3 ); % If everything went well, there is only one
+      no4 = setdiff( elements( elt, 1:4 ), [no1,no2,no3]);
+
+      x1 = nodes(no1,1); y1 = nodes(no1,2); z1 = nodes(no1,3);
+      x2 = nodes(no2,1); y2 = nodes(no2,2); z2 = nodes(no2,3);
+      x3 = nodes(no3,1); y3 = nodes(no3,2); z3 = nodes(no3,3);
+      x4 = nodes(no4,1); y4 = nodes(no4,2); z4 = nodes(no4,3);
+      
+      nx = (y1-y2)*(z1-z3)-(y1-y3)*(z1-z2); %
+      ny = (x1-x3)*(z1-z2)-(x1-x2)*(z1-z3); % Vectorial product
+      nz = (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2); %
+      S = .5*sqrt(nx^2+ny^2+nz^2);
+      n = [ nx ,ny ,nz ] / (2*S);
+
+      if nx*(x4-x1)+ny*(y4-y1)+nz*(z4-z1) > 0 % Check that the normal is exterior
+         n = -n;
+      end
+      
+      % Find the corresponding nodes on the other side
+      nno1 = setdiff(1:nnodes,no1); nno2 = setdiff(1:nnodes,no2); nno3 = setdiff(1:nnodes,no3);
+      len = sqrt((x1-x6(nno1)).^2+(y1-y6(nno1)).^2+(z1-z6(nno1)).^2); [d1,bf1] = min(len);
+      len = sqrt((x2-x6(nno2)).^2+(y2-y6(nno2)).^2+(z2-z6(nno2)).^2); [d2,bf2] = min(len);
+      len = sqrt((x3-x6(nno3)).^2+(y3-y6(nno3)).^2+(z3-z6(nno3)).^2); [d3,bf3] = min(len);
+      
+      if bf1>=no1, bf1=bf1+1; end % Correct the off-by-one
+      if bf2>=no2, bf2=bf2+1; end
+      if bf3>=no1, bf3=bf3+1; end
+      
+      ii1 = find(nod5==no1); ii2 = find(nod5==no2); ii3 = find(nod5==no3);
+      
+      if d1<1e-10 % Means there is really a node (we're not on the boundary of the crack)
+         C(ii1,3*no1-2) = C(ii1,3*no1-2) - S*n(1);
+         C(ii1,3*bf1-2) = C(ii1,3*bf1-2) + S*n(1);
+         C(ii1,3*no1-1) = C(ii1,3*no1-1) - S*n(2);
+         C(ii1,3*bf1-1) = C(ii1,3*bf1-1) + S*n(2);
+         C(ii1,3*no1)   = C(ii1,3*no1)   - S*n(3);
+         C(ii1,3*bf1)   = C(ii1,3*bf1)   + S*n(3);
+      end
+      
+      if d2<1e-10 % Means there is really a node
+         C(ii2,3*no2-2) = C(ii2,3*no2-2) - S*n(1);
+         C(ii2,3*bf2-2) = C(ii2,3*bf2-2) + S*n(1);
+         C(ii2,3*no2-1) = C(ii2,3*no2-1) - S*n(2);
+         C(ii2,3*bf2-1) = C(ii2,3*bf2-1) + S*n(2);
+         C(ii2,3*no2)   = C(ii2,3*no2)   - S*n(3);
+         C(ii2,3*bf2)   = C(ii2,3*bf2)   + S*n(3);
+      end
+      
+      if d3<1e-10 % Means there is really a node
+         C(ii3,3*no3-2) = C(ii3,3*no3-2) - S*n(1);
+         C(ii3,3*bf3-2) = C(ii3,3*bf3-2) + S*n(1);
+         C(ii3,3*no3-1) = C(ii3,3*no3-1) - S*n(2);
+         C(ii3,3*bf3-1) = C(ii3,3*bf3-1) + S*n(2);
+         C(ii3,3*no3)   = C(ii3,3*no3)   - S*n(3);
+         C(ii3,3*bf3)   = C(ii3,3*bf3)   + S*n(3);
+      end
+   end
+   
+   nnull = 0;
+   for i=1:nnc % Normalize
+      if norm(C(i,:))~=0
+         C(i,:) = C(i,:)/norm(C(i,:));
+         nnull = nnull+1;
+      end
+   end
+   
+   Cr = C(:,indexdex); fr = f(indexdex,:);
+
+   Kinter = .5*(Kinter+Kinter');
+   
+   ff = zeros(nnc,13); Ctf = Cr'*ff;
+   respos = zeros(nuzawad,1); df = zeros(nuzawad,1);
+% 
+   [Ll,p,s] = chol (Kinter(indexdex,indexdex),'lower','vector');  % MAT = Ll'*Ll
+%    %Rr = chol (Kinter(indexdex,indexdex),'upper');  % MAT = Rr*Rr' % Why on shit is it not working ?
+     %[Ll, Uu, Pp, Qq] = lu (Kinter(indexdex,indexdex));
+% 
+   uin = zeros(size(indexdex,2),13);tic
+   for i=1:nuzawad % Uzawa for the contact problem
+      uin(s,:) =  (Ll') \ ( Ll \ ( fr(s,:) + Ctf(s,:) ) ) ;
+      %uin =  Rr \ ( (Rr') \ ( f(indexdex,:) + Ctf ) ) ;
+      %uin = Qq * ( Uu \ ( Ll \ ( Pp * ( f(indexdex,:) + Ctf ) ) ) );
+      %uin = Kinter(indexdex,indexdex) \ (fr + Ctf);
+      
+      Cru = Cr*uin;
+      respos(i) = norm(Cru - abs(Cru),'fro');
+      fp = ff;
+      ff = ff - kuzawad*Cru;
+      ff = .5*(ff + abs(ff)); Ctf = Cr'*ff;
+      df(i) = norm(ff-fp,'fro');
+   end
+   toc
+   if respos(end)>respos(1) % Pb
+      warning('Direct problem: Uzawa algorithm failed. Try reducing kuzawad');
+   end
+   
+   uref(indexdex,:) = uin;% 
+   
+   %uref(indexdex,:) = Kinter(indexdex,indexdex)\f(indexdex,:);
+   fref = Kinter*uref;
+
+%    clear Kinter; %clear K; 
+%    sigma = stress3D(uref,mat,nodes,elements,order,1,ntoelem);
+%    toplot = { uref(:,1), 'U1' ; uref(:,2), 'U2' ; uref(:,3), 'U3' ;...
+%               uref(:,4), 'U4' ; uref(:,5), 'U5' ; uref(:,6), 'U6' ;...
+%               uref(:,7), 'U7' ; uref(:,8), 'U8' ; uref(:,9), 'U9' ;...
+%               uref(:,10), 'U10' ; uref(:,11), 'U11' ; uref(:,12), 'U12' ;...
+%               uref(:,13), 'U13' };
+%    plotGMSH3D( toplot, elements, nodes, 'output/reference' ); bug;
 else
-   urefl = load('fields/rg3d_Newton_dirichlet_large.mat');
+   if testkase==1
+      urefl = load('fields/rg3d_Newton_dirichlet.mat');
+   elseif testkase==3
+      urefl = load('fields/rg3d_Newton_dirichlet_c.mat'); % Computed with contact (on the large one)
+   else
+      urefl = load('fields/rg3d_Newton_dirichlet_large.mat');
+   end
+   uref = urefl.uref;  fref = urefl.fref;
+   uref(:,4:9) = uref(:,4:9)/ss2; uref(:,10:13) = uref(:,10:13)/ss3; %/!\ ONLY IF DIRECT PROBLEM DID NOT GET THE SSI
+   fref(:,4:9) = fref(:,4:9)/ss2; fref(:,10:13) = fref(:,10:13)/ss3;
 end
-uref = urefl.uref;  fref = urefl.fref;
-%%
-% fref = Kinter*uref;
-%%
-% clear Kinter; %clear K; 
-% sigma = stress3D(uref,mat,nodes,elements,order,1,ntoelem);
-% toplot = { uref(:,1), 'U1' ; uref(:,2), 'U2' ; uref(:,3), 'U3' ;...
-%           uref(:,4), 'U4' ; uref(:,5), 'U5' ; uref(:,6), 'U6' ;...
-%           uref(:,7), 'U7' ; uref(:,8), 'U8' ; uref(:,9), 'U9' ;...
-%           uref(:,10), 'U10' ; uref(:,11), 'U11' ; uref(:,12), 'U12' ;...
-%           uref(:,13), 'U13' };
-% plotGMSH3D( toplot, elements, nodes, 'output/reference' );
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 [ nodes2,elements2,ntoelem2,boundary2,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack1-2.msh' );
+%[ nodes2,elements2,ntoelem2,boundary2,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack1-2u.msh' );
 %[ nodes2,elements2,ntoelem2,boundary2,order ] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack0.msh' );
 %[nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_crack2.msh' );
 %[ nodes2,elements2,ntoelem2,boundary2,order] = readmesh3D( 'meshes/rg3d_crack/plate3d_u.msh' );
@@ -262,22 +387,25 @@ boundary2( find(boundary2(:,1)==7) , : ) = []; % Hack : remove the crack (ie bou
 
 nnodes2 = size(nodes2,1);
 [ ~, nbloq2 ] = Cbound2 ( nodes2, dirichlet, boundary2 );
-% [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
-% Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
-% 
-% % Slight contraction of the second mesh for the passmesh
-% mean2x = mean(nodes2(:,1)); mean2y = mean(nodes2(:,2)); mean2z = mean(nodes2(:,3));
-% nodes2c = nodes2;
-% nodes2c(:,1) = (1-1e-6)*(nodes2c(:,1)-mean2x) + mean2x;
-% nodes2c(:,2) = (1-1e-6)*(nodes2c(:,2)-mean2y) + mean2y;
-% nodes2c(:,3) = (1-1e-6)*(nodes2c(:,3)-mean2z) + mean2z;
-% 
-% ur = passMesh3D( nodes, elements, nodes2c, elements2, uref, boundary2 );
-% fr = Kinter2*ur;
-% clear K2; clear Kinter2; clear C2;
+if direct == 1
+   [K2,C2,nbloq2,node2c2,c2node2] = Krig3D(nodes2,elements2,mat,order,boundary2,dirichlet);
+   Kinter2 = K2( 1:3*nnodes2, 1:3*nnodes2 );
 
-ur = urefl.ur; fr = urefl.fr;
+   % Slight contraction of the second mesh for the passmesh
+   mean2x = mean(nodes2(:,1)); mean2y = mean(nodes2(:,2)); mean2z = mean(nodes2(:,3));
+   nodes2c = nodes2;
+   nodes2c(:,1) = (1-1e-6)*(nodes2c(:,1)-mean2x) + mean2x;
+   nodes2c(:,2) = (1-1e-6)*(nodes2c(:,2)-mean2y) + mean2y;
+   nodes2c(:,3) = (1-1e-6)*(nodes2c(:,3)-mean2z) + mean2z;
 
+   ur = passMesh3D( nodes, elements, nodes2c, elements2, uref, boundary2 );
+   fr = Kinter2*ur;
+   clear K2; clear Kinter2; clear C2; bug;
+else
+   ur = urefl.ur; fr = urefl.fr;
+   ur(:,4:9) = ur(:,4:9)/ss2; ur(:,10:13) = ur(:,10:13)/ss3; %/!\ ONLY IF DIRECT PROBLEM DID NOT GET THE SSI
+   fr(:,4:9) = fr(:,4:9)/ss2; fr(:,10:13) = fr(:,10:13)/ss3;
+end
 % toplot = { ur(:,1), 'U1' ; ur(:,2), 'U2' ; ur(:,3), 'U3' ;...
 %            ur(:,4), 'U4' ; ur(:,5), 'U5' ; ur(:,6), 'U6' ;...
 %            ur(:,7), 'U7' ; ur(:,8), 'U8' ; ur(:,9), 'U9' ;...
@@ -345,7 +473,7 @@ end
 
 % Add the noise
 un = ur; am = zeros(1,13);
-% br1 = randn(3*nnodes2,13);
+%br1 = randn(3*nnodes2,13);
 noise = load('noises/cauchyRG3d.mat');
 br1 = noise.br1;
 for i=1:13
@@ -1446,7 +1574,7 @@ for iter = 1:niter
          DL2    = (sLx2(:)-sLx(:))/stepstep;
          DL122  = (L1x2-L1x)/stepstep;
          %disp([ 'iteration ', num2str(iter),' pb 2' ]);
-         phi2 = sum( diag( Solu1'*rg3d_Newton_dirichlet.mAAA*Solu1 - 2*Solu1'*BBB + Rhs1'*Rhs1 ) + diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L12i + mur*L2i ) );
+         phi2 = sum( diag( Solu1'*AAA*Solu1 - 2*Solu1'*BBB + Rhs1'*Rhs1 ) + diag( mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L12i + mur*L2i ) );
       else % pb == 3
          Ax3  = Lhs*Solu1; L1x3 = diag(Solu1'*L12i);
          sLxt = sL*Solu1; topass0 = sLxt(end-3*size(nodes3,1)+1:end,:); sLx3 = sLxt(1:end-3*size(nodes3,1),:);
@@ -1521,8 +1649,7 @@ figure;
 colormap(jet(64));
 set(gca, 'fontsize', 20);
 patch('Faces',boundary3p(:,2:4),'Vertices',nodes3p,'FaceVertexCData',UsN(:,11),'FaceColor','interp');
-%caxis( [-1.32e-6, 9.75e-6] );
-%caxis( [-0.0000018532, 0.000013567] );
+%caxis( [-0.00000016495, 0.0000029609] );
 axis([0,1,0,1,0,1],'square'); set(colorbar, 'fontsize', 20); colorbar('SouthOutside');
 end
 
@@ -1646,8 +1773,7 @@ figure;
 colormap(jet(64));
 set(gca, 'fontsize', 20);
 patch('Faces',boundary3(:,2:4),'Vertices',nodes3,'FaceVertexCData',UrNr(:,11),'FaceColor','interp');
-%caxis( [-1.32e-6, 9.75e-6] );
-%caxis( [-0.0000018532, 0.000013567] );
+%caxis( [-0.00000016495, 0.0000029609] );
 axis([0,1,0,1,0,1],'square'); set(colorbar, 'fontsize', 20); colorbar('SouthOutside');
 end
 
@@ -1656,37 +1782,46 @@ mesh2GMSH( nodes3, boundary3(:,2:4), [], 'output/mesh_urnr' );
 plotGMSH3D( {UrNr(:,11),'UsN'}, boundary3(:,2:4), nodes3, 'output/field_urnr' );
 
 %%% Plot on a line
-%% First : computed stuff : use the projection on the xy plane of nodes3
-%nnodes3p = size(nodes3,1);
-%x0 = 0; xf = 1; dx = 1/20; Xx = x0+dx:dx:xf-dx; Yy = .5*ones(1,19); % remove the 2 extreme points
-%ucx = ucrsol1(1:3:3*nnodes3p-2,:); ucy = ucrsol1(2:3:3*nnodes3p-1,:);
-%ucz = ucrsol1(3:3:3*nnodes3p,:);   uca = zeros(nnodes3p,13); % passMesh2D accepts 2 dofs fields
-%upass = [ reshape([ucx,ucy]',[13,2*nnodes3])' , reshape([ucz,uca]',[13,2*nnodes3])'];
-%U_com = passMesh2D( nodes3p(:,1:2), boundary3p(2:4), [Xx',Yy'], [], upass );
-%U_com = [ U_com(1:2:2*19-1,1:13), U_com(2:2:2*19,1:13), U_com(1:2:2*19-1,14:end) ];
-%U_com = reshape(U_com',[13,3*19])';
-%U_com = [zeros(3,13);U_com;zeros(3,13)]; eno = extnorm3p(1,:);
-%UsN2 = U_com(1:3:end-2,:)*eno(1) + U_com(2:3:end-1,:)*eno(2) + U_com(3:3:end,:)*eno(3);
-%
+nli = 50;
+%% First : computed stuff : 
+z0 = -(thetap(4)+.5*thetap(2))/thetap(3); % Pray for having theta(3) \neq 0
+zf = -(thetap(1)+thetap(4)+.5*thetap(2))/thetap(3); dz = (zf-z0)/nli;
+Zz = z0:dz:zf;
+x0 = 0; xf = 1; dx = 1/nli;
+Xx = .4*ones(1,nli+1); Yy = x0:dx:xf; %Xx = x0:dx:xf; Yy = .5*ones(1,nli+1); 
+ucrsol1p = passMesh2D3d (nodes3p, boundary3p(:,2:4), [Xx',Yy',Zz'], [], ucrsol1); % Pass it (there should not be any angle actually)
+eno = extnorm3p(1,:);
+UsN2 = ucrsol1p(1:3:end-2,:)*eno(1) + ucrsol1p(2:3:end-1,:)*eno(2) + ucrsol1p(3:3:end,:)*eno(3);
+
 %% And the reference
-%z0 = -(theta(4)+.5*theta(2))/theta(3); % Pray for having theta(3) \neq 0
-%zf = -(theta(1)+theta(4)+.5*theta(2))/theta(3); dz = (zf-z0)/20;
-%Zz = z0:dz:zf;
-%x0 = 0; xf = 1; dx = 1/20; Xx = x0:dx:xf; Yy = .5*ones(1,21);
-%nodes_up2 = [Xx',Yy',Zz'] + 1e-4*ones(21,1)*normal3';
-%nodes_do2 = [Xx',Yy',Zz'] - 1e-4*ones(21,1)*normal3';
-%U_up2 = passMesh3D( nodes, elements, nodes_up2, [], uref );
-%U_do2 = passMesh3D( nodes, elements, nodes_do2, [], uref );
-%U_diff2 = U_up2-U_do2;
-%eno = extnorm3(1,:);
-%UsN2r = U_diff2(1:3:end-2,:)*eno(1) + U_diff2(2:3:end-1,:)*eno(2) + U_diff2(3:3:end,:)*eno(3);
-%
-%try
-%figure
-%plot([0,Xx,1],UsN2(:,11),'Color','red');
-%plot(Xx,UsN2r(:,11),'Color','black');
-%legend('computed gap','reference')
-%end
+%z0 = -(abcd(4)+.5*abcd(2))/abcd(3); % Pray for having theta(3) \neq 0
+%zf = -(abcd(1)+abcd(4)+.5*abcd(2))/abcd(3); dz = (zf-z0)/nli;
+z0 = -(abcd(4)+.4*abcd(1))/abcd(3); % Pray for having theta(3) \neq 0
+zf = -(.4*abcd(1)+abcd(4)+abcd(2))/abcd(3); dz = (zf-z0)/nli;
+Zz = z0:dz:zf;
+x0 = 0; xf = 1; dx = 1/nli;
+Xx = .4*ones(1,nli+1); Yy = x0:dx:xf; %Xx = x0:dx:xf; Yy = .5*ones(1,nli+1); 
+xm = mean(Xx); ym = mean(Yy); zm = mean(Zz);
+nodes3r = zeros(nli+1,3);
+nodes3r(:,1) = (Xx-xm)*.999 + xm;
+nodes3r(:,2) = (Yy-ym)*.999 + ym;
+nodes3r(:,3) = (Zz-zm)*.999 + zm;
+normal3 = abcd(1:3)/norm(abcd(1:3));
+nodes_up2 = nodes3r + 1e-4*ones(nli+1,1)*normal3';
+nodes_do2 = nodes3r - 1e-4*ones(nli+1,1)*normal3';
+U_up2 = passMesh3D( nodes, elements, nodes_up2, [], uref );
+U_do2 = passMesh3D( nodes, elements, nodes_do2, [], uref );
+U_diff2 = U_up2-U_do2;
+UsN2r = U_diff2(1:3:end-2,:)*normal3(1) + U_diff2(2:3:end-1,:)*normal3(2) + U_diff2(3:3:end,:)*normal3(3);
+
+absi = Yy;
+%absi = Xx;
+try
+figure; hold on;
+plot(absi,UsN2(:,11),'Color','red');
+plot(absi,UsN2r(:,11),'Color','black');
+legend('computed gap','reference')
+end
 %
 %% Extract the identified values on the boundary
 % TODO : Neumann is tricky
