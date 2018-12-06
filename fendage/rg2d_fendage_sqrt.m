@@ -1,5 +1,5 @@
-% 27/06/2018
-% Essai de fendage, 1 seule donnée, code simplifié
+% 02/12/2018
+% Essai de fendage, 1 seule donnée, forme en racine
 
 tic
 close all;
@@ -13,21 +13,20 @@ nu          = 0.2;    % Poisson ratio
 fscalar     = 1;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
 br          = .0;      % Noise level
-mur         = 1e2;%2e3;    % Regularization parameter
+mur         = 1e3;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
-derivative  = 1/2;    % Use H1 or H1/2 regularization
+derivative  = 1;    % Use H1 or H1/2 regularization
 froreg      = 1;      % Frobenius preconditioner
-theta1      = pi/2;
-theta2      = 3*pi/2;   % angles of the crack
+x0          = 60;     % Crack Length (to optimize)
 anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
 kauto       = 10;     % Coefficient for the auto-adaptation
-nbstep      = 1;     % Nb of Newton Iterations
+nbstep      = 10;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 %ordertest   = 20;     % Order of test fonctions (by default 20)
-nuzawa      = 100;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means)
+nuzawa      = 1;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 ndofcrack   = 50;      % Nb of elements on the crack
-sqrtbas     = 0;       % Shall we use the sqrt reduced basis ?
+sqrtbas     = 1;       % Shall we use the sqrt reduced basis ?
 
 % Material properties
 lambda = nu*E/((1+nu)*(1-2*nu));
@@ -521,42 +520,34 @@ if regular == 1
    Duuk = Du(tofindD,knownD);  Dfuk = Df(tofindN,knownN);
 end
 
-theta1rec = theta1;
-theta2rec = theta2;
-theta1b   = theta1;
-theta2b   = theta2;
-nbnotwork = 0; % Records the number of failures
-previous = []; % Stores the index of the previous solutions
+x0rec = x0;
+x0b   = x0
 
 if anglestep == 0 % Initialize the step
-   anglestep1 = pi/kauto;
-   anglestep2 = pi/kauto;
+   anglestep1 = 100/kauto;
 else
    anglestep1 = anglestep;
-   anglestep2 = anglestep;
 end
 
 for iter = 1:nbstep % Newton loop
-   pbmax = 2;
+   pbmax = 1;
 %   if iter == nbstep
 %      pbmax == 0;
 %   end
    if anglestep == 0 && iter > 1
-      anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
+      anglestep1 = dtheta(1)/kauto;
    end
 
-   for pb = 0:0%pbmax % Construct all the problems
+   for pb = 0:pbmax % Construct all the problems
 
       if pb == 0
-         theta1c = theta1; theta2c = theta2;
-      elseif pb == 1
-         theta1c = theta1+anglestep1; theta2c = theta2;
-      else
-         theta1c = theta1; theta2c = theta2+anglestep2;
+         x0c = x0;
+      else %if pb == 1
+         x0c = x0+anglestep1;
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-      %% Compute the crack RHS (not from angle)
+      %% Compute the crack RHS
 
       xy1 = [(xmax+xmin)/2;y10];
       xy2 = [(xmax+xmin)/2;ymin];
@@ -766,9 +757,8 @@ for iter = 1:nbstep % Newton loop
       sL = real(L^(1/2));   % Square root of L (as usual, real should not be)
 
       if sqrtbas == 1
-         x0 = 30;
          curv = sqrt( (nodes3(:,1)-nodes3(1,1)).^2 + (nodes3(:,2)-nodes3(1,2)).^2 );
-         s0 = real(sqrt(x0-curv)); % Only the positive part
+         s0 = real(sqrt(x0c-curv)); % Only the positive part
          s1 = zeros(ndofs,1); s2 = zeros(ndofs,1);
          s1(end-2*nboun3-1:2:end-1) = s0;
          s2(end-2*nboun3:2:end)     = s0;
@@ -832,64 +822,36 @@ for iter = 1:nbstep % Newton loop
          nor1 = Solu1'*Lhs'*Lhs*Solu1 - 2*Solu1'*Lhs'*Rhs1 + Rhs1'*Rhs1 + mur*Solu1'*L*Solu1 + 2*mur*Solu1'*L121 + mur*L21;
          phi( iter )  = nor1;
 
-%         res1 = Lhs*Solu1 - Rhs1; % Residuals
+         res1 = Lhs*Solu1 - Rhs1; % Residuals
 
-%         rel1 = sL*Solu1;
+         rel1 = sL*Solu1;
 
-%         res = [ res1 ];
-%         rel = [ rel1 ];
-%         Ax  = [ Lhs*Solu1 ];
-%         xt  = [ Solu1 ];
-%         sLx = [ sL*Solu1 ];
-%         L1x = [ Solu1'*L121 ];
-%         Lh0 = Lhs; sL0 = sL; L1210 = L121;
+         res = [ res1 ];
+         rel = [ rel1 ];
+         Ax  = [ Lhs*Solu1 ];
+         xt  = [ Solu1 ];
+         sLx = [ sL*Solu1 ];
+         L1x = [ Solu1'*L121 ];
+         Lh0 = Lhs; sL0 = sL; L1210 = L121;
 
          Solu10 = Solu1; % Store the values
 
          nodes3b = nodes3;
 
-%      elseif pb == 1
-%         D1    = ([ Lhs*Solu1 ] - Ax)/anglestep1;
-%         Dx1   = ([ Solu1 ] - xt)/anglestep1;
-%         DL1   = ([ sL*Solu1 ] - sLx)/anglestep1;
-%         DL121 = ([ Solu1'*L121 ] - L1x)/anglestep1;
-%         Lh1   = (Lhs-Lh0)/anglestep1;
-
-%%         D1    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; D1 = D1(:);
-%%         DL1   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep1; DL1 = DL1(:);
-%%         DL121 = [ Solu10'*(L121-L1210) , Solu20'*(L122-L1220) , Solu30'*(L123-L1230) , Solu40'*(L124-L1240) ]/anglestep1; DL121 = DL121(:);
-%      elseif pb == 2
-%         D2    = ([ Lhs*Solu1 ] - Ax)/anglestep2;
-%         Dx2   = ([ Solu1 ] - xt)/anglestep2;
-%         DL2   = ([ sL*Solu1 ] - sLx)/anglestep2;
-%         DL122 = ([ Solu1'*L121 ] - L1x)/anglestep2;
-%         Lh2   = (Lhs-Lh0)/anglestep2;
-
-%%         D2    = ((Lhs-Lh0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; D2 = D2(:);
-%%         DL2   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; DL2 = DL2(:);
-%%         DL122 = [ Solu10'*(L121-L1210) , Solu20'*(L122-L1220) , Solu30'*(L123-L1230) , Solu40'*(L124-L1240) ]/anglestep2; DL122 = DL122(:);
+      elseif pb == 1
+         D1    = ([ Lhs*Solu1 ] - Ax)/anglestep1;
+         Dx1   = ([ Solu1 ] - xt)/anglestep1;
+         DL1   = ([ sL*Solu1 ] - sLx)/anglestep1;
+         DL121 = ([ Solu1'*L121 ] - L1x)/anglestep1;
+         Lh1   = (Lhs-Lh0)/anglestep1;
       end
    end
-%   D = [D1,D2]; DL = [DL1,DL2]; DL12 = [DL121,DL122];% Dx = [Dx1,Dx2];
-%%   Dd = [ Lh1*Solu10 , Lh2*Solu10 ; Lh1*Solu20 , Lh2*Solu20 ;...
-%%          Lh1*Solu30 , Lh2*Solu30 ; Lh1*Solu40 , Lh2*Solu40 ];
+   D = [D1]; DL = [DL1]; DL12 = [DL121];
 
-%%   ZL = zeros(size(L));
-%%   Aile = [ L, ZL, ZL, ZL ; ...
-%%            ZL, L, ZL, ZL ; ...
-%%            ZL, ZL, L, ZL ; ...
-%%            ZL, ZL, ZL, L ];
+   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
 
-%   %dtheta = - ( D'*D + mur*Dx'*Aile*Dx ) \ ( D'*res - mur*Dx'*[L121;L122;L123;L124] );
-%   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel + mur*DL12'*ones(size(DL12,1),1) );
-%   %dtheta = - ( D'*D ) \ ( D'*res );
-%   %dtheta = - ( Dd'*Dd ) \ ( Dd'*res );
-
-%   theta1 = theta1 + dtheta(1); theta1 = mod(theta1,2*pi);
-%   theta2 = theta2 + dtheta(2); theta2 = mod(theta2,2*pi);
-
-%   theta1rec(iter+1) = theta1;
-%   theta2rec(iter+1) = theta2;
+   x0 = x0 + dtheta(1);
+   x0rec(iter+1) = x0;
 end
 disp(['Iterative method terminated ', num2str(toc) ]);
 
@@ -946,8 +908,6 @@ for i=1:size(b2nodesnoN)
          fsolu1no(b2nodesnoNi) = .5*( fsolu1(2*boound(1)-1)*len1 + fsolu1(2*boound(2)-1)*len2 );
       end
    end
-   
-
 end
 
 %% Graph for u
@@ -957,9 +917,6 @@ end
 %plot(toplot(2:2:end),'Color','red');
 %plot(toplot2(2:2:end),'Color','blue');
 %legend('Uy identified', 'Uy reference');
-
-theta1pi = theta1rec/pi;
-theta2pi = theta2rec/pi;
 
 %% Recover the reference
 step = (xy2r-xy1r)/ndofcrack;

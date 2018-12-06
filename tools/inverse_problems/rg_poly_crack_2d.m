@@ -8,7 +8,7 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
 %         mat      : used material
 %         u        : Dirichlet data (x2)
 %         f        : Neumann data (x2) given at each boundary element (not a nodal force, but lineic force, constant per element)
-%         nbase    : nb of polynomial basis functions
+%         ordp     : nb of polynomial basis functions
 %         v        : should the algorithm talk ?
 %         varargin : if 1 : use Fourier instead of polynoms
 %                    1 or 2 : test-case for the constant
@@ -257,12 +257,12 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
     end
  end
 
- Cte1 = min( Rt/normT, -Rt/normT) - K;       % Select the negative one
+ Cte1 = min( Rt/normT, -Rt/normT ) - K;       % Select the negative one
  Cte2 = min( Rt2/normT2, -Rt2/normT2 ) - K;  %  /!\ The sign depends on the test case
 
  if cst == 1
     Cte = Cte1;
- elseif cst ==2
+ elseif cst == 2
     Cte = Cte2;
  else
    error('No of the test-case for the constant computation is not conform');
@@ -357,12 +357,11 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
     end
    
     %% Compute the RG
-    Rhse = zeros(ordp+1,1);
-    Rhs  = zeros(ordp+1,1);
+    Rhs1  = zeros(ordp+1,1); Rhs2  = zeros(ordp+1,1);
     vpa  = zeros(2*nnodes, 1);
 
     for k=0:ordp
-       Rhs(k+1) = 0;
+       Rhs1(k+1) = 0; Rhs2(k+1) = 0;
        for i=1:nboun % boundary1 and boundary 2 are supposed to be the same
           bonod = boundary(i,:); exno = extnorm(i,:)';
     
@@ -442,7 +441,8 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
              spa = Q*sloc*Q';
              fpa = spa*exno;
    
-             Rhs(k+1) = Rhs(k+1) + len * wg * ( fer1'*vpa - fpa'*uer1 );
+             Rhs1(k+1) = Rhs1(k+1) + len * wg * ( fer1'*vpa - fpa'*uer1 );
+             Rhs2(k+1) = Rhs2(k+1) + len * wg * ( fer2'*vpa - fpa'*uer2 );
           end
        end
       
@@ -457,13 +457,14 @@ function [normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm, boundary, o
     end
    
     % Invert the operator
-      
-    McCoef = Lhs\Rhs;
+    McCoef = Lhs\[Rhs1,Rhs2];
+
     nbase = size(McCoef,1);
    
-    ug = zeros(size(x,1),1);
+    ug = zeros(size(x,2),2);
     for i=1:nbase
-       ug = ug + McCoef(i)*( (x-offset)./L-.5).^(i-1);
+       ug(:,1) = ug(:,1) + McCoef(i,1)*( (x'-offset)./L-.5).^(i-1);
+       ug(:,2) = ug(:,2) + McCoef(i,2)*( (x'-offset)./L-.5).^(i-1);
     end
 
  else % Use Fourier

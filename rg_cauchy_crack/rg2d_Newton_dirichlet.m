@@ -26,7 +26,7 @@ ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
 nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
-ndofcrack   = 20;      % Nb of elements on the crack
+ndofcrack   = 50;      % Nb of elements on the crack
 teskase     = 4;       % Choice of the test case
 
 nbDirichlet = [];
@@ -42,11 +42,12 @@ dirichlet  = [3,1,0 ; 3,2,0];
 %neumann2   = [2,1,fscalar ; 4,1,-fscalar];
 %neumann3   = [1,2,-fscalar;2,1,fscalar;4,1,-fscalar];
 %neumann4   = [2,2,-fscalar ; 4,2,-fscalar];
+s22 = 2*sqrt(2);
 
 neumann1   = [1,2,-fscalar];
 neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-neumann3   = [1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
+neumann3   = [1,1,-fscalar/s22 ; 1,2,-fscalar/s22 ; 4,1,-fscalar/s22 ; 4,2,-fscalar/s22];
+neumann4   = [2,1,fscalar/s22 ; 2,2,-fscalar/s22 ; 1,1,fscalar/s22 ; 1,2,-fscalar/s22];
 
 %neumann1   = [3,2,fscalar ; 1,2,-fscalar];
 %neumann2   = [2,1,fscalar ; 4,1,-fscalar];
@@ -54,9 +55,7 @@ neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
 %              1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
 %neumann4   = [3,1,-fscalar ; 3,2,fscalar ; 2,1,fscalar ; 2,2,-fscalar ; ...
 %              1,1,fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,fscalar];
-
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];              
+             
 dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
@@ -68,12 +67,10 @@ neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %neumann0   = [ 1,1,0 ; 1,2,0 ; 4,1,0 ; 4,2,0];
 
-%dirichlet0 = [ 1,1,0 ; 1,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 %dirichlet0 = [ 1,1,0 ; 1,2,0 ];
-%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 3,1,0 ; 3,2,0 ; 4,1,0 ; 4,2,0];
+%neumann0   = [ 1,1,0 ; 1,2,0 ; 2,1,0 ; 2,2,0 ; 4,1,0 ; 4,2,0];
 
 % First, import the mesh
 if teskase == 3
@@ -493,16 +490,16 @@ for i=1:nboun2
 
    if exno(1) == 1 % Bound 2
       fer1 = [0;0]; fer2 = [fscalar;0];
-      fer3 = [0;0]; fer4 = [fscalar;-fscalar];
+      fer3 = [0;0]; fer4 = [fscalar/s22;-fscalar/s22];
    elseif exno(1) == -1 % Bound 4
       fer1 = [0;0]; fer2 = -[fscalar;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [0;0];
+      fer3 = [-fscalar/s22;-fscalar/s22]; fer4 = [0;0];
    elseif exno(2) == 1 % Bound 3
       fer1 = [0;0]; fer2 = [0;0];
       fer3 = [0;0]; fer4 = [0;0];
    elseif exno(2) == -1 % Bound 1
       fer1 = -[0;fscalar]; fer2 = [0;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+      fer3 = [-fscalar/s22;-fscalar/s22]; fer4 = [fscalar/s22;-fscalar/s22];
    end
 
 %   if exno(1) == 1 % Bound 2
@@ -1158,7 +1155,7 @@ legend('theta1/pi', 'theta2/pi','theta1ref/pi', 'theta2ref/pi', 'best iterate');
 end
 
 %% Recover the reference
-step = (xy2r-xy1r)/30;
+step = (xy2r-xy1r)/ndofcrack;
 n = [-step(2);step(1)]; n = n/norm(n); % Normal
 nodes3r = [ xy1r(1):step(1):xy2r(1) ; xy1r(2):step(2):xy2r(2) ];
 nodes3r = nodes3r'; nnodes3r = size(nodes3r,1);
@@ -1258,7 +1255,7 @@ toplot3  = ucrsol3(1:2:end-1)*n(1) + ucrsol3(2:2:end)*n(2);
 toplot4  = ucrsol4(1:2:end-1)*n(1) + ucrsol4(2:2:end)*n(2);
 %toplot4  = ucrsol4(1:2:end-1)*n(2) - ucrsol4(2:2:end)*n(1);
 %toplot4  = ucrsol4(1:2:end-1);
-toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2);
+toplotr1 = urg(1:2:end-1,1)*n(1) + urg(2:2:end,1)*n(2); % /!\ IT MAKES THE RFERENCE ARTIFICIALLY DEPEND ON THE NORMAL
 toplotr2 = urg(1:2:end-1,2)*n(1) + urg(2:2:end,2)*n(2);
 toplotr3 = urg(1:2:end-1,3)*n(1) + urg(2:2:end,3)*n(2);
 toplotr4 = urg(1:2:end-1,4)*n(1) + urg(2:2:end,4)*n(2);

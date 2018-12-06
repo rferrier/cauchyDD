@@ -12,8 +12,9 @@ E           = 17000; % MPa : Young modulus
 nu          = 0.2;    % Poisson ratio
 fscalar     = 1;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
-mur         = 1e1;%2e3;    % Regularization parameter
+mur         = 1e9;%2e3;    % Regularization parameter
 regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : derivative)
+derivative  = 1;    % Use H1 or H1/2 regularization
 froreg      = 1;      % Frobenius preconditioner
 %theta1      = pi/2;
 %theta2      = 3*pi/2;   % angles of the crack
@@ -22,17 +23,17 @@ kauto       = 10;     % Coefficient for the auto-adaptation
 nbstep      = 1;     % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 %ordertest   = 20;     % Order of test fonctions (by default 20)
-nuzawa      = 1;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means)
+nuzawa      = 1;     % (nuzawa = 1 means no Uzawa (and nuzawa = 0 means error)
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 ndofcrack   = 50;      % Nb of elements on the crack
 ratio       = 0.062;   % mm/pix ratio
 order       = 1;       % Order of the mesh
 th          = 72.5;   % Thickness (unused as it is only for the loadings)
 t0          = 0;%263;     % Time for the computation (263 is good) 0 means all
-frf         = 1; % Give dof to the forces (modified RG)
-fru         = 1; % Give dof to the displacement (modified RG)
+frf         = 0; % Give dof to the forces (modified RG)
+fru         = 0; % Give dof to the displacement (modified RG)
 gamma       = 1; % Weight of the data (modified RG)
-regularized = 0; % Use the regularized data
+regularized = 1; % Use the regularized data
 keep_disgus = 1; % Keep the disgusting values near of the crack (for not regularized only)
 
 % Manually disable some nodes for Dirichlet
@@ -685,12 +686,14 @@ Mum = nodeMass(tofindD,tofindD); Mur = nodeMass(knownD,knownD);
 % If needed, use the differential regularization matrix
 if regular == 1
    Du = zeros(2*nnbound2);
-   Df = eye(2*nboun2); % No derivative for f
+   Df = zeros(2*nboun2); % No derivative for f
    for i=1:nboun2
       coefU = [ boun2dofloc(i,1) , boun2dofloc(i,2) ];
       len = norm(nodes(boundary(i,2),:) - nodes(boundary(i,3),:));
       Du( 2*coefU-1, 2*coefU-1 ) = Du( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
       Du( 2*coefU, 2*coefU )     = Du( 2*coefU, 2*coefU ) + 1/len*[1,-1;-1,1];
+      Df( 2*i-1, 2*i-1 ) = Df( 2*i-1, 2*i-1 ) + len^2;
+      Df( 2*i, 2*i )     = Df( 2*i, 2*i ) + len^2;
    end
    %Du = eye(2*nnbound2);
    Duu  = Du(tofindD,tofindD); Dfu  = Df(tofindN,tofindN);
@@ -877,20 +880,45 @@ for iter = 1:nbstep % Newton loop
       % Differential regularization matrix
       %D3 = eye(2*nboun3+2);
       D3 = zeros(2*nboun3+2);
-      for i=1:nboun3
-         coefU = [ i , i+1 ];
-         len = norm(nodes3(i,:) - nodes3(i+1,:));
-         D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
-         D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len*[1,-1;-1,1];
+            if derivative == 1
+         for i=1:nboun3
+            coefU = [ i , i+1 ];
+            len = norm(nodes3(i,:) - nodes3(i+1,:));
+            D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len*[1,-1;-1,1];
+            D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len*[1,-1;-1,1];
+         end
+      else % derivative == 1/2
+         for i=1:nboun3
+            %coefU = [ i , i+1 ];
+            xg  = .5 * (nodes3(i,:) + nodes3(i+1,:));
+            le1 = norm(nodes3(i,:) - nodes3(i+1,:));
+            for j=1:nboun3
+               if i==j, continue; end
+               %coefV = [ j , j+1 ];
+               yg = .5 * (nodes3(j,:) + nodes3(j+1,:));
+               le2 = norm(nodes3(j,:) - nodes3(j+1,:));
+               len = norm(xg-yg);
+               D3( 2*[i,j]-1, 2*[i,j]-1 ) = D3( 2*[i,j]-1, 2*[i,j]-1 ) + le1*le2/len^2*[1,-1;-1,1];
+               D3( 2*[i,j], 2*[i,j] )     = D3( 2*[i,j], 2*[i,j] )     + le1*le2/len^2*[1,-1;-1,1];
+
+               D3( 2*[i+1,j+1]-1, 2*[i+1,j+1]-1 ) = ...
+                 D3( 2*[i+1,j+1]-1, 2*[i+1,j+1]-1 ) + le1*le2/len^2*[1,-1;-1,1];
+               D3( 2*[i+1,j+1], 2*[i+1,j+1] ) = ...
+                     D3( 2*[i+1,j+1], 2*[i+1,j+1] ) + le1*le2/len^2*[1,-1;-1,1];
+
+               if i+1 != j
+                  D3( 2*[i+1,j]-1, 2*[i+1,j]-1 ) = D3( 2*[i+1,j]-1, 2*[i+1,j]-1 ) + le1*le2/len^2*[1,-1;-1,1];
+                  D3( 2*[i+1,j], 2*[i+1,j] )     = D3( 2*[i+1,j], 2*[i+1,j] )     + le1*le2/len^2*[1,-1;-1,1];
+               end
+               if j+1 != i
+                  D3( 2*[i,j+1]-1, 2*[i,j+1]-1 ) = D3( 2*[i,j+1]-1, 2*[i,j+1]-1 ) + le1*le2/len^2*[1,-1;-1,1];
+                  D3( 2*[i,j+1], 2*[i,j+1] )     = D3( 2*[i,j+1], 2*[i,j+1] )     + le1*le2/len^2*[1,-1;-1,1];
+               end
+            end
+         end
+         D3 = .25*(D3+D3');
       end
-%      for i=1:nboun3-1
-%         coefU = [ i , i+1 ,i+2 ];
-%         len1 = norm(nodes3(i,:) - nodes3(i+1,:));
-%         len2 = norm(nodes3(i+1,:) - nodes3(i+2,:));
-%         D3( 2*coefU-1, 2*coefU-1 ) = D3( 2*coefU-1, 2*coefU-1 ) + 1/len1*[1,-2,1;-2,4,-2;1,-2,1];
-%         D3( 2*coefU, 2*coefU )     = D3( 2*coefU, 2*coefU )     + 1/len1*[1,-2,1;-2,4,-2;1,-2,1];
-%      end
-%      D3 = 500*D3;
+      D3 = norm(Dfu,'fro')/norm(D3,'fro')*D3;
       Dsmall = [ 0*Mum, Z12, Z13  ; Z12', 0*Mfm, Z23 ; Z13', Z23', D3 ];
 
       if regular == 1

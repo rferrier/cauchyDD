@@ -11,7 +11,11 @@ fscalar     = 250;    % N.mm-1 : Loading on the plate
 mat         = [0, E, nu];
 br          = .0;      % Noise level
 
+%[ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_c_squared2.msh' );
 [ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_c_squared3_noref.msh' );
+%[ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_c_rect2.msh' );
+%x = nodesg(:,1); y = nodesg(:,2);
+%nodesg(:,1) = y; nodesg(:,2) = x; % Rotate (only in the rectangular case, for laziness reasons)
 %[ nodesg, elementsg, ntoelemg, boundaryg, order, physical ] = readmesh( 'meshes/rg_sp_squared/plate_nc.msh' );
 nnodesg = size(nodesg,1);
 
@@ -37,12 +41,12 @@ Xmax = max(nodesg(:,1)); Xmin = min(nodesg(:,1)); Xmoy = (Xmax+Xmin)/2;
 Ymax = max(nodesg(:,2)); Ymin = min(nodesg(:,2)); Ymoy = (Ymax+Ymin)/2;
 Lx = Xmax-Xmin; Ly = Ymax-Ymin;
 
-f1  = loading(nbloq,nodesg,boundaryg,neumann1);
-f2  = loading(nbloq,nodesg,boundaryg,neumann2);
-f3  = loading(nbloq,nodesg,boundaryg,neumann3);
-f4  = loading(nbloq,nodesg,boundaryg,neumann4);
+f10  = loading(nbloq,nodesg,boundaryg,neumann1);
+f20  = loading(nbloq,nodesg,boundaryg,neumann2);
+f30  = loading(nbloq,nodesg,boundaryg,neumann3);
+f40  = loading(nbloq,nodesg,boundaryg,neumann4);
 
-uin = K\[f1,f2,f3,f4];
+uin = K\[f10,f20,f30,f40];
 u1 = uin(1:2*nnodesg,1); u2 = uin(1:2*nnodesg,2);
 u3 = uin(1:2*nnodesg,3); u4 = uin(1:2*nnodesg,4);
 f1 = Kinter*u1; f2 = Kinter*u2; f3 = Kinter*u3; f4 = Kinter*u4;
@@ -176,10 +180,10 @@ dirichletdummy = [ 7,1,0;7,2,0 ; 9,1,0;9,2,0 ];
 [~,Ck,~,~,~] = Krig2 (nodes,elements,mat,order,boundaryp1,dirichletdummy);
 
 % Dirichlet and Neumann Rhs
-%fD = [ zeros(2*nnodes,4) ; C1d'*C1d*C1d'*[u1u,u2u,u3u,u4u] ]; % Dirichlet rhs on the redondant boundary (for K1d)
-%fN = [ Ck*Ck'*[f1u,f2u,f3u,f4u] ; C2d'*C2d*C2d'*[u1u,u2u,u3u,u4u] ]; % Neumann rhs on the redondant boundary
-fD = [ zeros(2*nnodes,2) ; C1d'*C1d*C1d'*[u1u,u3u] ];
-fN = [ Ck*Ck'*[f1u,f3u] ; C2d'*C2d*C2d'*[u1u,u3u] ];
+fD = [ zeros(2*nnodes,4) ; C1d'*C1d*C1d'*[u1u,u2u,u3u,u4u] ]; % Dirichlet rhs on the redondant boundary (for K1d)
+fN = [ Ck*(Ck'*[f1u,f2u,f3u,f4u]) ; C2d'*(C2d*(C2d'*[u1u,u2u,u3u,u4u])) ]; % Neumann rhs on the redondant boundary
+%fD = [ zeros(2*nnodes,2) ; C1d'*(C1d*(C1d'*[u1u,u3u])) ];
+%fN = [ Ck*Ck'*[f1u,f3u] ; C2d'*(C2d*(C2d'*[u1u,u3u])) ];
 %fD = [ zeros(2*nnodes,2) ; C1d'*C1d*C1d'*[u1u,u2u] ];
 %fN = [ Ck*Ck'*[f1u,f2u] ; C2d'*C2d*C2d'*[u1u,u2u] ];
 %fD = [ zeros(2*nnodes,1) ; C1d'*C1d*C1d'*u4u ];
@@ -188,12 +192,13 @@ fN = [ Ck*Ck'*[f1u,f3u] ; C2d'*C2d*C2d'*[u1u,u3u] ];
 clear Ck; clear C2d; clear C1d;
 % Call the SPD function
 tic
-[uc,ind] = spd_mrhs(2*nnodes, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 20, 0, 0, Cu*Cu'*[f1u,f3u]);%,f4u]);
+%[uc,ind] = spd_mrhs(2*nnodes, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 20, 0, 0, Cu*(Cu'*[f1u,f3u]));%,f4u]);
+[uc,ind] = spd_mrhs(2*nnodes, nbloq1d, nbloq2d, K1d, K2d, fD, fN, Cu, 10, 0, 0, Cu*(Cu'*[f1u,f2u,f3u,f4u]));%,f4u]);
 fc = Kinter*uc;
 toc
 
-fc1 = fc(:,1); fc3 = fc(:,2);
-uc1 = uc(:,1); uc3 = uc(:,2);
+fc1 = fc(:,1); fc2 = fc(:,2); fc3 = fc(:,3); fc4 = fc(:,4);
+uc1 = uc(:,1); uc2 = uc(:,2); uc3 = uc(:,3); uc4 = uc(:,4);
 
 clear K1d; clear K2d;
 
@@ -215,6 +220,13 @@ error1f = norm(f1ref-f1id,'fro')/norm(f1ref,'fro');
 f1ref8 = f1u([2*b2node8-1, 2*b2node8]); f1id8 = fc1([2*b2node8-1, 2*b2node8]);
 error1f8 = norm(f1ref8-f1id8,'fro')/norm(f1ref8,'fro');
 
+b8 = find(boundary(:,1)==8);
+b3 = find(boundary(:,1)==3);
+f1u8 = elem_forces(f1u,nodes,boundary,8,1); % TODO : should remove the others parts of f1u before
+fc18 = elem_forces(fc1,nodes,boundary,8,1);
+f1u3 = elem_forces(f1u,nodes,boundary,3,1);
+fc13 = elem_forces(fc1,nodes,boundary,3,1);
+
 try
 figure;
 hold on;
@@ -224,20 +236,34 @@ legend('U : reference','U : solution');
 end
 
 try
-figure;
-hold on;
-plot(f1ref(:,2),'Color', 'red');
-plot(f1id(:,2),'Color', 'blue');
+figure; hold on;
+plot(f1u3(2*b3,:),'Color','red');
+plot(fc13(2*b3,:),'Color','blue');
 legend('F : reference','F : solution');
 end
 
 try
-figure;
-hold on;
-plot(f1ref8(:,2),'Color', 'red');
-plot(f1id8(:,2),'Color', 'blue');
+figure; hold on;
+plot(f1u8(2*b8,:),'Color','red');
+plot(fc18(2*b8,:),'Color','blue');
 legend('F : reference on the top','F : solution on the top');
 end
+
+%try
+%figure;
+%hold on;
+%plot(f1ref(:,2),'Color', 'red');
+%plot(f1id(:,2),'Color', 'blue');
+%legend('F : reference','F : solution');
+%end
+
+%try
+%figure;
+%hold on;
+%plot(f1ref8(:,2),'Color', 'red');
+%plot(f1id8(:,2),'Color', 'blue');
+%legend('F : reference on the top','F : solution on the top');
+%end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Identify the crack on the large domain
@@ -252,9 +278,11 @@ boundary = boundaryg;
 zenodes = nodesu_glo(b2node8); %nodes at which the f should be replaced
 toreplace = [2*zenodes-1, 2*zenodes]; % Dofs in the upper numerotation
 
-f1N = f1; f3N = f3;
+f1N = f1; f2N = f2; f3N = f3; f4N = f4;
 f1N(toreplace) = fc1([2*b2node8-1, 2*b2node8]);
+f2N(toreplace) = fc2([2*b2node8-1, 2*b2node8]);
 f3N(toreplace) = fc3([2*b2node8-1, 2*b2node8]);
+f4N(toreplace) = fc4([2*b2node8-1, 2*b2node8]);
 
 %plotGMSH({f1-f1N,'F1';f3-f3N,'F3'}, elementsg, nodesg, 'output/fields'); % Debug plot
 
@@ -266,8 +294,13 @@ boundary(find(boundary(:,1)==6),:) = [];
 nboun1 = size(boundary,1); nelem1 = size(elements,1);
 extnorm1 = zeros( nboun1, 2 );
 frr = zeros(2*nboun1,2);
+
+fD = zeros(2*nnodes,4); fD(toreplace,:) = fc([2*b2node8-1, 2*b2node8],:);
+fDelem = elem_forces(fD,nodes,boundary,8,1); % Get the reactions per bound elem on the bound 8
+
 for i=1:nboun1
    % Volumic element
+   name = boundary(i,1);
    no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
    cand1 = rem( find(elements==no1),nelem1 ); % find gives line + column*size
    cand2 = rem( find(elements==no2),nelem1 );
@@ -284,21 +317,48 @@ for i=1:nboun1
       extnorm1(i,:) = -extnorm1(i,:);
    end
    
-   % Value of F
-   len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
-   frr([2*i-1,2*i],1) = 1/(2*len)*(f1N([2*no1-1,2*no1]) + f1N([2*no2-1,2*no2])); % Pass f on the element
-   frr([2*i-1,2*i],2) = 1/(2*len)*(f3N([2*no1-1,2*no1]) + f3N([2*no2-1,2*no2]));
+   % Reconstruct the loading
+   loads1 = find(name == neumann1(:,1)); loads2 = find(name == neumann2(:,1));
+   loads3 = find(name == neumann3(:,1)); loads4 = find(name == neumann4(:,1));
+   if min(size(loads1)) > 0
+      for j=1:max(size(loads1))
+         xy = neumann1(loads1(j),2); ij = 2*i-2+xy; % To choose x or y
+         frr(ij,1) = neumann1(loads1(j),3);
+      end
+   end
+   if min(size(loads2)) > 0
+      for j=1:max(size(loads2))
+         xy = neumann2(loads2(j),2); ij = 2*i-2+xy; 
+         frr(ij,2) = neumann2(loads2(j),3);
+      end
+   end
+   if min(size(loads3)) > 0
+      for j=1:max(size(loads3))
+         xy = neumann3(loads3(j),2); ij = 2*i-2+xy; 
+         frr(ij,3) = neumann3(loads3(j),3);
+      end
+   end
+   if min(size(loads4)) > 0
+      for j=1:max(size(loads4))
+         xy = neumann4(loads4(j),2); ij = 2*i-2+xy; 
+         frr(ij,4) = neumann4(loads4(j),3);
+      end
+   end
+
+   % And the Dirichlet side
+   if name==8
+      frr([2*i-1,2*i],:) = fDelem([2*i-1,2*i],:);
+   end
 end
 
 % Call the function
 tic
-[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1,u3], frr, 3, 1, 0, 2 );
+[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1,u3], frr(:,[1,3]), 3, 1, 0, 2 );
 toc
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
-
 %%%%
 
-%% Compute the computed position of the crack
+%% Get the computed position of the crack
 Vp1 = [2;-Cte1]; Vp2 = [-2;-Cte1];
 Vm1 = [2;-Cte2]; Vm2 = [-2;-Cte2];
 vp1 = Q*Vp1; vm1 = Q*Vm1; vp2 = Q*Vp2; vm2 = Q*Vm2;
@@ -424,7 +484,9 @@ try
 figure
 hold on;
 plot(curvr,rn1,'Color','red');
-plot(x-x(1),ug*sign(normal'*n),'Color','blue');
+plot(x-x(1),ug(:,1)*sign(normal'*n),'Color','red');
+plot(curvr,rn3,'Color','blue');
+plot(x-x(1),ug(:,2)*sign(normal'*n),'Color','blue');
 legend('Reference','Solution');
 end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -449,24 +511,33 @@ dofd_loc = [(1:2:2*nnodes-1)',(2:2:2*nnodes)'];
 zenodes = nodesu_glo(b2node3); %nodes at which the f should be replaced
 toreplace = [2*zenodes-1, 2*zenodes]; % Dofs in the upper numerotation
 
-f1N = f1; f3N = f3; u1D = u1; u3D = u3;
-f1N(toreplace) = fc1([2*b2node3-1, 2*b2node3]);
-f3N(toreplace) = fc3([2*b2node3-1, 2*b2node3]);
+f1N = f1; f2N = f2; f3N = f3; f4N = f4;
+u1D = u1; u2D = u2; u3D = u3; u4D = u4;
+f1N(toreplace) = -fc1([2*b2node3-1, 2*b2node3]);
+f2N(toreplace) = -fc2([2*b2node3-1, 2*b2node3]);
+f3N(toreplace) = -fc3([2*b2node3-1, 2*b2node3]);
+f4N(toreplace) = -fc4([2*b2node3-1, 2*b2node3]); % The - is because f(1->2) = -f(2->1)
+
 u1D(toreplace) = uc1([2*b2node3-1, 2*b2node3]);
+u2D(toreplace) = uc2([2*b2node3-1, 2*b2node3]);
 u3N(toreplace) = uc3([2*b2node3-1, 2*b2node3]);
+u4D(toreplace) = uc4([2*b2node3-1, 2*b2node3]);
 
 % Reference fields
-u1r = zeros(2*nnodes,1); u3r = zeros(2*nnodes,1);
-f1r = zeros(2*nnodes,1); f3r = zeros(2*nnodes,1);
-u1r(dofd_loc) = u1(dofd_glo); u3r(dofd_loc) = u3(dofd_glo);
+u1r = zeros(2*nnodes,1); u2r = zeros(2*nnodes,1); u3r = zeros(2*nnodes,1); u4r = zeros(2*nnodes,1);
+f1r = zeros(2*nnodes,1); f2r = zeros(2*nnodes,1); f3r = zeros(2*nnodes,1); f4r = zeros(2*nnodes,1);
+u1r(dofd_loc) = u1(dofd_glo); u2r(dofd_loc) = u2(dofd_glo);
+u3r(dofd_loc) = u3(dofd_glo); u4r(dofd_loc) = u4(dofd_glo);
 [Kinter,~,~,~,~] = Krig2 (nodes,elements,mat,order,boundary,[]);
-f1r = Kinter*u1r; f3r = Kinter*u3r;
+f1r = Kinter*u1r; f2r = Kinter*u2r; f3r = Kinter*u3r; f4r = Kinter*u4r;
 
 % Recover the fields
-u1d = zeros(2*nnodes,1); u3d = zeros(2*nnodes,1);
-f1d = zeros(2*nnodes,1); f3d = zeros(2*nnodes,1);
-u1d(dofd_loc) = u1D(dofd_glo); u3d(dofd_loc) = u3D(dofd_glo);
-f1d(dofd_loc) = -f1N(dofd_glo); f3d(dofd_loc) = -f3N(dofd_glo); % The - is because f(1->2) = -f(2->1)
+u1d = zeros(2*nnodes,1); u2d = zeros(2*nnodes,1); u3d = zeros(2*nnodes,1); u4d = zeros(2*nnodes,1);
+f1d = zeros(2*nnodes,1); f2d = zeros(2*nnodes,1); f3d = zeros(2*nnodes,1); f4d = zeros(2*nnodes,1);
+u1d(dofd_loc) = u1D(dofd_glo); u2d(dofd_loc) = u2D(dofd_glo);
+u3d(dofd_loc) = u3D(dofd_glo); u4d(dofd_loc) = u4D(dofd_glo);
+f1d(dofd_loc) = f1N(dofd_glo); f2d(dofd_loc) = f2N(dofd_glo);
+f3d(dofd_loc) = f3N(dofd_glo); f4d(dofd_loc) = f4N(dofd_glo);
 
 %% Debug : replace by the reference fields
 %u1d = u1r; u3d = u3r; f1d = f1r; f3d = f3r;
@@ -479,11 +550,17 @@ f1d(dofd_loc) = -f1N(dofd_glo); f3d(dofd_loc) = -f3N(dofd_glo); % The - is becau
 boundary(find(boundary(:,1)==5),:) = []; % Remove the crack's bounds
 boundary(find(boundary(:,1)==6),:) = [];
 
+fDi = zeros(2*nnodesg,4); fDi(toreplace,:) = -fc([2*b2node3-1, 2*b2node3],:);
+fD = zeros(2*nnodes,4); fD(dofd_loc,:) = fDi(dofd_glo,:);
+
+fDelem = elem_forces(fD,nodes,boundary,3,1); % Get the reactions per bound elem on the bound 3
+
 nboun1 = size(boundary,1); nelem1 = size(elements,1);
 extnorm1 = zeros( nboun1, 2 );
 frr = zeros(2*nboun1,2);
 for i=1:nboun1
    % Volumic element
+   name = boundary(i,1);
    no1 = boundary(i,2); no2 = boundary(i,3); % only with 2 nodes even if order > 1
    cand1 = rem( find(elements==no1),nelem1 ); % find gives line + column*size
    cand2 = rem( find(elements==no2),nelem1 );
@@ -500,15 +577,43 @@ for i=1:nboun1
       extnorm1(i,:) = -extnorm1(i,:);
    end
    
-   % Value of F
-   len = sqrt( (x1-x2)^2 + (y1-y2)^2 );
-   frr([2*i-1,2*i],1) = 1/(2*len)*(f1d([2*no1-1,2*no1]) + f1d([2*no2-1,2*no2])); % Pass f on the element
-   frr([2*i-1,2*i],2) = 1/(2*len)*(f3d([2*no1-1,2*no1]) + f3d([2*no2-1,2*no2]));
+   % Reconstruct the loading
+   loads1 = find(name == neumann1(:,1)); loads2 = find(name == neumann2(:,1));
+   loads3 = find(name == neumann3(:,1)); loads4 = find(name == neumann4(:,1));
+   if min(size(loads1)) > 0
+      for j=1:max(size(loads1))
+         xy = neumann1(loads1(j),2); ij = 2*i-2+xy; % To choose x or y
+         frr(ij,1) = neumann1(loads1(j),3);
+      end
+   end
+   if min(size(loads2)) > 0
+      for j=1:max(size(loads2))
+         xy = neumann2(loads2(j),2); ij = 2*i-2+xy; 
+         frr(ij,2) = neumann2(loads2(j),3);
+      end
+   end
+   if min(size(loads3)) > 0
+      for j=1:max(size(loads3))
+         xy = neumann3(loads3(j),2); ij = 2*i-2+xy; 
+         frr(ij,3) = neumann3(loads3(j),3);
+      end
+   end
+   if min(size(loads4)) > 0
+      for j=1:max(size(loads4))
+         xy = neumann4(loads4(j),2); ij = 2*i-2+xy; 
+         frr(ij,4) = neumann4(loads4(j),3);
+      end
+   end
+
+   % And the Dirichlet side
+   if name==3
+      frr([2*i-1,2*i],:) = fDelem([2*i-1,2*i],:);
+   end
 end
 
 % Call the function
 tic
-[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1d,u3d], frr, 1, 1, 0, 1 );
+[normal,Cte1,Cte2,ug,x] = rg_poly_crack_2d( nodes, extnorm1, boundary, 1, mat, [u1d,u3d], frr(:,[1,3]), 3, 1, 0, 2 );
 toc
 Q = [ normal(2), normal(1) ; - normal(1), normal(2) ];
 
@@ -582,12 +687,14 @@ plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
 plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
 plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-plot( [x1m,x2m], [y1m,y2m], 'Color', 'green', 'LineWidth', 3, ';load case 1;' );
-plot( [x1p,x2p], [y1p,y2p], 'Color', 'red', 'LineWidth', 3, ';load case 3;' );
+%plot( [x1m,x2m], [y1m,y2m], 'Color', 'green', 'LineWidth', 3, ';load case 1;' );
+%plot( [x1p,x2p], [y1p,y2p], 'Color', 'red', 'LineWidth', 3, ';load case 3;' );
 %plot( [x1mv,x2mv], [y1mv,y2mv], 'Color', 'green', 'LineWidth', 3, 'linestyle', '--', ';plot3;' );
-plot( [x1pv,x2pv], [y1pv,y2pv], 'Color', 'red', 'LineWidth', 3, 'linestyle', '--', ';load case 3, surface \Gamma;' );
-h = legend();
-legend(h);
+%plot( [x1pv,x2pv], [y1pv,y2pv], 'Color', 'red', 'LineWidth', 3, 'linestyle', '--', ';load case 3, surface \Gamma;' );
+plot( [x1mv,x2mv], [y1mv,y2mv], 'Color', 'green', 'LineWidth', 3);%, ';load case 3;' );
+plot( [x1pv,x2pv], [y1pv,y2pv], 'Color', 'red', 'LineWidth', 3);%, ';load case 1, surface \Gamma;' );
+%h = legend();
+%legend(h);
 axis equal;
 end
 
@@ -634,6 +741,8 @@ try
 figure
 hold on;
 plot(curvr,rn1,'Color','red');
-plot(x-x(1),ug*sign(normal'*n),'Color','blue');
+plot(x-x(1),ug(:,1)*sign(normal'*n),'Color','red');
+plot(curvr,rn3,'Color','blue');
+plot(x-x(1),ug(:,2)*sign(normal'*n),'Color','blue');
 legend('Reference','Solution');
 end

@@ -20,16 +20,19 @@ regular     = 1;      % Use the derivative regularization matrix (0 : Id, 1 : de
 froreg      = 1;      % Frobenius preconditioner
 theta1      = pi;     %3.7296;%pi;%pi/2; 3.8273
 theta2      = 0;      %0.58800;%0%3*pi/2;5.7608  % Initial angles of the crack
-anglestep   = 0;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
+anglestep   = pi/10;%pi/10;%pi/1000;  % Step in angle for Finite Differences anglestep = 0 means auto-adaptation
 kauto       = 20;     % Coefficient for the auto-adaptation
 nbstep      = 10;      % Nb of Newton Iterations
 Npg         = 2;      % Nb Gauss points
 ordertest   = 20;     % Order of test fonctions
 zerobound   = 1;      % Put the boundaries of the crack to 0
 nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
+nuzawad     = 1000;      % nb of Uzawa of the direct problem
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
-ndofcrack   = 20;      % Nb of elements on the crack
-teskase     = 4;       % Choice of the test case
+kuzawad     = 1e5;     % Idem for the direct problem
+ndofcrack   = 50;      % Nb of elements on the crack
+teskase     = 2;%4       % Choice of the test case
+mapall      = 0;       % Just an option to map many thetas
 
 nbDirichlet = [];
 
@@ -40,11 +43,12 @@ dirichlet  = [3,1,0 ; 3,2,0];
 %neumann2   = [2,1,fscalar ; 4,1,-fscalar];
 %neumann3   = [1,2,-fscalar;2,1,fscalar;4,1,-fscalar];
 %neumann4   = [1,1,fscalar];
+s22 = 2*sqrt(2);
 
 neumann1   = [1,2,-fscalar];
 neumann2   = [2,1,fscalar ; 4,1,-fscalar];
-neumann3   = [1,1,-fscalar ; 1,2,-fscalar ; 4,1,-fscalar ; 4,2,-fscalar];
-neumann4   = [2,1,fscalar ; 2,2,-fscalar ; 1,1,fscalar ; 1,2,-fscalar];
+neumann3   = [1,1,-fscalar/s22 ; 1,2,-fscalar/s22 ; 4,1,-fscalar/s22 ; 4,2,-fscalar/s22];
+neumann4   = [2,1,fscalar/s22 ; 2,2,-fscalar/s22 ; 1,1,fscalar/s22 ; 1,2,-fscalar/s22];
 
 %neumann1   = [3,2,fscalar ; 1,2,-fscalar];
 %neumann2   = [2,1,fscalar ; 4,1,-fscalar];
@@ -67,6 +71,8 @@ elseif teskase == 5
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared5.msh' );
 elseif teskase == 6
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared6.msh' );
+elseif teskase == 7
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared7.msh' );
 end
 nnodes = size(nodes,1);
 
@@ -91,7 +97,49 @@ f2  = loading(nbloq,nodes,boundary,neumann2);
 f3  = loading(nbloq,nodes,boundary,neumann3);
 f4  = loading(nbloq,nodes,boundary,neumann4);
 
-uin = K\[f1,f2,f3,f4];
+%uin = K\[f1,f2,f3,f4];
+
+%% Find the contact condition
+bou5 = boundary(find(boundary(:,1)==5),:); nbc = size(bou5,1);
+bou6 = boundary(find(boundary(:,1)==6),:);
+nod5 = bou5(:,[2,3]); nod5 = unique(nod5(:));
+nod6 = bou6(:,[2,3]); nod6 = unique(nod6(:));
+n5n6 = intersect(nod5,nod6); % Tips of the cracks, they have no condition
+nod5 = setdiff(nod5,n5n6); nod6 = setdiff(nod6,n5n6); nnc = max(size(nod5));
+
+C = sparse(nnc,2*nnodes+nbloq);
+for i=1:nnc
+   no = nod5(i); x = nodes(no,1); y = nodes(no,2);
+   x6 = nodes(nod6,1); y6 = nodes(nod6,2);
+   len = sqrt((x-x6).^2+(y-y6).^2);
+   [d,bff] = min(len); % Find the other node (his bff)
+   n = [x-x6(bff);y-y6(bff)]; n = n/norm(n);
+
+   C(i,2*no-1) = n(1)/2;
+   C(i,2*nod6(bff)-1) = -n(1)/2;
+   C(i,2*no) = n(2)/2;
+   C(i,2*nod6(bff)) = -n(2)/2;
+end
+
+f = zeros(nnc,4); Ctf = C'*f;
+respos = zeros(nuzawad,1); df = zeros(nuzawad,1);
+
+[Ll, Uu, Pp, Qq] = lu (K);  % Pp*MAT*Qq = Ll*Uu
+
+for i=1:nuzawad % Uzawa for the contact problem
+   uin = Qq * ( Uu \ ( Ll \ ( Pp * ( [f1,f2,f3,f4] + Ctf ) ) ) );
+
+   respos(i) = norm(C*uin - abs(C*uin),'fro');
+   fp = f;
+   f = f - kuzawad*C*uin;
+   f = .5*(f + abs(f)); Ctf = C'*f;
+   df(i) = norm(f-fp);
+end
+
+if respos(end)>respos(1) % Pb
+   warning('Direct problem: Uzawa algorithm failed. Try reducing kuzawad');
+end
+
 u1 = uin(1:2*nnodes,1); u2 = uin(1:2*nnodes,2);
 u3 = uin(1:2*nnodes,3); u4 = uin(1:2*nnodes,4);
 f1 = Kinter*u1; f2 = Kinter*u2; f3 = Kinter*u3; f4 = Kinter*u4;
@@ -456,16 +504,16 @@ for i=1:nboun2
 
    if exno(1) == 1 % Bound 2
       fer1 = [0;0]; fer2 = [fscalar;0];
-      fer3 = [0;0]; fer4 = [fscalar;-fscalar];
+      fer3 = [0;0]; fer4 = [fscalar/s22;-fscalar/s22];
    elseif exno(1) == -1 % Bound 4
       fer1 = [0;0]; fer2 = -[fscalar;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [0;0];
+      fer3 = [-fscalar/s22;-fscalar/s22]; fer4 = [0;0];
    elseif exno(2) == 1 % Bound 3
       fer1 = [0;0]; fer2 = [0;0];
       fer3 = [0;0]; fer4 = [0;0];
    elseif exno(2) == -1 % Bound 1
       fer1 = -[0;fscalar]; fer2 = [0;0];
-      fer3 = [-fscalar;-fscalar]; fer4 = [fscalar;-fscalar];
+      fer3 = [-fscalar/s22;-fscalar/s22]; fer4 = [fscalar/s22;-fscalar/s22];
    end
 
 %   if exno(1) == 1 % Bound 2
@@ -662,13 +710,21 @@ else
    anglestep2 = anglestep;
 end
 
+if mapall==1
+   %thth1 = 3.7296;
+   %thth2 = [ 0:pi/16:3*pi/4 , 5*pi/4:pi/16:2*pi ];
+   thth1 = [ 0:pi/20:2*pi-pi/20 ]; s1 = size(thth1,2);
+   thth2 = [ 0:pi/20:2*pi-pi/20 ]; s2 = size(thth2,2);
+   nbstep = s1*s2;
+   phi1234 = zeros(nbstep,4);
+end
+
 for iter = 1:nbstep % Newton loop
 
    pbmax = 2;
-%   if iter == nbstep
-%      pbmax == 0;
-%   end
-   if anglestep == 0 && iter > 1
+   if mapall == 1
+      pbmax = 0;
+   elseif anglestep == 0 && iter > 1
       anglestep1 = dtheta(1)/kauto; anglestep2 = dtheta(2)/kauto;
    end
 
@@ -676,10 +732,22 @@ for iter = 1:nbstep % Newton loop
 
       if pb == 0
          theta1c = theta1; theta2c = theta2;
+         if mapall == 1
+            n2 = floor((iter-1)/s1)+1;
+            n1 = iter-s1*(n2-1);
+            theta1c = thth1(n1); theta2c = thth2(n2);
+         end
       elseif pb == 1
          theta1c = theta1+anglestep1; theta2c = theta2;
       else
          theta1c = theta1; theta2c = theta2+anglestep2;
+      end
+
+      % For the mapall
+      if theta1c==theta2c
+         phi1234(iter,:) = [ Rhs1'*Rhs1, Rhs2'*Rhs2, Rhs3'*Rhs3, Rhs4'*Rhs4 ];
+         phi(iter) = Rhs1'*Rhs1 + Rhs2'*Rhs2 + Rhs3'*Rhs3 + Rhs4'*Rhs4;
+         continue;
       end
 
       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -740,7 +808,7 @@ for iter = 1:nbstep % Newton loop
       boundary3 = zeros(nnodes3-1,3);
       boundary3(:,2) = 1:nnodes3-1; boundary3(:,3) = 2:nnodes3;
       nboun3 = size(boundary3,1);
-   
+
       extnorm3 = zeros(nboun3,2);
       for i=1:nboun3
          x1 = nodes3( boundary3(i,2) , 1 ); y1 = nodes3( boundary3(i,2) , 2 );
@@ -950,6 +1018,10 @@ for iter = 1:nbstep % Newton loop
          nor3 = Solu3'*Lhs'*Lhs*Solu3 - 2*Solu3'*Lhs'*Rhs3 + Rhs3'*Rhs3 + mur*Solu3'*L*Solu3;% + 2*mur*Solu3'*L123 + mur*L23;
          nor4 = Solu4'*Lhs'*Lhs*Solu4 - 2*Solu4'*Lhs'*Rhs4 + Rhs4'*Rhs4 + mur*Solu4'*L*Solu4;% + 2*mur*Solu4'*L124 + mur*L24;
          phi( iter )  = nor1 + nor2 + nor3 + nor4;
+         if mapall==1
+            phi1234(iter,1) = nor1; phi1234(iter,2) = nor2;
+            phi1234(iter,3) = nor3; phi1234(iter,4) = nor4;
+         end
 
          res1 = Lhs*Solu1 - Rhs1; % Residuals
          res2 = Lhs*Solu2 - Rhs2; %
@@ -985,14 +1057,16 @@ for iter = 1:nbstep % Newton loop
 %         DL2   = ((sL -sL0) * [Solu10,Solu20,Solu30,Solu40] )/anglestep2; DL2 = DL2(:);
       end
    end
-   D = [D1,D2]; DL = [DL1,DL2];
-   dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel );
+   if mapall == 0
+      D = [D1,D2]; DL = [DL1,DL2];
+      dtheta = - ( D'*D + mur*DL'*DL ) \ ( D'*res + mur*DL'*rel );
 
-   theta1 = theta1 + dtheta(1); theta1 = mod(theta1,2*pi);
-   theta2 = theta2 + dtheta(2); theta2 = mod(theta2,2*pi);
+      theta1 = theta1 + dtheta(1); theta1 = mod(theta1,2*pi);
+      theta2 = theta2 + dtheta(2); theta2 = mod(theta2,2*pi);
 
-   theta1rec(iter+1) = theta1;
-   theta2rec(iter+1) = theta2;
+      theta1rec(iter+1) = theta1;
+      theta2rec(iter+1) = theta2;
+   end
 end
 disp(['Iterative method terminated ', num2str(toc) ]);
 
@@ -1084,7 +1158,7 @@ legend('theta1/pi', 'theta2/pi','theta1ref/pi', 'theta2ref/pi', 'best iterate');
 end
 
 %% Recover the reference
-step = (xy2r-xy1r)/30;
+step = (xy2r-xy1r)/ndofcrack;
 n = [-step(2);step(1)]; n = n/norm(n); % Normal
 nodes3r = [ xy1r(1):step(1):xy2r(1) ; xy1r(2):step(2):xy2r(2) ];
 nodes3r = nodes3r'; nnodes3r = size(nodes3r,1);
@@ -1113,7 +1187,7 @@ plot( [xmax,xmax], [ymin,ymax], 'Color', 'black');
 plot( [xmax,xmin], [ymax,ymax], 'Color', 'black');
 plot( [xmin,xmin], [ymax,ymin], 'Color', 'black');
 plot( [x1r,x2r], [y1r,y2r], 'Color', 'black', 'LineWidth', 3 );
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
+plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',7);
 plot( [x1,x2], [y1,y2], 'Color', 'red', 'LineWidth', 3 );
 axis equal;
 end
@@ -1192,6 +1266,61 @@ try
 figure;
 plot(log10(phi));
 legend('cost function');
+end
+
+%if mapall==1
+%   iip = log10(min(min(phi1234)));
+%   mmp = log10(max(max(phi1234)));
+%   try
+%   figure; hold on;
+%   plot(thth2,log10(phi1234(:,1)),'Color','red');
+%   plot(thth2,log10(phi1234(:,2)),'Color','black');
+%   plot(thth2,log10(phi1234(:,3)),'Color','blue');
+%   plot(thth2,log10(phi1234(:,4)),'Color','green');
+%   plot([0.58800,0.58800],[iip,mmp],'Color','black','linestyle','--');
+%   %plot([3*pi/4,3*pi/4],[iip,mmp],'Color','red','linestyle','--');
+%   plot([5*pi/4,5*pi/4],[iip,mmp],'Color','red','linestyle','--');
+%   legend('P1','P2','P3','P4');
+%   %end
+%end
+
+if mapall==1
+   mm = max(max(phi1234));
+   [x,y] = find(phi1234==0); phi1234(x,y) = mm; % De-zeroify
+   phi1 = phi1234(:,1); phi1 = reshape(phi1,[s1,s2]);
+   phi2 = phi1234(:,2); phi2 = reshape(phi2,[s1,s2]);
+   phi3 = phi1234(:,3); phi3 = reshape(phi3,[s1,s2]);
+   phi4 = phi1234(:,4); phi4 = reshape(phi4,[s1,s2]);
+   try
+   figure; hold on; surf(thth1,thth2,log10(phi1)); %shading interp; 
+   plot3(theta1ref,theta2ref,log10(mm),'Color','red','o','markersize',20,'linewidth',5); colorbar();
+   set(gca,'XTick',0:pi/2:2*pi); set(gca,'XTickLabel',{'0','π/2','π','3π/2','2π'}); xlabel('\theta_1');
+   set(gca,'YTick',0:pi/2:2*pi); set(gca,'YTickLabel',{'0','π/2','π','3π/2','2π'}); ylabel('\theta_2');
+   end
+   try
+   figure; hold on; surf(thth1,thth2,log10(phi2)); %shading interp; 
+   plot3(theta1ref,theta2ref,log10(mm),'Color','red','o','markersize',20,'linewidth',5); colorbar();
+   set(gca,'XTick',0:pi/2:2*pi); set(gca,'XTickLabel',{'0','π/2','π','3π/2','2π'}); xlabel('\theta_1');
+   set(gca,'YTick',0:pi/2:2*pi); set(gca,'YTickLabel',{'0','π/2','π','3π/2','2π'}); ylabel('\theta_2');
+   end
+   try
+   figure; hold on; surf(thth1,thth2,log10(phi3)); %shading interp; 
+   plot3(theta1ref,theta2ref,log10(mm),'Color','red','o','markersize',20,'linewidth',5); colorbar();
+   set(gca,'XTick',0:pi/2:2*pi); set(gca,'XTickLabel',{'0','π/2','π','3π/2','2π'}); xlabel('\theta_1');
+   set(gca,'YTick',0:pi/2:2*pi); set(gca,'YTickLabel',{'0','π/2','π','3π/2','2π'}); ylabel('\theta_2');
+   end
+   try
+   figure; hold on; surf(thth1,thth2,log10(phi4)); %shading interp; 
+   plot3(theta1ref,theta2ref,log10(mm),'Color','red','o','markersize',20,'linewidth',5); colorbar();
+   set(gca,'XTick',0:pi/2:2*pi); set(gca,'XTickLabel',{'0','π/2','π','3π/2','2π'}); xlabel('\theta_1');
+   set(gca,'YTick',0:pi/2:2*pi); set(gca,'YTickLabel',{'0','π/2','π','3π/2','2π'}); ylabel('\theta_2');
+   end
+   try
+   figure; hold on; surf(thth1,thth2,log10(phi1+phi2+phi3+phi4)); %shading interp;
+   plot3(theta1ref,theta2ref,log10(mm),'Color','red','o','markersize',20,'linewidth',5); colorbar();
+   set(gca,'XTick',0:pi/2:2*pi); set(gca,'XTickLabel',{'0','π/2','π','3π/2','2π'}); xlabel('\theta_1');
+   set(gca,'YTick',0:pi/2:2*pi); set(gca,'YTickLabel',{'0','π/2','π','3π/2','2π'}); ylabel('\theta_2');
+   end
 end
 
 %erroru = norm(usolu1(b2nodesnoD)-ur1(b2nodesnoD))   / norm(ur1(b2nodesnoD));
