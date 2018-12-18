@@ -1,5 +1,5 @@
-% 02/11/2018
-% ID fissure qcq par RG Petrov-Galerkin
+% 12/12/2018
+% ID fissure qcq par RG Petrov-Galerkin algorithme récursif
 
 tic
 close all;
@@ -23,12 +23,17 @@ nuzawa      = 100;     % (nuzawa = 1 means no Uzawa)
 nuzawad     = 1000;      % nb of Uzawa of the direct problem
 kuzawa      = 0;%1e2;     % Parameters of the Uzawa algorithm (kuzawa = 0 means best parameter)
 kuzawad     = 1e4;     % Idem for the direct problem
-teskase     = 3;       % Choice of the test case 20,22 => 2 cracks
+teskase     = 20;       % Choice of the test case 20,22 => 2 cracks
 resmooth    = 0;      % Resmooth coefficient (for the partitioning)
-myceil      = .75;     % Ceil for the length of the crack
 newtonNor   = 1;       % Use Newton to find the normal
 testNor     = 0;       % Use trials to find the normal
 newtonReg   = 0;      % Regularize the newton
+niter       = 2;      % Nb of recursive iteration
+kreg        = 2e4;      % Regularization parameter for inhomogeneous regul
+l0          = 1;      % Caracteristic length
+step        = .02;    % Step for the tangent path
+minceil     = 1e-1;   % If u<minceil*umax, no tangent is computed (to avoid spurious paths)
+regutang    = 1;      % in iter >1, D-regularize only the tangent
 
 nbDirichlet = [];
 %nbDirichlet = [ 1,10 ; 2,11 ; 3,11 ; 4,11 ];
@@ -76,6 +81,8 @@ elseif teskase == 2
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared2.msh' );
 elseif teskase == 5
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared5.msh' );
+elseif teskase == 9
+   [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_c_squared9.msh' );
 elseif teskase == 20
    [ nodes,elements,ntoelem,boundary,order] = readmesh( 'meshes/rg_refined/plate_nc_r_2.msh' );
 elseif teskase == 22
@@ -169,6 +176,11 @@ sigma = stress(u1,E,nu,nodes,elements,order,1,ntoelem);
 
 % Output :
 plotGMSH({u1,'U1';u2,'U2';u3,'U3';u4,'U4'}, elements, nodes, 'output/reference');
+
+x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2);
+if teskase >= 20
+   x8 = nodes(8,1); y8 = nodes(8,2); x7 = nodes(7,1); y7 = nodes(7,2);
+end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 [ nodes2,elements2,ntoelem2,boundary2,order] = readmesh( 'meshes/rg_refined/plate_nu_r.msh' );
@@ -847,7 +859,7 @@ end
 
 %sL = real(L^(1/2));   % Square root of L (as usual, real should not be) /!\ takes too much time
 
-MAT = Lhs'*Lhs + mur*L;
+MAT0 = Lhs'*Lhs + mur*L;
 VE1 = Lhs'*Rhs1-mur*L121; VE2 = Lhs'*Rhs2-mur*L122;
 VE3 = Lhs'*Rhs3-mur*L123; VE4 = Lhs'*Rhs4-mur*L124;
 
@@ -869,235 +881,221 @@ end
 C = [ zeros(nnodes2,ndofs-3*nnodes2), C ];
 f = zeros(nnodes2,4); Ctf = C'*f;
 respos = zeros(nuzawa,1); df = zeros(nuzawa,1);
+disp(['Pre-computation terminated ', num2str(toc) ]);
 
-if zerobound == 1
-   toremove = [ 3*boundary2(:,2)-2, 3*boundary2(:,2)-1, 3*boundary2(:,2) ];
-   tokeep = setdiff(1:size(L,1),toremove);
-   %[Ll, Uu, Pp] = lu (MAT(tokeep,tokeep));
-   M1 = MAT(tokeep,tokeep)\eye(size(tokeep,2));
-   kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
-else
-   [Ll, Uu, Pp] = lu (MAT);  % Pp*MAT = Ll*Uu
-   kuzawa1 = .999*min(eig(MAT));
-end
+for iter = 1:niter
+   tic;
 
-for i=1:nuzawa % Uzawa for the contact problems
-   if zerobound == 1
-      SoluRG = zeros(size(L,1),4);
-%      SoluRG(tokeep,:) = Uu \ ( Ll \ ( Pp * ( [VE1(tokeep),VE2(tokeep),...
-%                                              VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) ) ) );
-      SoluRG(tokeep,:) = M1 * ( [VE1(tokeep),VE2(tokeep),...
-                                 VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) );
-   else
-      SoluRG = Uu \ ( Ll \ ( Pp * ( [VE1,VE2,VE3,VE4] + Ctf ) ) );
-   end
-   respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
-   fp = f;
-   if kuzawa == 0
-      f = f - kuzawa1*C*SoluRG;
-   else
-      f = f - kuzawa*C*SoluRG;
-   end
-   f = .5*(f + abs(f)); Ctf = C'*f;
-   df(i) = norm(f-fp);
-end
-
-Solu1 = SoluRG(:,1); Solu2 = SoluRG(:,2); Solu3 = SoluRG(:,3); Solu4 = SoluRG(:,4);
-
-regu = sum ( diag( SoluRG'*L*SoluRG + 2*SoluRG'*L12 + L2) );
-resu = sum ( diag( SoluRG'*Lhs'*Lhs*SoluRG - 2*SoluRG'*Lhs'*Rhs + Rhs'*Rhs) );
-
-disp(['Resolution terminated ', num2str(toc) ]);
-
-%% Find the normal to the crack at each point
-tic;
-ucrsol1 = Solu1(end-3*nnodes2+1:end);
-ucrsol2 = Solu2(end-3*nnodes2+1:end);
-ucrsol3 = Solu3(end-3*nnodes2+1:end);
-ucrsol4 = Solu4(end-3*nnodes2+1:end);
-
-normal = zeros(2*nnodes2,1); normal(1:2:end-1) = 1; % Normal
-uus1   = ones(2*nnodes2,1); uus2   = ones(2*nnodes2,1);
-uus3   = ones(2*nnodes2,1); uus4   = ones(2*nnodes2,1);
-ucrnor = ones(nnodes2,1);   % Norm of the gap
-ucrres = zeros(nnodes2,1);   % Norm of the Rhs
-
-% Test all the values for n and choose the best one
-if testNor == 1
-   nn = zeros(2,1); 
-   if newtonNor == 1, nst = 10; else, nst = 50; end
-   theta = 0:pi/nst:pi;
-   for i=1:nnodes2
-      Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu1(3) = 2*Nu1(3); % No 2 because Voight
-      Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu2(3) = 2*Nu2(3);
-      Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu3(3) = 2*Nu3(3);
-      Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu4(3) = 2*Nu4(3);
-
-      ucrres(i) = norm([Nu1;Nu2;Nu3;Nu4]);
-
-      for j=1:nst+1
-         nn(1) = cos(theta(j)); nn(2) = sin(theta(j));
-         An = [ nn(1),0 ; 0,nn(2) ; nn(2),nn(1) ];
-         uu = An \ [Nu1,Nu2,Nu3,Nu4];
-         uu1 = uu(:,1); uu2 = uu(:,2); uu3 = uu(:,3); uu4 = uu(:,4);
-
-         Nn1 = .5*(nn*uu1'+uu1*nn'); Nun1 = [Nn1(1,1);Nn1(2,2);2*Nn1(1,2)];
-         Nn2 = .5*(nn*uu2'+uu2*nn'); Nun2 = [Nn2(1,1);Nn2(2,2);2*Nn2(1,2)];
-         Nn3 = .5*(nn*uu3'+uu3*nn'); Nun3 = [Nn3(1,1);Nn3(2,2);2*Nn3(1,2)];
-         Nn4 = .5*(nn*uu4'+uu4*nn'); Nun4 = [Nn4(1,1);Nn4(2,2);2*Nn4(1,2)];
-         RN1 = Nu1-Nun1; RN2 = Nu2-Nun2; RN3 = Nu3-Nun3; RN4 = Nu4-Nun4;
-         res1(j) = norm(RN1); res2(j) = norm(RN2); res3(j) = norm(RN3); res4(j) = norm(RN4);
-         ress(j) = norm([RN1;RN2;RN3;RN4]);
+   Msp = zeros(3*nnodes2,3*nnodes2);
+   if iter >= 2 % Build the space-dependant regularization matrix
+      for i=1:nelem2
+         no1 = elements2(i,1); no2 = elements2(i,2); no3 = elements2(i,3);
+         x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+         x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+         x3 = nodes2(no3,1); y3 = nodes2(no3,2);
+         n = (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2);
+         S = .5*abs(n);
+         xg = (x1+x2+x3)/3; yg = (y1+y2+y3)/3; % Gauss point
+         dist = (xxx(:,1)-xg).^2 + (xxx(:,2)-yg).^2;
+         d = sqrt(min(dist));
+         coefU   = [ 3*no1-2, 3*no1-1, 3*no1, 3*no2-2, 3*no2-1, 3*no2, 3*no3-2, 3*no3-1, 3*no3 ];
+         Msp(coefU,coefU) = Msp(coefU,coefU) + S*d/(3*l0)*eye(9,9);%+ 2^(iter-2)*S*d/(3*l0)*eye(9,9);
       end
-      [~,jj] = min(ress);
-
-      nn(1) = cos(theta(jj)); nn(2) = sin(theta(jj));
-      An = [ nn(1),0 ; 0,nn(2) ; nn(2),nn(1) ];
-      uu = An \ [Nu1,Nu2,Nu3,Nu4];
-      uu1 = uu(:,1); uu2 = uu(:,2); uu3 = uu(:,3); uu4 = uu(:,4);
-
-      normal([2*i-1,2*i]) = nn;
-      ucrnor(i) = ( uu1(1)^2 + uu1(2)^2 + uu2(1)^2 + uu2(2)^2 + uu3(1)^2 + uu3(2)^2 + uu4(1)^2 + uu4(2)^2 )^(1/2);
-      uus1([2*i-1,2*i]) = uu1; uus2([2*i-1,2*i]) = uu2;
-      uus3([2*i-1,2*i]) = uu3; uus4([2*i-1,2*i]) = uu4;
-      %if i==294, ress, end
    end
-end
 
-if newtonNor == 1
-   if newtonReg == 0
-      resceil = 1e-7; %duu = 0;
-      nhma = 5; uuu = zeros(10,nhma+1);
-      resss = 0;
+   if regutang == 1 && iter >= 2
+      D3t = sparse(3*nelem2,3*nnodes2);
+      for i=1:nelem2
+         no1 = elements2(i,1); no2 = elements2(i,2); no3 = elements2(i,3);
+         x1 = nodes2(no1,1); y1 = nodes2(no1,2);
+         x2 = nodes2(no2,1); y2 = nodes2(no2,2);
+         x3 = nodes2(no3,1); y3 = nodes2(no3,2);
+            
+         n = (x1-x2)*(y1-y3)-(x1-x3)*(y1-y2);
+         S = .5*abs(n);
+
+         xg = (x1+x2+x3)/3; yg = (y1+y2+y3)/3; % Gauss point
+
+         nn1 = normal([2*no1-1;2*no1]);
+         nn2 = normal([2*no2-1;2*no2]); if nn1'*nn2 <= 0, nn2 = -nn2; end
+         nn3 = normal([2*no3-1;2*no3]); if nn1'*nn3 <= 0, nn3 = -nn3; end
+         nn = (nn1+nn2+nn3)/norm(nn1+nn2+nn3); tt = [-nn(2);nn(1)];
+
+         Be = 1/(2*S)*[ x3-x2, 0, 0, x1-x3, 0, 0, x2-x1, 0, 0 ;...
+                        y2-y3, 0, 0, y3-y1, 0, 0, y1-y2, 0, 0 ;...
+                        0, x3-x2, 0, 0, x1-x3, 0, 0, x2-x1, 0 ;...
+                        0, y2-y3, 0, 0, y3-y1, 0, 0, y1-y2, 0 ;...
+                        0, 0, x3-x2, 0, 0, x1-x3, 0, 0, x2-x1 ;...
+                        0, 0, y2-y3, 0, 0, y3-y1, 0, 0, y1-y2 ];
+
+         tte = [ tt, zeros(2,1), zeros(2,1) ; zeros(2,1), tt, zeros(2,1) ; zeros(2,1), zeros(2,1), tt ];
+            
+         indelem = [ 3*i-2, 3*i-1, 3*i ];
+         coefU   = [ 3*no1-2, 3*no1-1, 3*no1, 3*no2-2, 3*no2-1, 3*no2, 3*no3-2, 3*no3-1, 3*no3 ];
+
+         D3t( indelem, coefU ) = D3t( indelem, coefU ) + tte'*Be*sqrt(S);
+      end
+
+      D3u = 3*D3t'*D3t; % 3 is to keep the same magnitude as D3'*D3
+      Z12 = zeros( size(Duu,1) , size(Dfu,2) ); Z13 = zeros( size(Duu,1), size(D3u,2) );
+      Z23 = zeros( size(Dfu,1), size(D3u,2) );
+      Dtot = [ Duu ,Z12, Z13 ; Z12', Dfu, Z23 ; Z13', Z23', D3u ];
+      L = Dtot;
+
+      MAT = Lhs'*Lhs + mur*L + mur*kreg*Msp;
+   else
+      MAT = MAT0 + mur*kreg*Msp;
+   end
+
+   if zerobound == 1
+      toremove = [ 3*boundary2(:,2)-2, 3*boundary2(:,2)-1, 3*boundary2(:,2) ];
+      tokeep = setdiff(1:size(L,1),toremove);
+      %[Ll, Uu, Pp] = lu (MAT(tokeep,tokeep));
+      M1 = MAT(tokeep,tokeep)\eye(size(tokeep,2));
+      kuzawa1 = .999*min(eig(MAT(tokeep,tokeep)));
+   else
+      [Ll, Uu, Pp] = lu (MAT);  % Pp*MAT = Ll*Uu
+      kuzawa1 = .999*min(eig(MAT));
+   end
+
+   for i=1:nuzawa % Uzawa for the contact problems
+      if zerobound == 1
+         SoluRG = zeros(size(L,1),4);
+   %      SoluRG(tokeep,:) = Uu \ ( Ll \ ( Pp * ( [VE1(tokeep),VE2(tokeep),...
+   %                                              VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) ) ) );
+         SoluRG(tokeep,:) = M1 * ( [VE1(tokeep),VE2(tokeep),...
+                                    VE3(tokeep),VE4(tokeep)] + Ctf(tokeep,:) );
+      else
+         SoluRG = Uu \ ( Ll \ ( Pp * ( [VE1,VE2,VE3,VE4] + Ctf ) ) );
+      end
+      respos(i) = norm(C*SoluRG - abs(C*SoluRG),'fro');
+      fp = f;
+      if kuzawa == 0
+         f = f - kuzawa1*C*SoluRG;
+      else
+         f = f - kuzawa*C*SoluRG;
+      end
+      f = .5*(f + abs(f)); Ctf = C'*f;
+      df(i) = norm(f-fp);
+   end
+
+   Solu1 = SoluRG(:,1); Solu2 = SoluRG(:,2); Solu3 = SoluRG(:,3); Solu4 = SoluRG(:,4);
+
+   regu = sum ( diag( SoluRG'*L*SoluRG + 2*SoluRG'*L12 + L2) );
+   resu = sum ( diag( SoluRG'*Lhs'*Lhs*SoluRG - 2*SoluRG'*Lhs'*Rhs + Rhs'*Rhs) );
+
+   disp(['Resolution terminated ', num2str(toc) ]);
+
+   %% Find the normal to the crack at each point
+   tic;
+   ucrsol1 = Solu1(end-3*nnodes2+1:end);
+   ucrsol2 = Solu2(end-3*nnodes2+1:end);
+   ucrsol3 = Solu3(end-3*nnodes2+1:end);
+   ucrsol4 = Solu4(end-3*nnodes2+1:end);
+
+   if iter == 1 % Initialize stuff
+      normal  = zeros(2*nnodes2,1);
+      normal(2:2:end) = 1; % Normal
+      %normal(1:2:end-1) = 1; % Normal
+      normal2 = zeros(2*nnodes2,1);
+      uus1   = ones(2*nnodes2,1); uus2   = ones(2*nnodes2,1);
+      uus3   = ones(2*nnodes2,1); uus4   = ones(2*nnodes2,1);
+   end
+
+   ucrnor = ones(nnodes2,1);   % Norm of the gap
+   ucrres = zeros(nnodes2,1);   % Norm of the Rhs
+
+   % Test all the values for n and choose the best one
+   if testNor == 1
+      nn = zeros(2,1); 
+      if newtonNor == 1, nst = 20; else, nst = 50; end
+      theta = 0:pi/nst:pi; reto0 = 0; % Total residual
       for i=1:nnodes2
-         Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-         Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-         Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-         Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+         Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu1(3) = 2*Nu1(3); % No 2 because Voight
+         Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu2(3) = 2*Nu2(3);
+         Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu3(3) = 2*Nu3(3);
+         Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] ); %Nu4(3) = 2*Nu4(3);
 
          ucrres(i) = norm([Nu1;Nu2;Nu3;Nu4]);
 
-         nn  = normal([2*i-1,2*i]);
-         uu1 = uus1([2*i-1,2*i]); uu2 = uus2([2*i-1,2*i]);
-         uu3 = uus3([2*i-1,2*i]); uu4 = uus4([2*i-1,2*i]);
-%      nn  = [1;0];
-%      uu1 = [1;1]; uu2 = [1;1]; uu3 = [1;1]; uu4 = [1;1]; % Initialize
-         uuu(:,1) = [uu1;uu2;uu3;uu4;nn];
-
-         stopme = 0; %uuu = zeros(nhma+1,1);
-         for j=1:nhma
-            if norm([Nu1;Nu2;Nu3;Nu4]) == 0 % Means Nu=0
-               %nn = [1,0]; % Arbitrary value
-               %uu1 = [0,0]; uu2 = [0,0]; uu3 = [0,0]; uu4 = [0,0];
-               uuu(:,2) = [0;0;0;0;0;0;0;0;1;0]; ress = 0;
-               break;
-            end
+         for j=1:nst+1
+            nn(1) = cos(theta(j)); nn(2) = sin(theta(j));
+            An = [ nn(1),0 ; 0,nn(2) ; nn(2),nn(1) ];
+            uu = An \ [Nu1,Nu2,Nu3,Nu4];
+            uu1 = uu(:,1); uu2 = uu(:,2); uu3 = uu(:,3); uu4 = uu(:,4);
 
             Nn1 = .5*(nn*uu1'+uu1*nn'); Nun1 = [Nn1(1,1);Nn1(2,2);2*Nn1(1,2)];
             Nn2 = .5*(nn*uu2'+uu2*nn'); Nun2 = [Nn2(1,1);Nn2(2,2);2*Nn2(1,2)];
             Nn3 = .5*(nn*uu3'+uu3*nn'); Nun3 = [Nn3(1,1);Nn3(2,2);2*Nn3(1,2)];
             Nn4 = .5*(nn*uu4'+uu4*nn'); Nun4 = [Nn4(1,1);Nn4(2,2);2*Nn4(1,2)];
-   
             RN1 = Nu1-Nun1; RN2 = Nu2-Nun2; RN3 = Nu3-Nun3; RN4 = Nu4-Nun4;
+            res1(j) = norm(RN1); res2(j) = norm(RN2); res3(j) = norm(RN3); res4(j) = norm(RN4);
             ress(j) = norm([RN1;RN2;RN3;RN4]);
-%         if j>1
-%            if ress(j) - ress(j-1) > 0 % Cancel iteration that failed
-%               uuu = uuup;
-%               uu1 = uuu([1,2]); uu2 = uuu([3,4]); uu3 = uuu([5,6]); uu4 = uuu([7,8]); nn = uuu([9,10]);
-%               stopme = 1;
-%            end
-%         end
-%         if stopme==1
-%            break;
-%         end
-            Au1 = [ uu1(1),0 ; 0,uu1(2) ; uu1(2),uu1(1) ];
-            Au2 = [ uu2(1),0 ; 0,uu2(2) ; uu2(2),uu2(1) ];
-            Au3 = [ uu3(1),0 ; 0,uu3(2) ; uu3(2),uu3(1) ];
-            Au4 = [ uu4(1),0 ; 0,uu4(2) ; uu4(2),uu4(1) ];
-
-            Z2 = [ 0,0;0,0;0,0 ];
-            An = [ nn(1),0 ; 0,nn(2) ; nn(2), nn(1) ];
-            At = [ [An;Z2;Z2;Z2] , [Z2;An;Z2;Z2] , [Z2;Z2;An;Z2] , [Z2;Z2;Z2;An] , [Au1;Au2;Au3;Au4] ];
-
-            %C = [0,0,0,0,0,0,0,0,1,0]; % Arbitrarly impose nn(1) Cte (because singularity because of ||n||=1)
-            C = [0,0,0,0,0,0,0,0,nn(1),nn(2)]; % correction is orthogonal to nn, because of ||n||=1
-            Kt = [At'*At,C';C,0]; ft = [At'*[RN1;RN2;RN3;RN4];0];
-            %Kt = At'*At; ft = At'*[RN1;RN2;RN3;RN4];
-
-            %duu0 = duu;
-            duu  = Kt \ ft; %uuup = uuu;
-            uuu(:,j+1) = uuu(:,j) + duu([1:10]);
-   
-            uu1 = uuu([1,2],j+1); uu2 = uuu([3,4],j+1);
-            uu3 = uuu([5,6],j+1); uu4 = uuu([7,8],j+1); nn = uuu([9,10],j+1);
          end
+         [~,jj] = min(ress);
 
-         [mres,ze] = min(ress); uuu = uuu(:,ze+1); % Select the best one
-         resss = resss + mres;
-         %uuu = uuu(:,end);
-         uu1 = uuu([1,2]); uu2 = uuu([3,4]); uu3 = uuu([5,6]); uu4 = uuu([7,8]); nn = uuu([9,10]);
-         uu1 = uu1*norm(nn); uu2 = uu2*norm(nn); uu3 = uu3*norm(nn); uu4 = uu4*norm(nn);
-         %if norm(nn)==0, bug; end
-         nn = nn/norm(nn);
-   
-         if nn(1)<0, nn = -nn; end % Arbitrarly impose positive nn(1)
+         nn(1) = cos(theta(jj)); nn(2) = sin(theta(jj));
+         An = [ nn(1),0 ; 0,nn(2) ; nn(2),nn(1) ];
+         uu = An \ [Nu1,Nu2,Nu3,Nu4];
+         uu1 = uu(:,1); uu2 = uu(:,2); uu3 = uu(:,3); uu4 = uu(:,4);
+
          normal([2*i-1,2*i]) = nn;
-   
-%      if i==527
-%         ze
-%         figure; plot(log10(ress));
-%      end
-      %if i==84, ress, end
          ucrnor(i) = ( uu1(1)^2 + uu1(2)^2 + uu2(1)^2 + uu2(2)^2 + uu3(1)^2 + uu3(2)^2 + uu4(1)^2 + uu4(2)^2 )^(1/2);
+         uus1([2*i-1,2*i]) = uu1; uus2([2*i-1,2*i]) = uu2;
+         uus3([2*i-1,2*i]) = uu3; uus4([2*i-1,2*i]) = uu4;
+         %if i==307, plot(ress), end
+         reto0 = reto0 + ress(jj);
       end
+   end
 
-%      resss = resss/nnodes2; % mean of the residuals
-%      meani = zeros(nnodes2,1); % Equals 1 only if the value is meaningful
-%      for i=1:nnodes2
-%         Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-%         Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-%         Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-%         Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] );
-%         if norm([Nu1;Nu2;Nu3;Nu4]) > resss
-%            meani(i) = 1;
-%         end
-%      end
-
-   else
-      nhma = 5; %uuu = zeros(10,nhma+1);
-      M    = D3n'*D3n; % Matrix for the regularization
-      mumu = 0;%1e-2;
-      resss = zeros(nhma,1);
-      for j=1:nhma
-         %regt = M*ucrnor;
+   if newtonNor == 1
+      if newtonReg == 0
+         resceil = 1e-7; %duu = 0;
+         if testNor == 1, nhma = 5; else, nhma = 20; end
+         uuu = zeros(10,nhma+1);
+         resss = zeros(nnodes2,1);ressss = 0;
          for i=1:nnodes2
-            Mi = M( [2*i-1,2*i], [2*i-1,2*i] );
-            other = setdiff(1:2*nnodes2,[2*i-1,2*i]);
-            Mio = M( [2*i-1,2*i], other );
-
             Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] );
             Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] );
             Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] );
             Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+
             ucrres(i) = norm([Nu1;Nu2;Nu3;Nu4]);
 
             nn  = normal([2*i-1,2*i]);
             uu1 = uus1([2*i-1,2*i]); uu2 = uus2([2*i-1,2*i]);
             uu3 = uus3([2*i-1,2*i]); uu4 = uus4([2*i-1,2*i]);
+   %      nn  = [1;0];
+   %      uu1 = [1;1]; uu2 = [1;1]; uu3 = [1;1]; uu4 = [1;1]; % Initialize
+            uuu(:,1) = [uu1;uu2;uu3;uu4;nn];
 
-            uuu = [uu1;uu2;uu3;uu4;nn];
-      
-            if norm([Nu1;Nu2;Nu3;Nu4]) == 0 % Means Nu=0 (boundaries)
-               uuu = [0;0;0;0;0;0;0;0;1;0]; ress = 0;
-            else
+            stopme = 0; %uuu = zeros(nhma+1,1);
+            ress = 0;
+            for j=1:nhma
+               if norm([Nu1;Nu2;Nu3;Nu4]) == 0 % Means Nu=0
+                  %nn = [1,0]; % Arbitrary value
+                  %uu1 = [0,0]; uu2 = [0,0]; uu3 = [0,0]; uu4 = [0,0];
+                  uuu(:,2) = [0;0;0;0;0;0;0;0;1;0]; ress = 0;
+                  break;
+               end
+
                Nn1 = .5*(nn*uu1'+uu1*nn'); Nun1 = [Nn1(1,1);Nn1(2,2);2*Nn1(1,2)];
                Nn2 = .5*(nn*uu2'+uu2*nn'); Nun2 = [Nn2(1,1);Nn2(2,2);2*Nn2(1,2)];
                Nn3 = .5*(nn*uu3'+uu3*nn'); Nun3 = [Nn3(1,1);Nn3(2,2);2*Nn3(1,2)];
                Nn4 = .5*(nn*uu4'+uu4*nn'); Nun4 = [Nn4(1,1);Nn4(2,2);2*Nn4(1,2)];
-
+      
                RN1 = Nu1-Nun1; RN2 = Nu2-Nun2; RN3 = Nu3-Nun3; RN4 = Nu4-Nun4;
-               ress = norm([RN1;RN2;RN3;RN4]);
-
+               ress(j) = norm([RN1;RN2;RN3;RN4]);
+               if j>1
+                  if ress(j) - ress(j-1) > 0 % Cancel iteration that failed
+%                     uuu(:,j+1) = uuup;
+%                     uu1 = uuu([1,2]); uu2 = uuu([3,4]); uu3 = uuu([5,6]); uu4 = uuu([7,8]); nn = uuu([9,10]);
+                     stopme = 1;
+                  end
+               end
+               if stopme==1
+                  break;
+               end
                Au1 = [ uu1(1),0 ; 0,uu1(2) ; uu1(2),uu1(1) ];
                Au2 = [ uu2(1),0 ; 0,uu2(2) ; uu2(2),uu2(1) ];
                Au3 = [ uu3(1),0 ; 0,uu3(2) ; uu3(2),uu3(1) ];
@@ -1108,208 +1106,428 @@ if newtonNor == 1
                At = [ [An;Z2;Z2;Z2] , [Z2;An;Z2;Z2] , [Z2;Z2;An;Z2] , [Z2;Z2;Z2;An] , [Au1;Au2;Au3;Au4] ];
 
                %C = [0,0,0,0,0,0,0,0,1,0]; % Arbitrarly impose nn(1) Cte (because singularity because of ||n||=1)
-               C = [0,0,0,0,0,0,0,0,nn(1),nn(2)]; % correction is orthogonal to nn, because of ||n||=1
-
-               % Regularization terms
-               Mit = [ Mi, zeros(2,8) ; zeros(2,2), Mi, zeros(2,6) ; ...
-                       zeros(2,4), Mi, zeros(2,4) ; zeros(2,6), Mi, zeros(2,2)];
-               Mit = full([ Mit ; zeros(2,10) ]);
-               Miou0 = [ Mio*uus1(other) ; Mio*uus2(other) ; Mio*uus3(other) ; Mio*uus4(other) ; 0 ; 0 ];
-               Mii = Mit*uuu;
-
-               Kt = [ At'*At + mumu*Mit, C' ; C, 0 ];
-               ft = [ At'*[RN1;RN2;RN3;RN4] - mumu*Miou0 - mumu*Mii ; 0 ];
+               Ckk = [0,0,0,0,0,0,0,0,nn(1),nn(2)]; % correction is orthogonal to nn, because of ||n||=1
+               Kt = [At'*At,Ckk';Ckk,0]; ft = [At'*[RN1;RN2;RN3;RN4];0];
                %Kt = At'*At; ft = At'*[RN1;RN2;RN3;RN4];
 
+               if rcond(Kt)<1e-16
+                  break;
+               end
+
                %duu0 = duu;
-               duu  = Kt \ ft; %uuup = uuu;
-               uuu = uuu + duu([1:10]);
-               resss(j) = resss(j) + ress;
+               duu  = Kt \ ft; uuup = uuu(:,j);
+               uuu(:,j+1) = uuu(:,j) + duu([1:10]);
+      
+               uu1 = uuu([1,2],j+1); uu2 = uuu([3,4],j+1);
+               uu3 = uuu([5,6],j+1); uu4 = uuu([7,8],j+1); nn = uuu([9,10],j+1);
             end
-            uu1 = uuu([1,2]); uu2 = uuu([3,4]);
-            uu3 = uuu([5,6]); uu4 = uuu([7,8]); nn = uuu([9,10]);
-            
-            normal([2*i-1,2*i]) = nn; 
-            uus1([2*i-1,2*i]) = uu1; uus2([2*i-1,2*i]) = uu2;
-            uus3([2*i-1,2*i]) = uu3; uus4([2*i-1,2*i]) = uu4;
+
+            [mres,ze] = min(ress); uuu = uuu(:,ze+1); % Select the best one
+            ressss = ressss+mres;
+            if norm([Nu1;Nu2;Nu3;Nu4])>0, resss(i) = mres/norm([Nu1;Nu2;Nu3;Nu4]); end
+            %uuu = uuu(:,end);
+            uu1 = uuu([1,2]); uu2 = uuu([3,4]); uu3 = uuu([5,6]); uu4 = uuu([7,8]); nn = uuu([9,10]);
+
+            uu1 = uu1*norm(nn); uu2 = uu2*norm(nn); uu3 = uu3*norm(nn); uu4 = uu4*norm(nn);
+            %if norm(nn)==0, bug; end
+            nn = nn/norm(nn);
+
+%            % DEBUG
+%            if norm([Nu1;Nu2;Nu3;Nu4]) != 0 % Means Nu=0
+%               [Q1,T1] = eig([Nu1(1),Nu1(3)/2 ; Nu1(3)/2,Nu1(2)]);
+%               n11 = Q1'*[sqrt(abs(T1(1,1)));sqrt(abs(T1(2,2)))]; n11 = n11/norm(n11);
+%               n12 = Q1'*[-sqrt(abs(T1(1,1)));sqrt(abs(T1(2,2)))]; n12 = n12/norm(n12);
+%               [Q2,T2] = eig([Nu2(1),Nu2(3)/2 ; Nu2(3)/2,Nu2(2)]);
+%               n21 = Q2'*[sqrt(abs(T2(1,1)));sqrt(abs(T2(2,2)))]; n21 = n21/norm(n21);
+%               n22 = Q2'*[-sqrt(abs(T2(1,1)));sqrt(abs(T2(2,2)))]; n22 = n22/norm(n22);
+%               [Q3,T3] = eig([Nu3(1),Nu3(3)/2 ; Nu3(3)/2,Nu3(2)]);
+%               n31 = Q3'*[sqrt(abs(T3(1,1)));sqrt(abs(T3(2,2)))]; n31 = n31/norm(n31);
+%               n32 = Q3'*[-sqrt(abs(T3(1,1)));sqrt(abs(T3(2,2)))]; n32 = n32/norm(n32);
+%               [Q4,T4] = eig([Nu4(1),Nu4(3)/2 ; Nu4(3)/2,Nu4(2)]);
+%               n41 = Q4'*[sqrt(abs(T4(1,1)));sqrt(abs(T4(2,2)))]; n41 = n41/norm(n41);
+%               n42 = Q4'*[-sqrt(abs(T4(1,1)));sqrt(abs(T4(2,2)))]; n42 = n42/norm(n42);
+%            end
+%            if i==82
+%               bug;
+%            end
+%            %\DEBUG
+
+            if nn(1)<0, nn = -nn; end % Arbitrarly impose positive nn(1)
+            normal([2*i-1,2*i]) = nn;
+      
+   %      if i==527
+   %         ze
+   %         figure; plot(log10(ress));
+   %      end
+         %if i==84, ress, end
+            ucrnor(i) = ( uu1(1)^2 + uu1(2)^2 + uu2(1)^2 + uu2(2)^2 + uu3(1)^2 + uu3(2)^2 + uu4(1)^2 + uu4(2)^2 )^(1/2);
+         end
+
+   %      resss = resss/nnodes2; % mean of the residuals
+   %      meani = zeros(nnodes2,1); % Equals 1 only if the value is meaningful
+   %      for i=1:nnodes2
+   %         Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+   %         Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+   %         Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+   %         Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+   %         if norm([Nu1;Nu2;Nu3;Nu4]) > resss
+   %            meani(i) = 1;
+   %         end
+   %      end
+
+      else
+         nhma = 5; %uuu = zeros(10,nhma+1);
+         M    = D3n'*D3n; % Matrix for the regularization
+         mumu = 0;%1e-2;
+         resss = zeros(nhma,1);
+         for j=1:nhma
+            %regt = M*ucrnor;
+            for i=1:nnodes2
+               Mi = M( [2*i-1,2*i], [2*i-1,2*i] );
+               other = setdiff(1:2*nnodes2,[2*i-1,2*i]);
+               Mio = M( [2*i-1,2*i], other );
+
+               Nu1 = ucrsol1( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+               Nu2 = ucrsol2( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+               Nu3 = ucrsol3( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+               Nu4 = ucrsol4( [ 3*i-2 ; 3*i-1 ; 3*i ] );
+               ucrres(i) = norm([Nu1;Nu2;Nu3;Nu4]);
+
+               nn  = normal([2*i-1,2*i]);
+               uu1 = uus1([2*i-1,2*i]); uu2 = uus2([2*i-1,2*i]);
+               uu3 = uus3([2*i-1,2*i]); uu4 = uus4([2*i-1,2*i]);
+
+               uuu = [uu1;uu2;uu3;uu4;nn];
+         
+               if norm([Nu1;Nu2;Nu3;Nu4]) == 0 % Means Nu=0 (boundaries)
+                  uuu = [0;0;0;0;0;0;0;0;1;0]; ress = 0;
+               else
+                  Nn1 = .5*(nn*uu1'+uu1*nn'); Nun1 = [Nn1(1,1);Nn1(2,2);2*Nn1(1,2)];
+                  Nn2 = .5*(nn*uu2'+uu2*nn'); Nun2 = [Nn2(1,1);Nn2(2,2);2*Nn2(1,2)];
+                  Nn3 = .5*(nn*uu3'+uu3*nn'); Nun3 = [Nn3(1,1);Nn3(2,2);2*Nn3(1,2)];
+                  Nn4 = .5*(nn*uu4'+uu4*nn'); Nun4 = [Nn4(1,1);Nn4(2,2);2*Nn4(1,2)];
+
+                  RN1 = Nu1-Nun1; RN2 = Nu2-Nun2; RN3 = Nu3-Nun3; RN4 = Nu4-Nun4;
+                  ress = norm([RN1;RN2;RN3;RN4]);
+
+                  Au1 = [ uu1(1),0 ; 0,uu1(2) ; uu1(2),uu1(1) ];
+                  Au2 = [ uu2(1),0 ; 0,uu2(2) ; uu2(2),uu2(1) ];
+                  Au3 = [ uu3(1),0 ; 0,uu3(2) ; uu3(2),uu3(1) ];
+                  Au4 = [ uu4(1),0 ; 0,uu4(2) ; uu4(2),uu4(1) ];
+
+                  Z2 = [ 0,0;0,0;0,0 ];
+                  An = [ nn(1),0 ; 0,nn(2) ; nn(2), nn(1) ];
+                  At = [ [An;Z2;Z2;Z2] , [Z2;An;Z2;Z2] , [Z2;Z2;An;Z2] , [Z2;Z2;Z2;An] , [Au1;Au2;Au3;Au4] ];
+
+                  %C = [0,0,0,0,0,0,0,0,1,0]; % Arbitrarly impose nn(1) Cte (because singularity because of ||n||=1)
+                  Ckk = [0,0,0,0,0,0,0,0,nn(1),nn(2)]; % correction is orthogonal to nn, because of ||n||=1
+
+                  % Regularization terms
+                  Mit = [ Mi, zeros(2,8) ; zeros(2,2), Mi, zeros(2,6) ; ...
+                          zeros(2,4), Mi, zeros(2,4) ; zeros(2,6), Mi, zeros(2,2)];
+                  Mit = full([ Mit ; zeros(2,10) ]);
+                  Miou0 = [ Mio*uus1(other) ; Mio*uus2(other) ; Mio*uus3(other) ; Mio*uus4(other) ; 0 ; 0 ];
+                  Mii = Mit*uuu;
+
+                  Kt = [ At'*At + mumu*Mit, Ckk' ; Ckk, 0 ];
+                  ft = [ At'*[RN1;RN2;RN3;RN4] - mumu*Miou0 - mumu*Mii ; 0 ];
+                  %Kt = At'*At; ft = At'*[RN1;RN2;RN3;RN4];
+
+                  %duu0 = duu;
+                  duu  = Kt \ ft; %uuup = uuu;
+                  uuu = uuu + duu([1:10]);
+                  resss(j) = resss(j) + ress;
+               end
+               uu1 = uuu([1,2]); uu2 = uuu([3,4]);
+               uu3 = uuu([5,6]); uu4 = uuu([7,8]); nn = uuu([9,10]);
+               
+               normal([2*i-1,2*i]) = nn; 
+               uus1([2*i-1,2*i]) = uu1; uus2([2*i-1,2*i]) = uu2;
+               uus3([2*i-1,2*i]) = uu3; uus4([2*i-1,2*i]) = uu4;
+            end
+         end
+         for i=1:nnodes2 % Work on n
+            nn = normal([2*i-1,2*i]);
+            uu1 = uus1([2*i-1,2*i]); uu2 = uus2([2*i-1,2*i]);
+            uu3 = uus3([2*i-1,2*i]); uu4 = uus4([2*i-1,2*i]);
+            nn = nn/norm(nn); if nn(1)<0, nn = -nn; end % Arbitrarly impose positive nn(1)
+            normal([2*i-1,2*i]) = nn;
+            ucrnor(i) = ( uu1(1)^2 + uu1(2)^2 + uu2(1)^2 + uu2(2)^2 + uu3(1)^2 + uu3(2)^2 + uu4(1)^2 + uu4(2)^2 )^(1/2);
          end
       end
-      for i=1:nnodes2 % Work on n
-         nn = normal([2*i-1,2*i]);
-         uu1 = uus1([2*i-1,2*i]); uu2 = uus2([2*i-1,2*i]);
-         uu3 = uus3([2*i-1,2*i]); uu4 = uus4([2*i-1,2*i]);
-         nn = nn/norm(nn); if nn(1)<0, nn = -nn; end % Arbitrarly impose positive nn(1)
-         normal([2*i-1,2*i]) = nn;
-         ucrnor(i) = ( uu1(1)^2 + uu1(2)^2 + uu2(1)^2 + uu2(2)^2 + uu3(1)^2 + uu3(2)^2 + uu4(1)^2 + uu4(2)^2 )^(1/2);
-      end
    end
-end
 
-% % Compute the smoother ucrnor field
-%M = D3m'*D3m; k = norm(M,'fro')/sqrt(nnodes2);
-%OP = speye(nnodes2,nnodes2) + (resmooth/k)*M;
-%toremove = boundary2(:,2); tokeep = setdiff(1:nnodes2,toremove);
-%usmoot = zeros(nnodes2,1);
-%usmoot(tokeep) = OP(tokeep,tokeep) \ ucrnor(tokeep);
+   usmoot = ucrres;
 
-%usmoot = zeros(nnodes2,1);
-%lcor = .1;
-%for i=1:nnodes2
-%   x = nodes2(i,1); y = nodes2(i,2);
-%   dist = (x-nodes2(:,1)).^2 + (y-nodes2(:,2)).^2;
-%   zenodes = find(dist<lcor^2); nnod = max(size(zenodes));
-%   usmoot(i) = sum(ucrnor(zenodes))/nnod;
-%end
-%usmoot = ucrnor;
-usmoot = ucrres;
+   %gradu = D3m*usmoot; % Gradient vector (on the elements)
 
-%gradu = D3m*usmoot; % Gradient vector (on the elements)
-
-% Find the local maxima
-eps = 1e-12; maxima = [];
-for i=1:nnodes2
-   [elt,~] = find(elements2==i); nel = max(size(elt));
-   zegreatest = 1; valu = usmoot(i);
-   for j=1:nel
-      myelem = elements2(elt(j),:);
-      for k=1:3
-         if usmoot(myelem(k)) > valu*(1+eps) % Tere is someone greater
-            zegreatest = 0;
-            break;
+   % Find the local maxima
+   eps = 1e-12; maxima = [];
+   for i=1:nnodes2
+      [elt,~] = find(elements2==i); nel = max(size(elt));
+      zegreatest = 1; valu = usmoot(i);
+      for j=1:nel
+         myelem = elements2(elt(j),:);
+         for k=1:3
+            if usmoot(myelem(k)) > valu*(1+eps) % Tere is someone greater
+               zegreatest = 0;
+               break;
+            end
          end
       end
-   end
-   if zegreatest==1
-      maxima = [maxima,i];
-   end
-end
-
-nbmax = max(size(maxima));
-
-% Filter the maxima
-lcor = .2;
-maxima2 = [];
-for i=1:nbmax
-   val = usmoot(maxima(i));
-   xi = nodes2(maxima(i),1); yi = nodes2(maxima(i),2);
-   keephim = 1;
-   for j=1:nbmax
-      if i==j, continue; end
-      xj = nodes2(maxima(j),1); yj = nodes2(maxima(j),2);
-      dist = (xi-xj)^2 + (yi-yj)^2;
-      if dist <= lcor^2 && usmoot(maxima(j)) > usmoot(maxima(i))
-         keephim = 0;
+      if zegreatest==1
+         maxima = [maxima,i];
       end
    end
-   if keephim == 1 % Report it
-      maxima2 = [maxima2,maxima(i)];
+
+   nbmax = max(size(maxima));
+
+   % Filter the maxima
+   lcor = .2;
+   maxima2 = [];
+   for i=1:nbmax
+      val = usmoot(maxima(i));
+      xi = nodes2(maxima(i),1); yi = nodes2(maxima(i),2);
+      keephim = 1;
+      for j=1:nbmax
+         if i==j, continue; end
+         xj = nodes2(maxima(j),1); yj = nodes2(maxima(j),2);
+         dist = (xi-xj)^2 + (yi-yj)^2;
+         if dist <= lcor^2 && usmoot(maxima(j)) > usmoot(maxima(i))
+            keephim = 0;
+         end
+      end
+      if keephim == 1 % Report it
+         maxima2 = [maxima2,maxima(i)];
+      end
    end
-end
-maxima = maxima2; nbmax = max(size(maxima));
-%%% Ceil : L-curve
-%nste = 20; epsi = 1e-12;
-%ceils = 0:max(usmoot)/nste:max(usmoot);
-%resT = zeros(nste+1,1); nZero = zeros(nste+1,1);
+   maxima = maxima2; nbmax = max(size(maxima));
 
-%for i=1:nste+1
-%   cce       = ceils(i);
-%   tozeroify = find(usmoot<cce); nZero(i) = nnodes2-max(size(tozeroify));
-%   utrans1 = ucrsol1; utrans1([3*tozeroify-2,3*tozeroify-1,3*tozeroify]) = 0;% = Solu1(end-3*nnodes2+1:end);
-%   utrans2 = ucrsol2; utrans2([3*tozeroify-2,3*tozeroify-1,3*tozeroify]) = 0;
-%   utrans3 = ucrsol3; utrans3([3*tozeroify-2,3*tozeroify-1,3*tozeroify]) = 0;
-%   utrans4 = ucrsol4; utrans4([3*tozeroify-2,3*tozeroify-1,3*tozeroify]) = 0;
+   disp(['Postpro terminated ', num2str(toc) ]);
 
-%   SolT1 = Solu1; SolT1(end-3*nnodes2+1:end) = utrans1;
-%   SolT2 = Solu2; SolT2(end-3*nnodes2+1:end) = utrans2;
-%   SolT3 = Solu3; SolT3(end-3*nnodes2+1:end) = utrans3;
-%   SolT4 = Solu4; SolT4(end-3*nnodes2+1:end) = utrans4;
-
-%   resT(i) = sqrt( norm(Lhs*SolT1 - Rhs1)^2 + norm(Lhs*SolT2 - Rhs2)^2 + ...
-%                   norm(Lhs*SolT3 - Rhs3)^2 + norm(Lhs*SolT4 - Rhs4)^2 );
-%end
-
-%try
-%figure;
-%%loglog(resT,nZero);
-%plot(resT,nZero,'-*');
-%legend('L-curve');
-%end
-%usmoot( find(usmoot<max(usmoot)/1.5) ) = 0;
-
-disp(['Postpro terminated ', num2str(toc) ]);
-
-%% Reconstruct the line
-[~,mmm] = max(usmoot(maxima)); ind = maxima(mmm); x = nodes2(ind,1); y = nodes2(ind,2); %nn = normal([2*ind-1,2*ind]);
-again = 1; i=0; step = .02; vmax = usmoot(ind);
-ucrnorx = zeros(2*nnodes2); ucrnorx(1:2:2*nnodes2-1) = usmoot; % Small hack to have the right size
-xx = [x,y];
-while again
-   UR = passMesh2D(nodes2, elements2, [x,y], [], [normal,ucrnorx]); % TODO : ponderation
-   nn = UR(:,1);
-   x  = x - step*nn(2); y = y + step*nn(1);
-   xx = [ xx ; [x,y] ];
-   if i>=100
-      again = 0;
-  % elseif UR(1,2) < myceil*vmax
-      %again = 0;
-   elseif x>=1 || x<=0 || y>=1 || y<=0
-      again = 0;
-   end
-   i=i+1;
-end
-again = 1; i=0; x = nodes2(ind,1); y = nodes2(ind,2); % The other direction
-xx2 = [x,y];
-while again
-   UR = passMesh2D(nodes2, elements2, [x,y], [], [normal,ucrnorx]); % TODO : ponderation
-   nn = UR(:,1);
-   x  = x + step*nn(2); y = y - step*nn(1);
-   xx2 = [ xx2 ; [x,y] ];
-   if i>=100
-      again = 0;
-  % elseif UR(1,2) < myceil*vmax
-      %again = 0;
-   elseif x>=1 || x<=0 || y>=1 || y<=0
-      again = 0;
-   end
-   i=i+1;
-end
-
-if teskase >= 20 && teskase <= 29
-   % Second line
-   maxima(mmm) = [];
+   %% Reconstruct the line
    [~,mmm] = max(usmoot(maxima)); ind = maxima(mmm); x = nodes2(ind,1); y = nodes2(ind,2); %nn = normal([2*ind-1,2*ind]);
-   again = 1; i=0; step = .02; vmax = usmoot(ind);
+   again = 1; i=0; vmax = usmoot(ind);
    ucrnorx = zeros(2*nnodes2); ucrnorx(1:2:2*nnodes2-1) = usmoot; % Small hack to have the right size
-   xxp = [x,y];
+   xx = [x,y]; im1 = [1;0];
+
+   x1 = nodes2(elements2(:,1),1); y1 = nodes2(elements2(:,1),2);
+   x2 = nodes2(elements2(:,2),1); y2 = nodes2(elements2(:,2),2);
+   x3 = nodes2(elements2(:,3),1); y3 = nodes2(elements2(:,3),2);
+   usmax = max(usmoot);
+
    while again
-      UR = passMesh2D(nodes2, elements2, [x,y], [], [normal,ucrnorx]); % TODO : ponderation
-      nn = UR(:,1);
+      D1 = (x2-x).*(y3-y) - (x3-x).*(y2-y);
+      D2 = (x3-x).*(y1-y) - (x1-x).*(y3-y);
+      D3 = (x1-x).*(y2-y) - (x2-x).*(y1-y);
+      D0 = D1+D2+D3;
+      j1 = find(D0.*D1 >= 0);
+      j2 = find(D0.*D2 >= 0);
+      j3 = find(D0.*D3 >= 0);
+      j = intersect( intersect(j1,j2) , j3); j = j(1);
+
+      elt = elements2(j,:);
+      a = D1(j)/D0(j); b = D2(j)/D0(j); d = D3(j)/D0(j);
+      old = [2*elt(1)-1,2*elt(1)
+             2*elt(2)-1,2*elt(2)
+             2*elt(3)-1,2*elt(3)];
+      new = [2*i-1,2*i];
+      nno1 = normal(old(1,:),:); nno2 = normal(old(2,:),:); nno3 = normal(old(3,:),:);
+      p1 = usmoot(elt(1)); p2 = usmoot(elt(2)); p3 = usmoot(elt(3));
+
+      if [-nno1(2),nno1(1)]*im1 <= 0
+         nno1 = -nno1;
+      end
+      if [-nno2(2),nno2(1)]*im1 <= 0
+         nno2 = -nno2;
+      end
+      if [-nno3(2),nno3(1)]*im1 <= 0
+         nno3 = -nno3;
+      end
+
+      nn = (a*p1*nno1 + b*p2*nno2 + d*p3*nno3) / (a*p1+b*p2+d*p3); % Poderate with the amplitude
+
+      %UR = passMesh2D(nodes2, elements2, [x,y], [], [normal,ucrnorx]);
       x  = x - step*nn(2); y = y + step*nn(1);
-      xxp = [ xxp ; [x,y] ];
+      im1 = [-nn(2);nn(1)];
+
+      xx = [ xx ; [x,y] ];
       if i>=100
          again = 0;
-    %  elseif UR(1,2) < myceil*vmax
-         %again = 0;
       elseif x>=1 || x<=0 || y>=1 || y<=0
+         again = 0;
+      elseif a*p1+b*p2+d*p3 <= minceil*usmax % Magnitude is not significative
          again = 0;
       end
       i=i+1;
    end
    again = 1; i=0; x = nodes2(ind,1); y = nodes2(ind,2); % The other direction
-   xx2p = [x,y];
+   xx2 = [x,y]; im1 = [-1;0];
    while again
-      UR = passMesh2D(nodes2, elements2, [x,y], [], [normal,ucrnorx]); % TODO : ponderation
-      nn = UR(:,1);
-      x  = x + step*nn(2); y = y - step*nn(1);
-      xx2p = [ xx2p ; [x,y] ];
+      D1 = (x2-x).*(y3-y) - (x3-x).*(y2-y);
+      D2 = (x3-x).*(y1-y) - (x1-x).*(y3-y);
+      D3 = (x1-x).*(y2-y) - (x2-x).*(y1-y);
+      D0 = D1+D2+D3;
+      j1 = find(D0.*D1 >= 0);
+      j2 = find(D0.*D2 >= 0);
+      j3 = find(D0.*D3 >= 0);
+      j = intersect( intersect(j1,j2) , j3); j = j(1);
+
+      elt = elements2(j,:);
+      a = D1(j)/D0(j); b = D2(j)/D0(j); d = D3(j)/D0(j);
+      old = [2*elt(1)-1,2*elt(1)
+             2*elt(2)-1,2*elt(2)
+             2*elt(3)-1,2*elt(3)];
+      new = [2*i-1,2*i];
+      nno1 = normal(old(1,:),:); nno2 = normal(old(2,:),:); nno3 = normal(old(3,:),:);
+      p1 = usmoot(elt(1)); p2 = usmoot(elt(2)); p3 = usmoot(elt(3));
+
+      if [-nno1(2),nno1(1)]*im1 <= 0
+         nno1 = -nno1;
+      end
+      if [-nno2(2),nno2(1)]*im1 <= 0
+         nno2 = -nno2;
+      end
+      if [-nno3(2),nno3(1)]*im1 <= 0
+         nno3 = -nno3;
+      end
+
+      nn = (a*p1*nno1 + b*p2*nno2 + d*p3*nno3) / (a*p1+b*p2+d*p3); % Poderate with the amplitude
+
+      x  = x - step*nn(2); y = y + step*nn(1);
+      im1 = [-nn(2);nn(1)];
+
+      xx2 = [ xx2 ; [x,y] ];
       if i>=100
          again = 0;
-    %  elseif UR(1,2) < myceil*vmax
-         %again = 0;
       elseif x>=1 || x<=0 || y>=1 || y<=0
+         again = 0;
+      elseif a*p1+b*p2+d*p3 <= minceil*usmax % Magnitude is not significative
          again = 0;
       end
       i=i+1;
+   end
+   xxx = [xx;xx2];
+
+   if teskase >= 20 && teskase <= 29
+      % Second line
+      maxima(mmm) = [];
+      [~,mmm] = max(usmoot(maxima)); ind = maxima(mmm); x = nodes2(ind,1); y = nodes2(ind,2); %nn = normal([2*ind-1,2*ind]);
+      again = 1; i=0; vmax = usmoot(ind);
+      ucrnorx = zeros(2*nnodes2); ucrnorx(1:2:2*nnodes2-1) = usmoot; % Small hack to have the right size
+      xxp = [x,y]; im1 = [1;0];
+      while again
+         D1 = (x2-x).*(y3-y) - (x3-x).*(y2-y);
+         D2 = (x3-x).*(y1-y) - (x1-x).*(y3-y);
+         D3 = (x1-x).*(y2-y) - (x2-x).*(y1-y);
+         D0 = D1+D2+D3;
+         j1 = find(D0.*D1 >= 0);
+         j2 = find(D0.*D2 >= 0);
+         j3 = find(D0.*D3 >= 0);
+         j = intersect( intersect(j1,j2) , j3); j = j(1);
+
+         elt = elements2(j,:);
+         a = D1(j)/D0(j); b = D2(j)/D0(j); d = D3(j)/D0(j);
+         old = [2*elt(1)-1,2*elt(1)
+                2*elt(2)-1,2*elt(2)
+                2*elt(3)-1,2*elt(3)];
+         new = [2*i-1,2*i];
+         nno1 = normal(old(1,:),:); nno2 = normal(old(2,:),:); nno3 = normal(old(3,:),:);
+         p1 = usmoot(elt(1)); p2 = usmoot(elt(2)); p3 = usmoot(elt(3));
+
+         if [-nno1(2),nno1(1)]*im1 <= 0
+            nno1 = -nno1;
+         end
+         if [-nno2(2),nno2(1)]*im1 <= 0
+            nno2 = -nno2;
+         end
+         if [-nno3(2),nno3(1)]*im1 <= 0
+            nno3 = -nno3;
+         end
+
+         nn = (a*p1*nno1 + b*p2*nno2 + d*p3*nno3) / (a*p1+b*p2+d*p3); % Poderate with the amplitude
+
+         x  = x - step*nn(2); y = y + step*nn(1);
+         im1 = [-nn(2);nn(1)];
+         xxp = [ xxp ; [x,y] ];
+         if i>=100
+            again = 0;
+         elseif x>=1 || x<=0 || y>=1 || y<=0
+            again = 0;
+         elseif a*p1+b*p2+d*p3 <= minceil*usmax % Magnitude is not significative
+            again = 0;
+         end
+         i=i+1;
+      end
+      again = 1; i=0; x = nodes2(ind,1); y = nodes2(ind,2); % The other direction
+      xx2p = [x,y]; im1 = [-1;0];
+      while again
+         D1 = (x2-x).*(y3-y) - (x3-x).*(y2-y);
+         D2 = (x3-x).*(y1-y) - (x1-x).*(y3-y);
+         D3 = (x1-x).*(y2-y) - (x2-x).*(y1-y);
+         D0 = D1+D2+D3;
+         j1 = find(D0.*D1 >= 0);
+         j2 = find(D0.*D2 >= 0);
+         j3 = find(D0.*D3 >= 0);
+         j = intersect( intersect(j1,j2) , j3); j = j(1);
+
+         elt = elements2(j,:);
+         a = D1(j)/D0(j); b = D2(j)/D0(j); d = D3(j)/D0(j);
+         old = [2*elt(1)-1,2*elt(1)
+                2*elt(2)-1,2*elt(2)
+                2*elt(3)-1,2*elt(3)];
+         new = [2*i-1,2*i];
+         nno1 = normal(old(1,:),:); nno2 = normal(old(2,:),:); nno3 = normal(old(3,:),:);
+         p1 = usmoot(elt(1)); p2 = usmoot(elt(2)); p3 = usmoot(elt(3));
+
+         if [-nno1(2),nno1(1)]*im1 <= 0
+            nno1 = -nno1;
+         end
+         if [-nno2(2),nno2(1)]*im1 <= 0
+            nno2 = -nno2;
+         end
+         if [-nno3(2),nno3(1)]*im1 <= 0
+            nno3 = -nno3;
+         end
+
+         nn = (a*p1*nno1 + b*p2*nno2 + d*p3*nno3) / (a*p1+b*p2+d*p3); % Poderate with the amplitude
+
+         x  = x - step*nn(2); y = y + step*nn(1);
+         im1 = [-nn(2);nn(1)];
+         xx2p = [ xx2p ; [x,y] ];
+         if i>=100
+            again = 0;
+         elseif x>=1 || x<=0 || y>=1 || y<=0
+            again = 0;
+         elseif a*p1+b*p2+d*p3 <= minceil*usmax % Magnitude is not significative
+            again = 0;
+         end
+         i=i+1;
+      end
+      xxx = [xxx;xxp;xx2p];
+   end
+
+   try
+   figure; hold on;
+   set(gca, 'fontsize', 20);
+   %patch('Faces',elements2,'Vertices',nodes2,'FaceAlpha',0);
+   patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrres,'FaceColor','interp');
+   plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
+
+   if teskase >= 20
+      plot( [x7,x8], [y7,y8] ,'Color', 'magenta', 'LineWidth',5);
+   end
+   if teskase >= 30
+      plot( [x7,x6], [y7,y6] ,'Color', 'magenta', 'LineWidth',5);
+   end
+   plot( xx(:,1) , xx(:,2)  ,'Color', 'green', 'LineWidth',3);
+   plot( xx2(:,1), xx2(:,2) ,'Color', 'green', 'LineWidth',3);
+   if teskase >= 20 && teskase <= 29
+      plot( xxp(:,1) , xxp(:,2)  ,'Color', 'green', 'LineWidth',3);
+      plot( xx2p(:,1), xx2p(:,2) ,'Color', 'green', 'LineWidth',3);
+   end
+   set(colorbar, 'fontsize', 20);
+   axis equal;
    end
 end
 
@@ -1328,7 +1546,6 @@ for i=1:szD
 end
 for i=1:nboun2
    boname = boundary2(i,1);
-   
    if max(size(neumann0))>0
       frdof = neumann0(find(neumann0(:,1)==boname),2) ;  % Dof of the given f
    else
@@ -1370,35 +1587,6 @@ for i=1:size(b2nodesnoN)
    end
 end
 
-%% Graph for u
-%toplot = usolu1(b2nodesnoD); toplot2 = ur1(b2nodesnoD);
-%figure;
-%hold on;
-%plot(toplot(2:2:end),'Color','red');
-%plot(toplot2(2:2:end),'Color','blue');
-%legend('Uy identified', 'Uy reference');
-
-%try
-%figure;
-%hold on;
-%plot(ind1+ind2+ind3+ind4,'Color','blue');
-%plot(indp1+indp2+indp3+indp4,'Color','black');
-%plot(indd1+indd2+indd3+indd4,'Color','green');
-%plot(inds1+inds2+inds3+inds4,'Color','magenta');
-%legend('stop Picard','stop L-curve','stop DL-curve','stop SL-curve');
-%end
-
-%try
-%figure;
-%hold on;
-%plot(log10(phiP),'Color','blue');
-%plot(log10(phiL),'Color','black');
-%plot(log10(phiD),'Color','green');
-%plot(log10(phiS),'Color','magenta');
-%plot(log10(phi),'Color','red');
-%legend('residual Picard','residual L-curve','residual DL-curve','residual SL-curve','residual');
-%end
-
 % Graph for f
 if min(size(b2nodesnoN))>0
    toplot = fsolu4no(b2nodesnoN); toplot2 = fr4(b2nodesnoN);
@@ -1423,31 +1611,6 @@ if min(size(b2nodesnoD))>0
 end
 
 % Graph for [[u]]
-x6 = nodes(6,1); y6 = nodes(6,2); x5 = nodes(5,1); y5 = nodes(5,2);
-if teskase >= 20
-   x8 = nodes(8,1); y8 = nodes(8,2); x7 = nodes(7,1); y7 = nodes(7,2);
-end
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrsol1(1:3:3*nnodes2-2),'FaceColor','interp');
-%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%end
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrsol1(2:3:3*nnodes2-1),'FaceColor','interp');
-%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%end
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrsol1(3:3:3*nnodes2),'FaceColor','interp');
-%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%end
 
 try
 figure; hold on;
@@ -1480,67 +1643,10 @@ set(colorbar, 'fontsize', 20);
 %axis equal;
 end
 
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%%patch('Faces',elements2,'Vertices',nodes2,'FaceAlpha',0);
-%patch('Faces',elements2,'Vertices',[nodes2,ucrres],'FaceVertexCData',ucrres,'FaceColor','interp');
-%%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%%axis equal;
-%end
-
 try
 figure; hold on;
 set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceAlpha',0);
-patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrres,'FaceColor','interp');
-plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-if teskase >= 20
-   plot( [x7,x8], [y7,y8] ,'Color', 'magenta', 'LineWidth',5);
-end
-if teskase >= 30
-   plot( [x7,x6], [y7,y6] ,'Color', 'magenta', 'LineWidth',5);
-end
-plot( xx(:,1) , xx(:,2)  ,'Color', 'green', 'LineWidth',3);
-plot( xx2(:,1), xx2(:,2) ,'Color', 'green', 'LineWidth',3);
-if teskase >= 20 && teskase <= 29
-   plot( xxp(:,1) , xxp(:,2)  ,'Color', 'green', 'LineWidth',3);
-   plot( xx2p(:,1), xx2p(:,2) ,'Color', 'green', 'LineWidth',3);
-end
+patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',resss,'FaceColor','interp');
 set(colorbar, 'fontsize', 20);
-axis equal;
+legend('Residual on the normal determination')
 end
-
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',[nodes2,usmoot],'FaceVertexCData',meani,'FaceColor','interp');
-%set(colorbar, 'fontsize', 20);
-%%axis equal;
-%end
-
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrsol2(1:3:3*nnodes2-2),'FaceColor','interp');
-%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%end
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrsol2(2:3:3*nnodes2-1),'FaceColor','interp');
-%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%end
-%try
-%figure; hold on;
-%set(gca, 'fontsize', 20);
-%patch('Faces',elements2,'Vertices',nodes2,'FaceVertexCData',ucrsol2(3:3:3*nnodes2),'FaceColor','interp');
-%plot( [x5,x6], [y5,y6] ,'Color', 'magenta', 'LineWidth',5);
-%set(colorbar, 'fontsize', 20);
-%end
-
-%erroru = norm(usolu1(b2nodesnoD)-ur1(b2nodesnoD))   / norm(ur1(b2nodesnoD));
-%errorf = norm(fsolu1no(b2nodesnoN)-fr1(b2nodesnoN)) / norm(fr1(b2nodesnoN));
